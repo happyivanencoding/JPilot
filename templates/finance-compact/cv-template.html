@@ -1,0 +1,124 @@
+<!-- career-ops-template
+name: Finance Compact
+-->
+<!DOCTYPE html>
+<html lang="{{LANG}}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{NAME}} - CV</title>
+<style>
+  :root {
+    --font-size: 9.8px;
+    --page-margin: 0.55in;
+  }
+  @page { margin: var(--page-margin); }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-variant-ligatures: none; font-feature-settings: "liga" 0, "clig" 0; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: Arial, "Liberation Sans", "Helvetica Neue", sans-serif; font-size: var(--font-size); line-height: 1.28; color: #111; background: #fff; }
+  .page { width: 100%; max-width: {{PAGE_WIDTH}}; margin: 0 auto; }
+  .header { margin-bottom: 10px; }
+  .header h1 { font-size: 18px; line-height: 1.05; font-weight: 700; margin-bottom: 7px; letter-spacing: -0.01em; }
+  .contact-row { display: flex; flex-wrap: wrap; gap: 0; font-size: 8.9px; color: #222; }
+  .contact-row a { color: #12619a; text-decoration: underline; white-space: nowrap; }
+  .contact-row .separator { padding: 0 4px; color: #555; }
+  .section { margin-bottom: 9px; }
+  .section-title { font-size: 12.3px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; border-bottom: 1.2px solid #222; padding-bottom: 2px; margin-bottom: 4px; line-height: 1.12; }
+  .summary-text { font-size: 9.35px; line-height: 1.38; text-align: left; }
+  .summary-text strong { font-weight: 700; }
+  .competencies-grid { display: block; }
+  .competency-tag { display: inline; font-size: 9px; }
+  .competency-tag:not(:last-child)::after { content: " | "; }
+  .job { margin-bottom: 6px; break-inside: avoid; }
+  .job-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .job-role { font-size: 10px; font-weight: 700; }
+  .job-location { font-size: 9px; font-weight: 700; white-space: nowrap; }
+  .job-company { font-size: 9.4px; font-style: italic; }
+  .job-period { font-size: 9px; font-style: italic; white-space: nowrap; }
+  .job ul { padding-left: 13px; margin-top: 2px; }
+  .job li { font-size: 9.15px; line-height: 1.27; margin-bottom: 1.5px; }
+  .job li strong { font-weight: 700; }
+  .project { margin-bottom: 4px; break-inside: avoid; }
+  .project-title { font-size: 9.7px; font-weight: 700; }
+  .project-title a { color: inherit; text-decoration: none; }
+  .project-badge { font-size: 8px; font-weight: 400; margin-left: 5px; }
+  .project-desc { font-size: 9.05px; line-height: 1.27; }
+  .project-tech { font-size: 8.7px; font-style: italic; }
+  .edu-item { margin-bottom: 3px; break-inside: avoid; }
+  .edu-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .edu-title { font-size: 9.6px; font-weight: 700; }
+  .edu-org { font-size: 9px; font-weight: 700; white-space: nowrap; }
+  .edu-desc { font-size: 9.15px; font-style: italic; }
+  .edu-year { font-size: 8.9px; font-style: italic; white-space: nowrap; }
+  .skills-grid { display: block; }
+  .skill-item { font-size: 9px; line-height: 1.3; margin-bottom: 1px; }
+  .skill-category { font-weight: 700; }
+  .cert-table, .award-table { display: block; }
+  .cert-item, .award-item { display: flex; gap: 5px; font-size: 9px; line-height: 1.25; }
+  .cert-title, .award-title { font-weight: 700; }
+  .cert-year, .award-year { margin-left: auto; }
+  .interests-line { font-size: 9px; }
+</style>
+</head>
+<body>
+<div class="page">
+  {{PHOTO}}
+  <div class="header">
+    <h1>{{NAME}}</h1>
+    <div class="contact-row">
+      <a href="tel:{{PHONE}}">{{PHONE}}</a><span class="separator"> · </span>
+      <a href="mailto:{{EMAIL}}">{{EMAIL}}</a><span class="separator"> · </span>
+      <a href="{{LINKEDIN_URL}}">{{LINKEDIN_DISPLAY}}</a><span class="separator"> · </span>
+      <a href="{{PORTFOLIO_URL}}">{{PORTFOLIO_DISPLAY}}</a><span class="separator"> · </span>
+      <span>{{LOCATION}}</span>
+    </div>
+  </div>
+  <!-- PROFESSIONAL SUMMARY -->
+  <div class="section">
+    <div class="section-title">{{SECTION_SUMMARY}}</div>
+    <div class="summary-text">{{SUMMARY_TEXT}}</div>
+  </div>
+  <!-- CORE COMPETENCIES -->
+  <div class="section">
+    <div class="section-title">{{SECTION_COMPETENCIES}}</div>
+    <div class="competencies-grid">{{COMPETENCIES}}</div>
+  </div>
+  <!-- WORK EXPERIENCE -->
+  <div class="section">
+    <div class="section-title">{{SECTION_EXPERIENCE}}</div>
+    {{EXPERIENCE}}
+  </div>
+  <!-- PROJECTS -->
+  <div class="section">
+    <div class="section-title">{{SECTION_PROJECTS}}</div>
+    {{PROJECTS}}
+  </div>
+  <!-- EDUCATION -->
+  <div class="section">
+    <div class="section-title">{{SECTION_EDUCATION}}</div>
+    {{EDUCATION}}
+  </div>
+  <!-- CERTIFICATIONS -->
+  <div class="section">
+    <div class="section-title">{{SECTION_CERTIFICATIONS}}</div>
+    <div class="cert-table">{{CERTIFICATIONS}}</div>
+  </div>
+  <!-- AWARDS -->
+  <div class="section">
+    <div class="section-title">{{SECTION_AWARDS}}</div>
+    <div class="award-table">{{AWARDS}}</div>
+  </div>
+  <!-- INTERESTS -->
+  <div class="section">
+    <div class="section-title">{{SECTION_INTERESTS}}</div>
+    <div class="interests-line">{{INTERESTS}}</div>
+  </div>
+  <!-- SKILLS -->
+  <div class="section">
+    <div class="section-title">{{SECTION_SKILLS}}</div>
+    {{SKILLS}}
+  </div>
+  <!-- END -->
+</div>
+</body>
+</html>

@@ -1,0 +1,195 @@
+import type { Page, Frame } from "playwright-core";
+import { careerOpsRoot } from "@/lib/career-ops";
+import { openAgentDockCodex, runAgentDockCodex } from "@/lib/agentdock-acp";
+import { dropNewTabs } from "./diagnose";
+import type { DriveStep } from "./issue";
+
+export type { DriveStep };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AGENTIC DRIVE LOOP — the backend gets "as intelligent as Claude Code + Playwright":
+// observe (ref-tagged snapshot) → the LLM picks ONE action → WE execute it on OUR
+// headed session → observe again → adapt. We orchestrate the loop (CLI-agnostic in
+// principle; Claude-first via --resume) and execute every action ourselves, so:
+//   • NEVER-SUBMIT is by CONSTRUCTION — the action vocabulary has no "submit", and
+//     we refuse to click any submit/apply-final control. The human submits.
+//   • everything stays in OUR session (screenshots, handoff, the streamed UI).
+// HYBRID = drive only until a fillable application form is reached, then hand back
+// to deterministic fill+verify. FULL = keep driving (fill the fields too).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type DriveResult = { reached: boolean; turns: number; reason: string; steps: DriveStep[] };
+
+const SUBMIT_RX = /\b(submit|send application|finish( application)?|complete application|apply (and|&) submit|enviar|finalizar)\b/i;
+
+/** Ref-tagged snapshot of the interactive page (a browser_snapshot-style view the
+ *  LLM reasons over). Tags data-co-ref on each element so actions are unambiguous. */
+async function snapshot(frame: Frame): Promise<{ text: string; n: number }> {
+  return frame.evaluate(() => {
+    const clean = (s: string | null | undefined) => (s || "").replace(/\s+/g, " ").trim().slice(0, 80);
+    const vis = (el: Element) => {
+      const r = (el as HTMLElement).getBoundingClientRect();
+      return (el as HTMLElement).offsetParent !== null && r.width > 2 && r.height > 2;
+    };
+    const sel = 'a, button, input, textarea, select, [role="button"], [role="link"], [role="combobox"], [role="checkbox"], [role="radio"], [contenteditable="true"]';
+    const els = Array.from(document.querySelectorAll(sel)).filter(vis);
+    const lines: string[] = [];
+    let n = 0;
+    for (const el of els.slice(0, 70)) {
+      const tag = el.tagName.toLowerCase();
+      const itype = ((el as HTMLInputElement).type || "").toLowerCase();
+      if (tag === "input" && ["hidden", "submit", "button", "image", "reset"].includes(itype)) {
+        // surface submit buttons in the snapshot as read-only context (not actionable)
+      }
+      const ref = `e${n}`;
+      el.setAttribute("data-co-ref", ref);
+      const role = el.getAttribute("role") || (tag === "a" ? "link" : tag);
+      const label = clean(el.getAttribute("aria-label") || (el as HTMLInputElement).placeholder || el.textContent || (el as HTMLInputElement).value || (el as HTMLInputElement).name);
+      const kind = tag === "input" ? itype || "text" : tag === "a" ? "link" : tag === "select" ? "select" : tag === "textarea" ? "textarea" : role;
+      lines.push(`[${ref}] ${kind} "${label}"`);
+      n++;
+    }
+    return { text: lines.join("\n"), n };
+  });
+}
+
+async function plannerTurn(prompt: string): Promise<string> {
+  let out = "";
+  try {
+    const { client } = await openAgentDockCodex();
+    await runAgentDockCodex({
+      client,
+      prompt,
+      cwd: careerOpsRoot(),
+      mode: "read-only",
+      model: "gpt-5.6-luna",
+      reasoning: "low",
+      timeoutMs: 90_000,
+      onText: (text) => { out += text; },
+    });
+  } catch {
+    return out;
+  }
+  return out;
+}
+
+type Action = { action: string; ref?: string; text?: string; value?: string; reason?: string };
+
+function parseAction(out: string): Action | null {
+  const m = out.match(/\{[\s\S]*?\}/);
+  if (!m) return null;
+  try {
+    return JSON.parse(m[0]);
+  } catch {
+    return null;
+  }
+}
+
+/** Drive the page agentically toward the application form (hybrid) or through it
+ *  (full). `isFormReady` lets the caller stop the loop the moment a fillable form
+ *  appears (hybrid hand-back). `emit` streams each step to the UI. */
+export async function driveSession(
+  page: Page,
+  goal: "reach" | "full",
+  isFormReady: () => Promise<boolean>,
+  emit: (s: DriveStep) => void,
+  budget = 10,
+  answers?: { label: string; value: string }[],
+): Promise<DriveResult> {
+  const steps: DriveStep[] = [];
+  const shot = async () => {
+    try {
+      return `data:image/jpeg;base64,${(await page.screenshot({ type: "jpeg", quality: 38 })).toString("base64")}`;
+    } catch {
+      return undefined;
+    }
+  };
+  const answersBlock = (answers ?? []).filter((a) => a.value?.trim()).map((a) => `- "${a.label}": ${a.value.replace(/\s+/g, " ").slice(0, 300)}`).join("\n");
+  const goalText =
+    goal === "reach"
+      ? `Your goal: navigate to the actual fillable JOB APPLICATION form (click 'Apply', pass any interstitial/pre-screen, reach the page with the Name/Email/Resume fields). Do NOT fill anything yet. Reply {"action":"reached_form"} once the form with those fields is visible.`
+      : `Your goal: FILL this job application with the candidate's answers below, matching each answer to its field by label, across all pages (click 'Next'/'Continue' between pages). Skip any field already correctly filled, and skip file-uploads (handled separately). NEVER submit — when everything is filled and you're on the final page, reply {"action":"done"}.
+ANSWERS (match by the field's label):
+${answersBlock || "(no answers provided — just reach/observe)"}`;
+  let lastUrl = page.url();
+
+  const stopVerb = goal === "reach" ? '{"action":"reached_form"}            STOP — the fillable application form is now visible' : '{"action":"done"}                    STOP — every answer is filled (you NEVER submit; the human does)';
+  for (let turn = 1; turn <= budget; turn++) {
+    if (goal === "reach" && (await isFormReady().catch(() => false))) return { reached: true, turns: turn - 1, reason: "form-reached", steps };
+    await dropNewTabs(page); // any "Apply" link/popup navigates in OUR tab, not a new one
+    const frame = page.mainFrame();
+    const snap = await snapshot(frame).catch(() => ({ text: "", n: 0 }));
+    const prompt = `You are an agent driving a real web browser for a job seeker (we execute your actions; the human submits at the end). ${goalText}
+You NEVER submit a form — there is no submit action; the human does that.
+Reply with EXACTLY ONE action as a JSON object, nothing else:
+  {"action":"click","ref":"e3"}            click an element
+  {"action":"type","ref":"e4","text":"…"}  type into a field
+  {"action":"select","ref":"e9","value":"…"} pick an option
+  {"action":"scroll"}                        scroll down to reveal more
+  ${stopVerb}
+  {"action":"stuck","reason":"…"}            you can't proceed (login/captcha/dead-end)
+
+Page: "${await page.title().catch(() => "")}" (${page.url()})
+Elements:
+${snap.text}`;
+
+    const out = await plannerTurn(prompt);
+    const act = parseAction(out);
+    if (!act) {
+      const s: DriveStep = { turn, action: "parse-error", detail: out.slice(0, 80), thumb: await shot() };
+      steps.push(s);
+      emit(s);
+      continue;
+    }
+
+    if (act.action === "reached_form") return { reached: true, turns: turn, reason: "agent-reached", steps };
+    if (act.action === "done") return { reached: true, turns: turn, reason: "agent-done", steps };
+    if (act.action === "stuck") {
+      const s: DriveStep = { turn, action: "stuck", detail: act.reason || "", thumb: await shot() };
+      steps.push(s);
+      emit(s);
+      return { reached: false, turns: turn, reason: act.reason || "stuck", steps };
+    }
+
+    // execute the action on OUR session — NEVER submit.
+    let detail = "";
+    let note = "";
+    try {
+      const loc = act.ref ? frame.locator(`[data-co-ref="${act.ref}"]`).first() : null;
+      if (act.action === "click" && loc) {
+        const txt = (await loc.innerText().catch(() => "")) || (await loc.getAttribute("value").catch(() => "")) || "";
+        if (SUBMIT_RX.test(txt)) {
+          note = "refused to click a submit control (the human submits)";
+          detail = `blocked submit "${txt.slice(0, 40)}"`;
+        } else {
+          detail = `click "${txt.slice(0, 40)}"`;
+          await loc.scrollIntoViewIfNeeded().catch(() => {});
+          await Promise.all([page.waitForLoadState("domcontentloaded", { timeout: 8000 }).catch(() => {}), loc.click({ timeout: 6000 })]);
+        }
+      } else if (act.action === "type" && loc) {
+        detail = `type into ${act.ref}`;
+        await loc.fill(act.text || "").catch(async () => {
+          await loc.click();
+          await page.keyboard.type(act.text || "");
+        });
+      } else if (act.action === "select" && loc) {
+        detail = `select "${act.value}"`;
+        await loc.selectOption({ label: act.value || "" }).catch(() => loc.selectOption(act.value || ""));
+      } else if (act.action === "scroll") {
+        detail = "scroll";
+        await page.evaluate(() => window.scrollBy(0, 700)).catch(() => {});
+      } else {
+        detail = `unknown action ${act.action}`;
+      }
+    } catch (e) {
+      detail = `${act.action} failed: ${e instanceof Error ? e.message.slice(0, 50) : "err"}`;
+    }
+    await page.waitForTimeout(700);
+    const s: DriveStep = { turn, action: act.action, detail, thumb: await shot(), note: note || undefined };
+    steps.push(s);
+    emit(s);
+    lastUrl = page.url();
+    void lastUrl;
+  }
+  return { reached: await isFormReady().catch(() => false), turns: budget, reason: "budget-exhausted", steps };
+}
