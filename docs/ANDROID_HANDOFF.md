@@ -1,0 +1,171 @@
+# JobPilot Android — implementation handoff
+
+Updated: 2026-09-08 (Europe/Paris). Current Android source, APK and actual USB installation: **0.3.2 / versionCode 6**. Current public backend build: **0.3.2**. Read `ANDROID_LANGUAGE_SEPARATION.md` first for the independent UI/material language contracts and the current native acceptance boundary. Earlier 0.3.1 search/runtime evidence below remains historical, not invalidated.
+
+## Web counterpart — 0.4.0, 2026-09-08
+
+The Web root now serves the JobPilot phone-first product, following this Android implementation, with a 384×832 desktop portrait frame and the same five core destinations. The old AppShell/sidebar/pages are retired; historical Web routes redirect into the new product. Do not reintroduce the original upstream workbench as an advanced or Classic option. Existing Android browser links therefore open the new Web experience too.
+
+See `WEB_ANDROID_PARITY.md` for implementation and exact acceptance: 21 isolated action groups each in Edge/WebKit, and 10 real GET-only groups each in Chrome, normal-window Edge and WebKit. Shared saved data and real PDF rendering were verified. No Android source, APK or physical USB installation was changed by this Web release; WebKit tests are not Mac/iPhone device acceptance. The backend mobile contract stays 0.3.2. Existing language/AI latency limitations below remain applicable.
+
+## Current language acceptance boundary
+
+0.3.2 is installed and the public-phone document/locale safety test passes: Chinese UI, Synthetic Finance Profile French one-page PDF, Synthetic Marketing Profile English one-page PDF, zero new business tasks/score/CV-version changes, and cached Chinese/French/Chinese switching. Synthetic Finance Profile's analysis is visibly Chinese. **Do not report full translation acceptance:** Synthetic Marketing Profile still had 13 pending explanation segments at the successful safety snapshot, and some historical report translations remain failed/unverified because ACP cold-start/turn latency is long. Resume the existing profile-scoped localization operations rather than rerunning business AI. See `ANDROID_LANGUAGE_SEPARATION.md` and the new 0.3.2 section of `MOBILE_ACCEPTANCE.md`.
+
+## Formal evaluation runtime — transport-only ACP
+
+The public backend now treats AgentDock/ACP strictly as a model transport. Formal evaluation uses the current `FLOW_DEFAULTS.evaluate` choice (**gpt-5.6-luna / low** in current code), with no model terminal/filesystem/web/browser/plugins/skills/sub-agent access. The backend embeds frozen Candidate evidence and the available JD, validates the model JSON, then owns report numbering, Markdown/Machine Summary generation, tracker TSV and merge. This is server-side; Android 0.3.2/code6 does not need reinstalling.
+
+The same fictional compact evaluation prompt through transport-only ACP took 23.537/22.624/22.508s (22.624s median), ~16.38k input/run and ~$0.00440/run, with zero tool events and 2.5/3.0/2.5 `conditional` decisions. A complete isolated formal-evaluation E2E took 22.298s, 16,652 input + 1,017 output and ~$0.00455, then persisted and merged a real synthetic report. Direct Luna remains faster (~10s on the same compact prompt), so ACP still carries Codex base-context overhead; that is now the remaining transport tax rather than repo/tool work.
+
+The older Synthetic Marketing Profile Sol/medium product reports at 556.615s/~1.37M session tokens and 755.455s remain historical evidence of the former coding-agent architecture, not the current runtime. The new report deliberately marks research-only company/legitimacy/culture axes `not_evaluated` when the backend has not supplied them. Do not re-enable agent web/terminal access to enrich them; add deterministic backend evidence instead. Full measurements and the controlled same-prompt quality comparison are in `AI_BENCHMARK_2026-09-08.md`.
+
+## Current 0.3.1 search patch
+
+The search product now uses a contract-first soft-ranking model. An explicitly incompatible contract is removed; an unknown contract is retained and labelled for confirmation. Role family, seniority/experience, French level and geography are soft signals, with `strong`, `adjacent` and last-resort `closest` tiers. Do not reintroduce the old behavior where one seniority/location/language check empties Discovery.
+
+Geography is intentionally flexible: Paris/Île-de-France first, then France, then other European countries / European remote, with outside-Europe only lower fallback. JSearch still makes at most three normal search requests; for flexible-European profiles the third existing probe is Europe-wide rather than country-locked. The Android card can surface `closest`, seniority, role-family, same-country, other-Europe, outside-Europe and unknown-contract labels.
+
+The root Synthetic Marketing Profile failure is verified: the old phone task fetched 33 raw rows but removed 24 unknown-contract rows and returned zero. Current `search-v5-soft-ranking` native instrumentation on the authenticated public host created a new task and returned **6 CDI roles (3 strong, 3 adjacent, no AI fallback)** in about 6.9 s. The earlier `Chef de rayon produits` false strong-match was repaired before final acceptance. Latest targeted touched regressions: **44 pass / 0 fail**. Evidence lives in `.career-ops-web/mobile-qa/search-soft-ranking-20260908/` and profile-scoped task history.
+
+## Current 0.3 continuation
+
+Read `ANDROID_0_3_RELEASE.md` and `CV_ATTENTION_MODEL.md` before the historical notes below. The previous phone-disconnection gap is closed for the installed 0.3 app: exact home filters, four-profile isolation, Synthetic Finance Profile actual PDF draft reject/accept, v1→v2 history, automatic notice dismissal, native-started longitudinal analysis, saved view-only result reuse and the newly completed formal report after process reopening all have real device evidence. The final keyboard/light-dark check also passes; physical ambient-brightness/GPU measurements and all historic task types do not.
+
+A new global CV plan allocates the whole page instead of expanding every paragraph. Native chrome uses restrained petroleum/teal tonal translucency (not real-time blur), while CV/job text stays opaque. Search uses one shared ranking stage across provider and AI results. The second synthetic Marketing persona remains isolated. Its **0.3.0 baseline** had only one French-heavy adjacent result; that search conclusion is superseded by the 0.3.1 section above. Store release remains unclaimed.
+
+Post-0.3 provider update: France Travail and JSearch credentials are now configured only in the local Web runtime (never in the APK). A credentialed synthetic Paris Quant benchmark returned 84 raw rows, 82 deduplicated rows and 7 strong results in 3.66 seconds without Agent fallback; France Travail returned 54 rows in 573 ms and JSearch 30 in 3.60 s. All final rows had dates, but none was within 7 days, which the native metrics panel reports rather than concealing. See `JOB_SEARCH_ARCHITECTURE.md` for the quality and cost interpretation.
+
+New official report #8 and the CV v2 longitudinal analysis are successful. Formal generation still took 12m35s and substantial tokens; startup latency remains variable. Earlier setup failures are retained. Full real measurements, recovery without extra AI, final QA paths and remaining limits are in the release document. The old benchmark matrix was not rerun.
+
+
+## Historical 0.2 handoff — superseded by 0.3 where different
+
+The authoritative release delta and verification boundaries are in `ANDROID_0_2_RELEASE.md`, `MOBILE_ACCEPTANCE.md` and `AI_BENCHMARK_2026-09-08.md`, subordinate to the root `DEEP_CONTEXT_HANDOFF_FINAL.md`.
+
+The native app no longer exposes the embedded Web workbench. It uses a professional blue/slate palette, compact native lists and working home filters. The existing shared canonical data remains in place. Native task launches stay in the background; the task center links to saved results and exposes real timing/tokens with explicitly estimated API-equivalent dollars. No raw transcript is shown there.
+
+Backend entry points use a cross-process, profile-scoped persistent task/result gate. CV analysis is versioned, reused when unchanged and split into expression edits versus real actions. A deterministic suggestion application creates a separate PDF-rendered draft with current/proposed views; acceptance changes the canonical CV with history, while rejection does not. Structured contract types participate in discovery.
+
+Do not report final native UI tests as passing: `testDebugUnitTest` previously had NO-SOURCE. Build/install evidence and API acceptance records are in the ignored `.career-ops-web/mobile-qa/20260908-*` files. 0.2.1 builds, but its post-disconnection changes have not been exercised on the phone. Fresh formal-evaluation generation and live updated-CV continuity benchmarks did not reach verified success. Resolve those from existing artifacts rather than repeating all previous model calls.
+
+### Search architecture added after the 0.2 release work
+
+Job discovery now goes through the JobPilot-owned `web/src/lib/job-search/` boundary; see `JOB_SEARCH_ARCHITECTURE.md`. Android does not need to know whether a result came from France Travail, JSearch, a temporary inherited ATS adapter or the compact Agent fallback.
+
+The Opportunities screen now displays per-search measurements: result count, strong vs adjacent relevance, wall time, date/freshness coverage, provider status and estimated API cost when non-zero. Each row can show source, posting age, deterministic search relevance and an `adjacent opportunity` label. This is search relevance only; no candidate fit score is assigned until the persisted formal evaluation.
+
+The product intentionally ranks rather than exact-gates niche searches. Strong Quant/Systematic/Investment matches come first; when the market is sparse a small number of nearby Portfolio / Risk / Treasury / Financial Engineering roles may remain as explicitly adjacent candidates. Commercial/general-tech noise is still filtered. Dated structured results older than 120 days are removed from ordinary discovery by default.
+
+France Travail and JSearch adapters are implemented but were not live-tested because their credentials were absent. The inherited tracked-ATS adapter is disabled by default because its current Paris-Quant cold benchmark is still slow and its company universe is weak for this target. With no production structured provider available, the compact Luna/low fallback still runs; its synthetic benchmark reduced input tokens from 298,316 to 163,653 and wall time from 54.6 s to 45.1 s while returning three clear Quant/Fixed-Income roles. This is a fallback, not the desired production latency.
+
+The latest search UI changes were compiled into 0.2.1 after the USB device had disconnected. They are **not** device-tested yet. Current backend regression after this search change: 449 pass / 0 fail / 1 skipped; typecheck passed.
+
+## Historical 0.1 implementation notes
+
+The following section describes the original delivery. Its Web-workbench, visual and repeated-analysis behavior is superseded by the 0.2 section above; retain the infrastructure details where still applicable.
+
+## Product and delivery boundary
+
+The five primary journeys are native Jetpack Compose: overview, discovery, application tracking, preparation, and profile/CV. Advanced existing Web tools remain available through an authenticated in-app workbench. This is not a claim that every old Web screen has been rewritten in Compose.
+
+The visual direction is indigo and apricot, rounded translucent cards, a floating bottom navigation, restrained transitions, pull-to-refresh, and keyboard-aware forms. French is the initial interface language; Chinese and English UI choices and light/dark/system appearances are implemented. Existing reports and some server progress labels retain their source language.
+
+The current deployment serves one owner's private workspace with multiple candidate profiles. It is **not a hosted multi-tenant product**. Do not add another owner account to the gateway until all legacy report/file endpoints have had an authorization review. Profile switching separates candidate data inside the owner's workspace.
+
+## Data authority
+
+No mobile candidate database was added. Candidate CV/config/notes, inbox, tracker, reports and rich candidature files remain the existing profile-scoped authorities. The classic pipeline already projects rich-cockpit status and CV readiness; do not create a second competing status store.
+
+Only operational mobile task records are new, under `.career-ops-web/profiles/<profileId>/mobile/tasks/`. These contain private inputs/results and must never enter Git. The app keeps its session in Android Keystore-backed encryption and its selected profile/appearance in app preferences. It does not persist a second full CV or application database.
+
+A phone upload goes through Android's document picker, multipart upload, local extraction, editable preview, and explicit confirmation. Only confirmation calls the existing CV-save API, including its backup behavior. The original temporary upload is removed after extraction. PDF must contain selectable text; encrypted/scanned-only PDFs are rejected with an actionable message. PDF, DOCX, TXT and Markdown are supported up to 12 MiB, with extracted-text and document-size limits. The import does not invent, enrich or rewrite candidate facts. Confirming a replacement makes it the new reference; removed facts will no longer inform subsequent analysis.
+
+Discovery proposes unconfirmed URLs and never assigns a fit score. Formal evaluation uses the existing detached evaluator and requires persisted report/tracker evidence. Existing scores are snapshots: importing a new CV does not silently rewrite old scores. Tailored CV generation uses the current candidate's documented evidence, the existing renderer, PDF and ATS checks.
+
+Application notes, dates, status history, replies and preparation checklists are saved into the same rich candidature record used by the Web. Replies are entered manually, not automatically read from email. Automatic acknowledgments are excluded from the human response rate. An archived record retains its recorded sent/reply history. Follow-up dates use the Europe/Paris calendar.
+
+## Runtime and networking
+
+The network path is:
+
+`Android / browser → Cloudflare → JobPilot gateway (127.0.0.1:3002) → existing Web (127.0.0.1:3000) → local files / AgentDock ACP`
+
+The configured hostname is `jobs.thegreatnovel.com`. The existing tunnel and unrelated applications are preserved. Only the gateway is published, never the unauthenticated Web origin or AgentDock itself.
+
+For an in-person demo on the owner's trusted LAN, `web/scripts/start-lan-demo.ps1` starts a separate on-demand HTTP reverse proxy (default `LAN_IP:3003`) to `127.0.0.1:3000`. It keeps the Web server loopback-only and leaves Cloudflare Access on the public hostname unchanged. The proxy translates only same-origin LAN request headers back to the loopback origin so the existing Web API origin/Host guard still rejects cross-site requests; a matching Windows Firewall rule is restricted to that local address/port and `LocalSubnet`. The LAN endpoint intentionally skips Cloudflare/application login, so use it only on a trusted local network and stop it with `web/scripts/stop-lan-demo.ps1` when the demo is over. It runs as the on-demand `JobPilot LAN Demo` Scheduled Task with no automatic trigger; runtime state is stored only in ignored `.career-ops-web/lan-demo.json`.
+
+Cloudflare Access protects `/api/mobile-auth/bridge` with a JobPilot-specific audience and an allow policy. Other paths are protected by the gateway's own application session; do not bypass that session merely because a request reached Cloudflare. The gateway verifies the bridge JWT's signature, issuer, audience, expiry and allowed email. By default it is an owner-only workspace. An explicit `workspaceMode: "shared"` may add collaborators only when every account has the identical profile grants; it is not a multi-tenant authorization model. Native login uses an expiring request/verifier pair and explicit browser approval. Application sessions expire after 30 days and can be revoked by logout. The browser workbench uses an HttpOnly same-origin cookie.
+
+Private configuration: `.career-ops-web/mobile-access.json`. Private session store: `.career-ops-web/mobile-sessions.json`. Provisioning credentials come from the existing current-user environment and are never written to public files or the APK.
+
+`/api/mobile-auth/dev` is an optional USB debugging login. It requires `JOBPILOT_USB_LOGIN=1`, loopback Host and no Cloudflare/forwarded-origin markers. It is not a production login, and a public request must be rejected. Release builds do not expose the USB login button.
+
+The PC, Web engine, gateway, Cloudflare tunnel and AgentDock must remain available. This is remote access to the user's PC, not independent cloud hosting or on-phone AI execution. Closing a phone screen does not cancel a running task. Results are persisted server-side. Restarting the Web process can interrupt mobile analysis/search; such tasks are explicitly marked interrupted, not completed. Detached formal evaluation may still finish and should be reconciled before retrying.
+
+## Build and start
+
+Use JDK 21 to run the Gradle wrapper. The current Android Studio bundled JDK 25 is not compatible with this project's Gradle/Groovy runtime. Android compile/target SDK is 36, minimum SDK 26; Kotlin is 2.2.20, AGP 8.13.0 and Gradle 8.14.3. `android/local.properties` must point to the local Android SDK and stays ignored.
+
+```powershell
+# From the project root
+cd web
+npm run typecheck
+npm test
+npm run build
+cd ..\android
+$env:JAVA_HOME = '<path-to-jdk-21>'
+.\gradlew.bat :app:assembleDebug --console=plain --no-daemon
+```
+
+APK: `android/app/build/outputs/apk/debug/app-debug.apk`. This is a development/debug APK, not a signed Play Store release.
+
+```powershell
+# Initialize owner access from the existing default profile; preserves existing config.
+node web\scripts\init-mobile-access.mjs
+
+# Start or register persistent owner-logon services.
+.\web\scripts\start-mobile.ps1
+# After a Web build:
+.\web\scripts\start-mobile.ps1 -RestartWeb
+# Explicit local USB debugging only:
+.\web\scripts\start-mobile.ps1 -RestartGateway -UsbDebug
+```
+
+The startup script creates `JobPilot web` and `JobPilot gateway` Windows Scheduled Tasks for the logged-in owner, with no execution time limit and bounded restart-on-failure. Services are independent of the command session that requested them. Logs live in `.career-ops-web/mobile-logs/`.
+
+**Observed engineering issue:** launching servers directly as children of a bounded AgentDock command allowed the command job cleanup to terminate them. Windows PowerShell 5.1 also promoted native stderr to a terminating error when using `*>>` under `$ErrorActionPreference='Stop'`. The scheduled runner now uses `Start-Process -Wait` with separate stdout/stderr file redirection. Do not revert to the failed startup patterns.
+
+Cloudflare provisioning is idempotent and separate from ordinary startup:
+
+```powershell
+.\web\scripts\configure-mobile-cloudflare.ps1          # inspect only
+.\web\scripts\configure-mobile-cloudflare.ps1 -Apply   # explicitly provision
+```
+
+Do not rerun provisioning merely to restart the application. The script backs up the old tunnel config privately, preserves unrelated rules and checks the resulting DNS, policy and route.
+
+## Source map
+
+- `android/app/src/main/java/com/thegreatnovel/jobpilot/`: native UI, API client, state, session vault and secured workbench.
+- `web/src/app/api/mobile/`: mobile snapshot/actions/upload API.
+- `web/src/lib/mobile-engine.ts`: profile-scoped tasks and orchestration.
+- `web/src/lib/mobile-domain.mjs`: pure status/dashboard/offer/update rules.
+- `web/src/lib/job-search/`: JobPilot-owned structured discovery providers, ranking, provenance, freshness metrics and compact fallback prompt.
+- `web/src/lib/explore-search.ts`: historical Web/ACP discovery prompt; mobile search no longer depends on it as the primary path.
+- `web/src/lib/agentdock-acp.ts`: existing ACP transport, now with one process-global prompt queue.
+- `web/src/lib/agentdock-result.mjs`: preserve MCP tool-level failures instead of turning them into empty successful objects.
+- `web/scripts/extract-mobile-cv.py`: local CV text extraction, no OCR/network.
+- `web/scripts/mobile-gateway.mjs`: app sessions, Cloudflare identity verification, profile selection and proxy.
+- `web/scripts/*mobile*.ps1`: provisioning and persistent runtime startup.
+- `web/tests/lib/mobile-domain.test.mjs`, `agentdock-result.test.mjs`, `web/tests/mobile-gateway.test.mjs`: regression coverage.
+
+## Concurrency and truthfulness fixes
+
+CV generation now rereads the candidature store after the AI turn and merges only the generated CV and related readiness flag. It must not overwrite status, replies or training edits made during generation. Newly saved discovery cards are hydrated from a later official report without overwriting manually curated analysis on unrelated cards.
+
+Next can bundle the ACP helper separately for different routes. Its concurrency queue therefore lives on `globalThis`, with direct transfer of a reserved slot to the next waiter. MCP tool errors are parsed explicitly: quota/startup failures must not become an empty result followed by a misleading `no run id` or a successful zero-offer search. The mobile search calls the same shared prompt/ACP adapter directly, preserving its actual task result and error.
+
+## Acceptance and next work
+
+See `MOBILE_ACCEPTANCE.md` for concrete checks and remaining limits. Private evidence is in `.career-ops-web/mobile-qa/`; do not publish it. Keep the root `DEEP_CONTEXT_HANDOFF_FINAL.md` updated with live facts. Do not reset or clean a dirty worktree, and do not commit/push unrelated changes or private files.

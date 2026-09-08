@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import fs from "node:fs";
-import { atomicWriteWithBackup } from "@/lib/core/safe-write";
+import { saveCanonicalCv } from "@/lib/mobile-history";
 import { profileFile } from "@/lib/profile-context";
 import { activeProfileId } from "@/lib/profile-request";
 
 const MAX_CV_BYTES = 200_000;
 
-export async function GET() {
-  const profileId = await activeProfileId();
+export async function GET(req: Request) {
+  const profileId = await activeProfileId(new URL(req.url).searchParams.get("profileId"));
   const file = profileFile(profileId, "cv");
   try {
     return NextResponse.json({ content: fs.readFileSync(file, "utf8"), exists: true });
@@ -17,9 +17,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const profileId = await activeProfileId();
+  const profileId = await activeProfileId(new URL(req.url).searchParams.get("profileId"));
   const file = profileFile(profileId, "cv");
-  let body: { content?: string };
+  let body: { content?: string; expectedVersionId?: string };
   try {
     body = await req.json();
   } catch {
@@ -34,9 +34,9 @@ export async function POST(req: Request) {
   // DATA_CONTRACT: cv.md is user-layer and gitignored (no git recovery). Never
   // blind-overwrite — snapshot the prior CV to a .bak first, write atomically.
   try {
-    const bak = atomicWriteWithBackup(file, body.content);
-    return NextResponse.json({ ok: true, backedUp: !!bak });
-  } catch {
-    return NextResponse.json({ error: "write failed" }, { status: 500 });
+    const result = await saveCanonicalCv(profileId, body.content, body.expectedVersionId);
+    return NextResponse.json({ ...result, backedUp: result.changed });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "write failed" }, { status: 409 });
   }
 }

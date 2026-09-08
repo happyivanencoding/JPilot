@@ -1,0 +1,107 @@
+"use client";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Download, Minus, Plus, Share2 } from "lucide-react";
+import type { PDFDocumentProxy, PDFDocumentLoadingTask, RenderTask } from "pdfjs-dist";
+import { texts, usePilot, type Json } from "./pilot-context";
+import { pendingDisplay } from "./model.mjs";
+import { Button, Hint, IconButton, Loading, Localization, Sheet, Tabs } from "./ui";
+
+function PdfPage({ pdf, index, width }: { pdf: PDFDocumentProxy; index: number; width: number }) {
+  const { tr } = usePilot();
+  const box = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null);
+  const [visible, setVisible] = useState(index === 1), [ratio, setRatio] = useState(210 / 297), [rendered, setRendered] = useState(false), [failed, setFailed] = useState(false);
+  useEffect(() => {
+    const observer = new IntersectionObserver(entries => setVisible(entries[0].isIntersecting), { rootMargin: "300px" });
+    if (box.current) observer.observe(box.current);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    if (!visible || !canvas.current) return;
+    let disposed = false, render: RenderTask | undefined;
+    const target = canvas.current;
+    setRendered(false); setFailed(false);
+    void (async () => {
+      try {
+        const page = await pdf.getPage(index);
+        if (disposed) return;
+        const dimensions = page.getViewport({ scale: 1 });
+        setRatio(dimensions.width / dimensions.height);
+        const pixelWidth = Math.min(2000, width * Math.min(devicePixelRatio || 1, 2));
+        const viewport = page.getViewport({ scale: pixelWidth / dimensions.width });
+        target.width = Math.ceil(viewport.width); target.height = Math.ceil(viewport.height);
+        render = page.render({ canvas: target, viewport });
+        await render.promise;
+        if (!disposed) setRendered(true);
+      } catch (e) { if (!disposed && (e as Error)?.name !== "RenderingCancelledException") setFailed(true); }
+    })();
+    return () => { disposed = true; render?.cancel(); target.width = 0; target.height = 0; };
+  }, [pdf, index, width, visible]);
+  return <div ref={box} className="jp-pdf-page" style={{ width, aspectRatio: String(ratio), position: "relative" }} data-rendered={rendered} data-page={index}>
+    <canvas ref={canvas} aria-label={tr(`PDF 第 ${index} 页`, `PDF · page ${index}`, `PDF · page ${index}`)} />
+    {visible && !rendered && <div style={{ position: "absolute", inset: 0, color: "#1c3037" }}><Loading>{failed ? tr("此页无法显示，请下载原始 PDF 查看。", "Cette page ne peut pas être affichée. Téléchargez le PDF original.", "Unable to display this page. Download the original PDF.") : tr("正在读取实际 PDF", "Chargement du PDF réel", "Loading the actual PDF")}</Loading></div>}
+  </div>;
+}
+export function PdfPreview() {
+  const { data, route, tr, product, request, documentBytes, fail, act, close, busy } = usePilot();
+  const job = data.jobs?.find((j: Json) => j.id === route.job);
+  const draft = route.draft || "";
+  const [meta, setMeta] = useState<Json | null>(null), [pdf, setPdf] = useState<PDFDocumentProxy | null>(null), [bytes, setBytes] = useState<Uint8Array | null>(null);
+  const [tab, setTab] = useState(draft ? 1 : 0), [zoom, setZoom] = useState(1), [width, setWidth] = useState(340), [failed, setFailed] = useState(false);
+  const scroll = useRef<HTMLDivElement>(null), zoomRef = useRef(zoom); zoomRef.current = zoom;
+  const basePath = draft ? `/api/mobile/cv?draftId=${encodeURIComponent(draft)}` : "/api/mobile/cv";
+  const loadMeta = useCallback(async (retry = false) => {
+    if (route.job) { setMeta({ title: job?.company, pages: job?.cv?.pages }); return; }
+    try { setMeta(await request(`${basePath}${basePath.includes("?") ? "&" : "?"}format=meta${retry ? "&retryLocalization=1" : ""}`)); }
+    catch (e) { if ((e as Error)?.name !== "AbortError") { setFailed(true); fail(e); } }
+  }, [request, basePath, route.job, job?.company, job?.cv?.pages, fail]);
+  useEffect(() => { setFailed(false); void loadMeta(); }, [loadMeta]);
+  useEffect(() => { if (!pendingDisplay(meta)) return; const timer = setTimeout(() => void loadMeta(), 2500); return () => clearTimeout(timer); }, [meta, loadMeta]);
+  const source = route.job ? `/api/candidatures/cv?id=${encodeURIComponent(route.job)}` : !meta ? "" : draft && tab === 0 ? `/api/mobile/cv?versionId=${encodeURIComponent(meta.draft?.baseVersionId || "")}` : basePath;
+  useEffect(() => {
+    if (!source) return;
+    let disposed = false, loadingTask: PDFDocumentLoadingTask | undefined;
+    setPdf(null); setBytes(null); setFailed(false);
+    void (async () => {
+      try {
+        const [buffer, pdfjs] = await Promise.all([documentBytes(source), import("pdfjs-dist/legacy/build/pdf.mjs")]);
+        if (disposed) return;
+        if (String.fromCharCode(...buffer.slice(0, 5)) !== "%PDF-") throw new Error(tr("服务器未返回 PDF。", "Le serveur n’a pas renvoyé de PDF.", "The server did not return a PDF."));
+        pdfjs.GlobalWorkerOptions.workerSrc = "/jobpilot-pdf/pdf.worker.min.mjs";
+        // Transfer a copy into the worker. Keep the exact source bytes for download/share.
+        loadingTask = pdfjs.getDocument({ data: buffer.slice(), cMapUrl: "/jobpilot-pdf/cmaps/", cMapPacked: true, standardFontDataUrl: "/jobpilot-pdf/standard_fonts/", wasmUrl: "/jobpilot-pdf/wasm/" });
+        const document = await loadingTask.promise;
+        if (disposed) { await loadingTask.destroy(); return; }
+        setBytes(buffer); setPdf(document);
+      } catch (e) { if (!disposed && (e as Error)?.name !== "AbortError") { setFailed(true); fail(e); } }
+    })();
+    return () => { disposed = true; void loadingTask?.destroy(); };
+  }, [source, documentBytes, fail, tr]);
+  useEffect(() => {
+    const element = scroll.current; if (!element) return;
+    const resize = new ResizeObserver(() => setWidth(Math.max(200, element.clientWidth - 24)));
+    resize.observe(element);
+    let initial: { distance: number; scale: number } | null = null;
+    const distance = (e: TouchEvent) => Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    const start = (e: TouchEvent) => { if (e.touches.length === 2) initial = { distance: distance(e), scale: zoomRef.current }; };
+    const move = (e: TouchEvent) => { if (initial && e.touches.length === 2) { e.preventDefault(); setZoom(Math.min(3, Math.max(1, initial.scale * distance(e) / initial.distance))); } };
+    const end = () => { initial = null; };
+    element.addEventListener("touchstart", start, { passive: true }); element.addEventListener("touchmove", move, { passive: false }); element.addEventListener("touchend", end);
+    return () => { resize.disconnect(); element.removeEventListener("touchstart", start); element.removeEventListener("touchmove", move); element.removeEventListener("touchend", end); };
+  }, []);
+  const file = useMemo(() => bytes ? new File([bytes.slice().buffer], "JobPilot-CV.pdf", { type: "application/pdf" }) : null, [bytes]);
+  const download = () => { if (!file) return; const url = URL.createObjectURL(file); const a = document.createElement("a"); a.href = url; a.download = file.name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 30000); };
+  const canShare = Boolean(file && typeof navigator !== "undefined" && navigator.canShare?.({ files: [file] }));
+  const pending = meta?.draft?.status === "pending", allowed = !meta?.draft?.globalPlan || meta?.layout?.acceptable;
+  return <Sheet full title={draft ? tr("检查简历草稿", "Vérifier le brouillon", "Review draft") : tr("简历 PDF", "Votre CV · PDF", "Your CV · PDF")} testId="pdf-preview" footer={draft ? <>
+    {meta?.layout && <Hint>{tr(`${meta.pages} 页 · ${meta.layout.lines} 行 · ${meta.layout.bullets} 条描述 · ${meta.layout.fontPt} 磅`, `${meta.pages} page(s) · ${meta.layout.lines} lignes · ${meta.layout.bullets} puces · ${meta.layout.fontPt} pt`, `${meta.pages} page(s) · ${meta.layout.lines} lines · ${meta.layout.bullets} bullets · ${meta.layout.fontPt} pt`)}</Hint>}
+    {!allowed && <Hint>{texts(meta?.layout?.issues).join(" ")}</Hint>}<Hint>{tr("请检查真实经历、页数、换行和内容。", "Vérifiez les faits, les sauts de page et la lisibilité.", "Check facts, page breaks and readability.")}</Hint>
+    {pending ? <><Button data-testid="accept-draft" disabled={!allowed || busy || !pdf} onClick={async () => { if (await act({ action: "decideCvDraft", draftId: draft, decision: "accept" })) close(); }}>{tr("接受并保存", "Accepter et enregistrer", "Accept and save")}</Button><Button kind="outline" data-testid="reject-draft" onClick={async () => { if (await act({ action: "decideCvDraft", draftId: draft, decision: "reject" })) close(); }}>{tr("拒绝，保留原版", "Refuser · garder l’original", "Reject · keep original")}</Button></> : meta && <Hint>{tr("已处理的历史草稿", "Brouillon historique déjà traité", "Historical draft already reviewed")}</Hint>}
+  </> : meta?.layoutNote ? <Hint>{product(meta.layoutNote)}</Hint> : undefined}>
+    {draft && <Tabs labels={[tr("当前版本", "Version actuelle", "Current version"), tr("修改后的草稿", "Brouillon proposé", "Proposed draft")]} selected={tab} onChange={i => { setTab(i); setZoom(1); if (scroll.current) scroll.current.scrollTop = 0; }} prefix="cv-preview-tab" />}
+    <Localization value={meta?.localization} onRetry={() => void loadMeta(true)} />{texts(meta?.warnings).map((warning, i) => <div key={i} style={{ padding: "4px 16px", color: "var(--jp-error)", fontSize: 12 }}>{product(warning)}</div>)}
+    <div className="jp-pdf-controls"><IconButton label={tr("缩小", "Réduire", "Zoom out")} disabled={zoom <= 1} onClick={() => setZoom(Math.max(1, zoom - .25))}><Minus size={18} /></IconButton><span>{Math.round(zoom * 100)}% · {pdf?.numPages ?? "—"} {tr("页", "pages", "pages")}</span><IconButton label={tr("放大", "Agrandir", "Zoom in")} disabled={zoom >= 3} onClick={() => setZoom(Math.min(3, zoom + .25))}><Plus size={18} /></IconButton><IconButton label={tr("下载 PDF", "Télécharger le PDF", "Download PDF")} disabled={!file} onClick={download}><Download size={20} /></IconButton>{canShare && <IconButton label={tr("分享 PDF", "Partager le PDF", "Share PDF")} onClick={() => { if (file) void navigator.share({ files: [file] }).catch(e => { if (e.name !== "AbortError") fail(e); }); }}><Share2 size={20} /></IconButton>}</div>
+    <div className="jp-pdf-scroll" ref={scroll} style={{ touchAction: "pan-x pan-y" }}>
+      {!pdf ? <Loading>{failed ? tr("无法读取 PDF。请关闭后重试。", "Impossible de lire le PDF. Fermez puis réessayez.", "Unable to read the PDF. Close and try again.") : tr("正在读取实际 PDF", "Chargement du PDF réel", "Loading the actual PDF")}</Loading> : <div className="jp-pdf-pages" style={{ width: width * zoom }}>{Array.from({ length: pdf.numPages }, (_, i) => <PdfPage key={`${source}:${i}`} pdf={pdf} index={i + 1} width={width * zoom} />)}</div>}
+    </div>
+  </Sheet>;
+}

@@ -16,6 +16,8 @@ export type AcpWorkerEvent = {
   tokens?: number;
   costUsd?: number;
   error?: string;
+  metrics?: Record<string, any>;
+  execution?: {sessionId?:string;runId?:string;remoteSessionId?:string;workerPid?:number};
 };
 
 export function parseAcpWorkerEvent(line: string): AcpWorkerEvent | null {
@@ -69,7 +71,6 @@ export function startAgentDockWorker({
       try {
         const { client, agent } = await openAgentDockCodex();
         write({ status: `AgentDock ACP · ${agent.title} ${agent.version} · ${model}` });
-        let lastUsed = 0;
         const result = await runAgentDockCodex({
           client,
           prompt,
@@ -81,11 +82,10 @@ export function startAgentDockWorker({
           isCancelled: () => cancelled,
           onRun: (run) => {
             activeRun = run;
+            write({execution:{sessionId:run.sessionId,runId:run.runId,remoteSessionId:run.remoteSessionId}});
           },
           onText: (text) => write({ text }),
-          onUsage: (usage) => {
-            if (typeof usage.used === "number") lastUsed = usage.used;
-          },
+          onMetrics: (metrics) => write({metrics,...(typeof metrics.totalTokens === "number" ? {tokens:metrics.totalTokens} : {})}),
           onEvent: (event) => {
             const label = labelFromEvent(event);
             if (label) write(label);
@@ -94,7 +94,6 @@ export function startAgentDockWorker({
         if (!result.textEmitted) {
           throw new Error("AgentDock Codex ended without a final answer — the turn was interrupted or blocked by an interactive tool approval.");
         }
-        if (lastUsed > 0) write({ tokens: lastUsed });
         stdout.end();
         stderr.end();
         emitter.emit("close", 0, null);

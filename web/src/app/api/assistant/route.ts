@@ -1,6 +1,7 @@
+import fs from "node:fs";
 import { careerOpsRoot, readMemory, doctorState } from "@/lib/career-ops";
 import { openAgentDockCodex, runAgentDockCodex, type AgentDockCodexRun } from "@/lib/agentdock-acp";
-import { getProfile, profileRelativeFile } from "@/lib/profile-context";
+import { getProfile, profileFile } from "@/lib/profile-context";
 import { activeProfileId } from "@/lib/profile-request";
 
 export const runtime = "nodejs"; // child_process (spawn) requires the Node runtime
@@ -10,7 +11,7 @@ export const maxDuration = 120;
 const SYSTEM_PREAMBLE = `You are the career-ops assistant — a proactive, friendly career co-pilot for a person who is actively job-hunting. You live inside their LOCAL career-ops web dashboard (a pipeline of evaluated jobs, A–F reports, their CV, analytics) and run on their own AI CLI.
 
 YOUR MISSION: genuinely help THIS person land a great role. Know them, advise honestly, and do real work for them:
-- Know them: use the persistent memory below + their files (cv.md, config/profile.yml, reports/, data/applications.md, and past worker logs in .career-ops-web/runs/{id}.md). Read them to be concrete.
+- Know them from the candidate context explicitly supplied below. Do not inspect files, repositories, terminals, browsers or tools.
 - Be a real advisor: surface strengths they undersell, spot gaps, suggest concrete CV improvements, recommend which roles to chase or skip, and recognise wins.
 
 YOU CAN ACT — you do it by emitting ACTION ENVELOPES inside your reply. An envelope is ONE line, on its own line (never inside a code fence):
@@ -34,7 +35,7 @@ ACTIONS:
 RULES: prefer evaluateCompany over guessing URLs; NEVER invent URLs. Spending actions (evaluate/evaluateCompany/research) run on the user's own AI and cost tokens — fire them when asked or clearly useful, not gratuitously. NEVER auto-submit a job application. (Back-compat: <<go:/path>> and <<remember:fact>> still work.)
 
 ONBOARDING — your job is to get this person to their first SCORED job FAST. The rule is VALUE BEFORE COMMITMENT: take the minimum, deliver a wow, THEN deepen. Never make them fill a form or edit YAML.
-1. CV FIRST — but ONLY if it is not already on file. Consult SETUP STATE (above): if the CV is already on file, do NOT ask for it again — jump straight to the first missing prerequisite. If cv.md IS missing, warmly ask them to paste it (or just tell you about themselves); read it and take them to the editor with navigate {"path":"/cv"} to save. Do NOT ask for comp/location/roles yet.
+1. CV FIRST — but ONLY if it is not already on file. Consult SETUP STATE (above): if the CV is already on file, do NOT ask for it again — jump straight to the first missing prerequisite. If the supplied SETUP STATE says the CV is missing, warmly ask them to paste it (or just tell you about themselves); read it and take them to the editor with navigate {"path":"/cv"} to save. Do NOT ask for comp/location/roles yet.
 2. WOW #1 — DISCOVER, FREE. The moment you have a CV, infer their target roles + location FROM the CV and immediately run a FREE discovery: explore {"positive":["…roles from the CV…"],"run":true}. Say "Before we set anything up — here are live roles that fit you, free." A job THEY didn't have to define is the aha trigger.
 3. Then DEEPEN, value-interleaved. Now that they've seen matches, confirm targeting so results sharpen: ask for roles, then comp, then location — one or two at a time, ~2–3 minutes, encouraging.
 4. PROPOSE, don't impose. When you have name/email (from the CV) + roles + comp + location, emit setProfile. NEVER write a profile they didn't see + approve — the confirm card is required.
@@ -74,12 +75,10 @@ export async function POST(req: Request) {
   // given no state, restarted its onboarding script and asked for the CV again.
   const { hasCv, onboardingNeeded, missing } = doctorState(profileId);
   const setupLine = onboardingNeeded
-    ? `\n\nSETUP STATE (authoritative — the SAME signal the home screen uses; trust it over guessing, and do NOT re-ask for anything already on file):\n- CV on file (cv.md): ${hasCv ? "YES — do NOT ask for it again; read it to be concrete" : "NO — this is the first thing to collect"}\n- Still missing: ${missing.length ? missing.join(", ") : "nothing"}\nWhen onboarding, START at the first item actually missing. If the CV is already on file, SKIP step 1 entirely and go straight to the next missing prerequisite (usually the profile — target roles, comp, location).`
+    ? `\n\nSETUP STATE (authoritative — the SAME signal the home screen uses; trust it over guessing, and do NOT re-ask for anything already on file):\n- CV on file (cv.md): ${hasCv ? "YES — do NOT ask for it again; use the supplied CV evidence below" : "NO — this is the first thing to collect"}\n- Still missing: ${missing.length ? missing.join(", ") : "nothing"}\nWhen onboarding, START at the first item actually missing. If the CV is already on file, SKIP step 1 entirely and go straight to the next missing prerequisite (usually the profile — target roles, comp, location).`
     : `\n\nSETUP STATE: this user is fully set up (CV + profile + scanner all on file). Do NOT run onboarding or ask for a CV — just help them with what they actually asked.`;
-  const trackerScope = profile.legacyUntagged
-    ? `include untagged legacy rows plus rows tagged profile: ${profile.id}`
-    : `use only rows whose Notes contain profile: ${profile.id}`;
-  const profileLine = `\n\nACTIVE CANDIDATE PROFILE — THIS OVERRIDES GENERIC FILE REFERENCES ABOVE:\n- Candidate: ${profile.name} (profile id: ${profile.id})\n- CV: ${profileRelativeFile(profileId, "cv")}\n- Profile config: ${profileRelativeFile(profileId, "config")}\n- Personal context: ${profileRelativeFile(profileId, "notes")}\nUse ONLY these candidate-specific files for personal facts and fit advice. data/applications.md is shared across profiles: ${trackerScope}. Never borrow facts, scores, applications or CV content from another candidate.`;
+  const readSource=(kind:"cv"|"config"|"notes",limit:number)=>{try{return fs.readFileSync(profileFile(profileId,kind),"utf8").slice(0,limit);}catch{return "";}};
+  const profileLine = `\n\nACTIVE CANDIDATE PROFILE — MODEL INPUT ONLY; DO NOT READ FILES:\nCandidate: ${profile.name} (profile id: ${profile.id})\n\nCV EVIDENCE:\n${readSource("cv",30000)}\n\nPROFILE CONFIG:\n${readSource("config",16000)}\n\nPOSITIONING / NOTES:\n${readSource("notes",16000)}\n\nNever borrow facts, scores, applications or CV content from another candidate.`;
   const prompt = `${SYSTEM_PREAMBLE}${profileLine}${setupLine}${memoryLine}${pageLine}\n\n--- Conversation ---\n${convo}\nUser: ${message}\nAssistant:`;
 
   let connection: Awaited<ReturnType<typeof openAgentDockCodex>>;

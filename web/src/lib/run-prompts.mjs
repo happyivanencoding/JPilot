@@ -9,6 +9,7 @@
  * drift). kind "research" stays read-only.
  */
 import { CV_ENVELOPE_INSTRUCTION } from "./cv-envelope.mjs";
+import {explanationDirective} from './language-contract.mjs';
 
 /**
  * Is this company name safe to interpolate into a shell command inside a prompt?
@@ -73,7 +74,7 @@ export function buildPrompt({ kind, input, memory, today, postedAt, lang, profil
     resolvedLang.modesDir !== "modes"
       ? ` Also read ${resolvedLang.modesDir}/_shared.md for this market's vocabulary, benefits and legal concepts, and keep those terms (explained in the output language) where relevant.`
       : "";
-  const languageDirective = `\n\nWrite all human-facing output in "${resolvedLang.output}" regardless of the language of these instructions or the job description.${marketNote}\n`;
+  const languageDirective = `\n\n${explanationDirective(resolvedLang.output)}\nFor formal reports, retain the section letters A), B), C) and the exact heading ## Machine Summary with its original machine-readable YAML keys/enums. Translate the explanatory prose, not those parser markers. Write all human-facing output in "${resolvedLang.output}" regardless of the language of these instructions or the job description.${marketNote}\n`;
   const mem = (memory.trim() ? `\n\nDurable notes about the user (from their profile):\n${memory.trim()}\n` : "") + languageDirective;
   if (kind === "research") {
     return `You are investigating the user's OWN work / portfolio to surface job-search-relevant strengths, headless. Investigate the target (use WebFetch for URLs; read local files if referenced) and report: what it is, why it is impressive, and how to leverage it in their job search — which roles/claims it supports and how to frame it on a CV. Be specific, honest, and encouraging. Report only: never submit, send, or click Apply anywhere, and contact no one — you are investigating the user's own work, not acting on it.${mem}

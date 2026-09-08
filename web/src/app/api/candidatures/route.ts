@@ -5,6 +5,8 @@ import { parseReport } from "@/lib/format";
 import { atomicWrite } from "@/lib/core/safe-write";
 import { profileFile } from "@/lib/profile-context";
 import { activeProfileId } from "@/lib/profile-request";
+import {evaluationAction,evaluationSummary,retirePendingEvaluation} from "@/lib/evaluation-action.mjs";
+import {reportTableValue as tableValue,blockBMatches} from "@/lib/report-job-fields.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,30 +55,6 @@ function list(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && !!item.trim()).map((item) => item.trim()) : [];
 }
 
-function tableValue(markdown: string, label: string): string {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return markdown.match(new RegExp(`^\\|\\s*${escaped}\\s*\\|\\s*([^|]+)\\|`, "im"))?.[1]?.trim() ?? "";
-}
-
-function blockBMatches(markdown: string) {
-  const body = markdown.match(/##\s+B\)[^\n]*\n([\s\S]*?)(?=\n##\s+[A-Z]\)|\n##\s+Risk Summary|$)/i)?.[1] ?? "";
-  const rows = body.split(/\r?\n/).filter((line) => /^\|.+\|$/.test(line));
-  return rows
-    .map((line) => line.split("|").slice(1, -1).map((cell) => cell.trim()))
-    .filter((cells) => cells.length >= 3 && !/exigence|requirement|---/i.test(cells[0]))
-    .slice(0, 8)
-    .map((cells) => {
-      const raw = cells[2] || "";
-      const fit = /écart|gap|absent/i.test(raw) ? "Écart" : /partiel|partial/i.test(raw) ? "Partiel" : "Fort";
-      return {
-        requirement: cells[0],
-        evidence: cells[1],
-        fit,
-        action: fit === "Fort" ? "Préparer un exemple concret et chiffré si possible." : "Préparer une réponse honnête et montrer l'expérience adjacente transférable.",
-      };
-    });
-}
-
 function syncTrackerJobs(store: Store, profileId: string): Store {
   const knownUrls = new Set(store.jobs.map((job) => String(job.url ?? "")).filter(Boolean));
   const knownKeys = new Set(store.jobs.map((job) => `${slug(String(job.company ?? ""))}|${roleKey(String(job.role ?? ""))}`));
@@ -96,6 +74,33 @@ function syncTrackerJobs(store: Store, profileId: string): Store {
       `${slug(String(job.company ?? ""))}|${roleKey(String(job.role ?? ""))}` === key,
     );
     if (existing) {
+      const actionPatch=retirePendingEvaluation(existing,machine);
+      if(Object.keys(actionPatch).length){Object.assign(existing,actionPatch);changed=true;}
+      // A saved discovery card has no evaluation yet. Hydrate its analysis when
+      // the official report arrives, without clobbering manually curated cards.
+      const needsAnalysis = (String(existing.id).startsWith("saved-") && !existing.reportNum)
+        || (existing.analysisSource === "official-report" && existing.reportNum !== app.n);
+      if (needsAnalysis) {
+        const strengths = list(machine.top_strengths);
+        const softGaps = list(machine.soft_gaps);
+        const hardStops = list(machine.hard_stops);
+        existing.strengths = strengths;
+        existing.gaps = [...hardStops, ...softGaps].map((title, index) => ({ title,
+          severity: index < hardStops.length ? "Point bloquant à vérifier" : "Écart à préparer",
+          why: "Évaluation officielle career-ops.",
+          positioning: "Décrire le niveau réel et l’expérience adjacente, sans inventer de compétence." }));
+        existing.match = blockBMatches(report.content);
+        existing.summary = evaluationSummary(app.notes);
+        existing.angle = strengths.length ? `Mettre en avant : ${strengths.slice(0, 2).join(" ; ")}.` : "Consulter les preuves du rapport officiel.";
+        existing.analysisSource = "official-report";
+        existing.verification = meta.fields.find((field) => field.label === "Verification")?.value || "unconfirmed";
+        const previousCv = existing.cv && typeof existing.cv === "object" ? existing.cv as Record<string, unknown> : {};
+        existing.cv = { ...previousCv, keywords: list(machine.keywords) };
+        existing.interview = { processKnown: false, process: ["Processus réel à confirmer avec le recruteur."],
+          questions: softGaps.slice(0, 5).map((gap) => ({ question: `Comment répondez-vous à cet écart : ${gap} ?`,
+            answer: "Préparer un exemple documenté et une réponse honnête.", proof: "CV du profil sélectionné." })) };
+        changed = true;
+      }
       const priority = score >= 4.4 ? "Priorité 1" : score >= 4 ? "Priorité 2" : "Priorité 3";
       if (existing.reportNum !== app.n) { existing.reportNum = app.n; changed = true; }
       if (score > 0 && existing.score !== score) { existing.score = score; changed = true; }
@@ -118,8 +123,7 @@ function syncTrackerJobs(store: Store, profileId: string): Store {
     }));
     const posted = app.notes.match(/(?:^|;\s*)posted:\s*(\d{4}-\d{2}-\d{2})/i)?.[1] ?? "À confirmer";
     const hasPdf = /✅|yes|ready/i.test(app.pdf);
-    const recommendation = String(machine.final_decision ?? "").toLowerCase().includes("apply") ? "Candidater" : "À décider après revue";
-    const nextAction = typeof machine.next_action === "string" && machine.next_action.trim() ? machine.next_action.trim() : "Relire l'analyse, préparer les écarts puis décider de la candidature.";
+    const {recommendation,nextAction}=evaluationAction(machine);
 
     store.jobs.push({
       id: `${slug(app.company)}-${slug(app.role)}`,
@@ -127,16 +131,16 @@ function syncTrackerJobs(store: Store, profileId: string): Store {
       company: app.company,
       role: app.role,
       url,
-      location: tableValue(report.content, "Lieu") || "À confirmer",
-      workMode: tableValue(report.content, "Télétravail") || "À confirmer",
-      contract: tableValue(report.content, "Contrat") || tableValue(report.content, "Employment classification") || "À confirmer",
+      location: tableValue(report.content, "Lieu", "Location", "地点", "工作地点") || "À confirmer",
+      workMode: tableValue(report.content, "Télétravail", "Remote", "Work mode", "远程办公", "工作方式") || "À confirmer",
+      contract: tableValue(report.content, "Contrat", "Contract", "合同", "合同类型") || tableValue(report.content, "Employment classification") || "À confirmer",
       postedAt: posted,
       lastChecked: app.date,
       score,
       priority: score >= 4.4 ? "Priorité 1" : score >= 4 ? "Priorité 2" : "Priorité 3",
       recommendation,
       status: hasPdf ? "CV prêt" : app.status === "Applied" ? "Candidature envoyée" : "À candidater",
-      summary: app.notes || `Évaluation career-ops : ${score}/5.`,
+      summary: evaluationSummary(app.notes) || `Évaluation career-ops : ${score}/5.`,
       angle: strengths.length ? `Construire la candidature autour de : ${strengths.slice(0, 2).join(" ; ")}.` : "S'appuyer sur les points forts documentés dans le rapport d'évaluation.",
       strengths,
       gaps,

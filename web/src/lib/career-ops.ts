@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { hasRecordedFitScore } from "@/lib/mobile-domain.mjs";
 import path from "node:path";
 import * as yaml from "js-yaml";
 import { atomicWrite } from "@/lib/core/safe-write";
@@ -174,7 +175,7 @@ function candidatureStatusToPipeline(status: string): string {
   if (s.includes("offre") || s.includes("offer")) return "Offer";
   if (s.includes("embauch") || s.includes("hired")) return "Hired";
   if (s.includes("refus") || s.includes("reject")) return "Rejected";
-  if (s.includes("écart") || s.includes("ecart") || s.includes("discard") || s.includes("skip")) return "Discarded";
+  if (s.includes("écart") || s.includes("ecart") || s.includes("discard") || s.includes("skip") || s.includes("archiv")) return "Discarded";
   return "Evaluated";
 }
 
@@ -190,7 +191,9 @@ export function readCandidatureApplications(profileId: string): Application[] {
       jobs?: Array<Record<string, unknown>>;
     };
     return (Array.isArray(raw.jobs) ? raw.jobs : [])
-      .filter((job) => typeof job.id === "string" && typeof job.company === "string" && typeof job.role === "string")
+      // The classic pipeline is a report/evaluation view. An unscored mobile
+      // discovery stays visible in Candidatures, not falsely counted as evaluated.
+      .filter((job) => typeof job.id === "string" && typeof job.company === "string" && typeof job.role === "string" && hasRecordedFitScore(job))
       .map((job) => {
         const id = String(job.id);
         const score = Number(job.score);

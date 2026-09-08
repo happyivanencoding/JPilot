@@ -1,98 +1,55 @@
-# career-ops web (alpha)
+# JobPilot Web 0.4.0
 
-An **experimental, opt-in web UI** for career-ops. It is a local-first *view* over
-the exact same files the CLI reads and writes (`data/pipeline.md`,
-`data/applications.md`, `reports/`, `config/`): no parallel engine, no separate
-database, no server. If you never run it, nothing about your CLI workflow changes.
+The Web client follows the current native Android experience. It replaces the old Career-Ops workbench rather than adding another page or an optional theme. The root route renders the only product shell; historical page URLs redirect to the corresponding JobPilot tab or detail.
 
-> **Status: alpha.** Expect rough edges. Feedback →
-> [Discussion #1142](https://github.com/santifer/career-ops/discussions/1142) ·
-> roadmap context → [Discussion #156](https://github.com/santifer/career-ops/discussions/156).
+Desktop: fixed 384 × 832 portrait composition, scaled down to fit. Phone: real viewport, safe areas, fixed five-tab navigation and scrollable content. Light/dark themes and Chinese/French/English UI follow Android. Application document language remains independent.
 
-## Quick start
+## Develop and deploy
 
-Requires Node 22+ (see [Tests](#tests) — `npm test`'s glob discovery needs it).
+Use Node 22+ and the existing repository setup. From this directory:
 
-```bash
-cd web
+```powershell
 npm ci
 npm run dev
 ```
 
-Open http://localhost:3000. The app reads the career-ops checkout it lives in
-(the parent directory) — your existing CV, pipeline and reports appear as-is.
+Production:
 
-## What works today
-
-- **Pipeline** — your tracker as a sortable, filterable table; status changes
-  write back through the core's own scripts.
-- **Explore** — the free reverse-ATS scan with an honest partial-dataset
-  indicator, plus AI-assisted discovery. In this local web workspace, every Web AI turn goes through the local AgentDock ACP bridge to Codex. Explorer uses GPT-5.6 Luna / low reasoning for faster discovery; evaluation keeps the stronger Sol path, while proposer-only flows stay read-only.
-- **Apply** — assisted form prefill with a hard rule inherited from the core:
-  **it never submits for you** — you always press the button.
-- **Today / Analytics / CV / Config** — action queue, funnel, CV editing with
-  preview, settings.
-
-## Safety
-
-- **Local-first:** the local web app runs entirely on your machine — no cloud,
-  no account needed. Your CV and data stay in your own files.
-- **Never auto-submits:** the apply flow drafts and prefills; submitting is
-  always a human action.
-- **CV generation never asks the agent to write:** the `pdf` worker tailors your
-  CV and emits it inline in a `<<cv-html>>` envelope; the backend parses that
-  envelope, writes the HTML, and renders the PDF itself. Job postings and
-  evaluation reports are untrusted input that reaches this agent, so the safest
-  thing is for it to hold no write tool at all — on Claude Code every write-capable
-  tool is disallowed for this mode (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`
-  and `Bash`). Other CLIs are invoked with a bare prompt and keep their own default
-  tool access, so on those the agent still *holds* write tools — what the pipeline
-  guarantees is that the CV which gets rendered is the one the backend parsed out of
-  the envelope, never a file an agent wrote behind it.
-- **Additive:** the web is isolated from the core's packaging, CI and release
-  automation. The CLI works exactly the same without it.
-
-## Development
-
-```bash
-npm run dev          # dev server (Turbopack)
-npm test             # unit suites (node --test, no framework)
-npx tsc --noEmit     # typecheck
-npm run build        # production build
+```powershell
+npm run typecheck
+npm test
+npm run build
+.\scripts\start-mobile.ps1 -RestartWeb
 ```
 
-Set `CAREER_OPS_ROOT=/path/to/checkout` in `web/.env.local` to point the app at
-a different career-ops directory (useful for testing against sample data).
+The production listener stays on 127.0.0.1:3000, behind the existing authenticated gateway. Keep secrets in ignored local configuration, not client environment variables. For optional trusted-LAN access use the existing start/stop LAN demo scripts, not a public unauthenticated binding.
 
-### Tests
+## Implementation
 
-Suites live in `web/tests/`, mirroring the path of what they test under
-`web/src/` — so `src/lib/clean-chips.mjs` is tested by
-`tests/lib/clean-chips.test.mjs`. Name the file `{module}.test.mjs`.
+`src/components/jobpilot/` contains the phone shell, screens, scoped client state, details and PDF preview. `src/app/page.tsx` and `layout.tsx` are the only product entry; the old AppShell is not mounted. The existing `/api/mobile` backend contract and `shared/jobpilot-i18n.json` remain shared with Android.
 
-`npm test` discovers them with a glob (`tests/**/*.test.mjs`), so a new suite
-needs **no registration** — just add the file. **Requires Node ≥ 22**: earlier
-versions don't expand CLI globs for `node --test`, so `npm test` prints
-`Could not find '…'`, runs nothing and exits 1. Hence `engines.node` in
-`web/package.json` — a higher floor than `next` itself asks for.
+CVs remain backend-owned. Preview uses actual PDF bytes, not a visual approximation. Imports, edits and draft acceptance require explicit confirmation; version conflicts stay visible without losing edits. All calls are scoped to the displayed profile, independently of a cookie another browser tab may change.
 
-Three constraints follow from all this:
+`scripts/prepare-web-assets.mjs` copies self-hosted PDF.js resources from the pinned dependency before dev/build. Generated `public/jobpilot-pdf/` is ignored and rebuilt, not committed. No runtime CDN or service-worker CV cache is used.
 
-- **Keep tests out of `src/`.** `src/` is the Next.js app's own tree, scanned by
-  `next build`'s file tracing and `tsc --noEmit`; test files there entangle
-  fixtures with build and route conventions.
-- **Use `.mjs`, not `.ts`.** There is no test framework and no TypeScript loader
-  by design — `node --test` cannot run a `.ts` suite, so one would look like
-  coverage and never execute. Extract the logic under test into a plain `.mjs`
-  module (the pattern `src/lib/pdf-paths.mjs` and `src/lib/pdf-render.mjs`
-  already follow) and import it from the test.
-- **Web suites use `node:test`; core suites don't.** Here you write
-  `import { test } from "node:test"` with `node:assert/strict`. The root
-  `tests/` suite deliberately uses neither — it has its own `pass`/`fail`
-  helpers, because [#1440](https://github.com/santifer/career-ops/issues/1440)
-  requires the core suite to run on a bare clone with "no framework, not even
-  `node:test`". Don't carry either style across the boundary.
+## Browser acceptance
 
-`tests/web-test-layout.test.mjs` in the **root** suite enforces all of the above
-on every PR, including that `npm test` never goes back to listing suites by name
-([#2360](https://github.com/santifer/career-ops/issues/2360)).
+```powershell
+$env:BUILD_DIST = '.next-web-parity-qa'
+npm run build
+node scripts/qa-jobpilot-web.mjs
+$env:JOBPILOT_QA_ENGINE = 'webkit'
+node node_modules/playwright-core/cli.js install webkit
+node scripts/qa-jobpilot-web.mjs
+Remove-Item Env:JOBPILOT_QA_ENGINE, Env:BUILD_DIST
+```
+
+The default browser is installed Microsoft Edge; `JOBPILOT_QA_BROWSER` can select another Chromium executable. The suite owns and cleans up a temporary loopback server, intercepts every API with isolated fictional records, and fails unknown requests instead of sending real business writes. It exercises actual DOM interaction, PDF rendering/download, languages/themes, profile isolation, completed-result navigation and small-screen geometry. It does not claim to run new production AI model calls.
+
+Private screenshots and logs belong in ignored runtime QA storage, never Git. See [the architecture and acceptance record](../docs/WEB_ANDROID_PARITY.md) for exact results and platform limitations. Read the repository's `DEEP_CONTEXT_HANDOFF_FINAL.md` before modifying the project.
+
+## License and attribution
+
+JobPilot Web is part of the JobPilot distribution and is licensed under **AGPL-3.0-only** for JobPilot-authored material. See the repository root [`LICENSE`](../LICENSE).
+
+Pre-existing Career-Ops engine code retains its original MIT notice in [`../LICENSES/career-ops-MIT.txt`](../LICENSES/career-ops-MIT.txt). Rounded navigation icons match Android's Material Icons and keep their Apache-2.0 license beside the source. PDF.js retains the licenses shipped with its pinned dependency. See [`../THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).

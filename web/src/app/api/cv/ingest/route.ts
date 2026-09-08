@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { careerOpsRoot } from "@/lib/career-ops";
 import { openAgentDockCodex, runAgentDockCodex, type AgentDockCodexRun } from "@/lib/agentdock-acp";
 
@@ -53,7 +55,7 @@ ${source}`;
 }
 
 const TEXT_SRC = (t: string) => `SOURCE (the user's CV, pasted as text — convert it):\n"""\n${t.slice(0, 24000)}\n"""`;
-const FILE_SRC = (p: string) => `SOURCE: the user's CV is the file at this local path — READ it with your file/Read tool, then convert it:\n${p}`;
+const exec=promisify(execFile);
 
 export async function POST(req: Request) {
   const ctype = req.headers.get("content-type") || "";
@@ -76,7 +78,10 @@ export async function POST(req: Request) {
       const dir = fs.mkdtempSync(path.join(scratchRoot, "cv-ingest-"));
       tempFile = path.join(dir, `cv${ext}`); // outside the repo, basename-only
       fs.writeFileSync(tempFile, Buffer.from(await file.arrayBuffer()), { mode: 0o600 }); // PII → owner-only
-      promptSource = FILE_SRC(tempFile);
+      const extracted=await exec(process.env.JOBPILOT_PYTHON||"python",[path.join(careerOpsRoot(),"web","scripts","extract-mobile-cv.py"),tempFile],{timeout:45_000,windowsHide:true,encoding:"utf8",maxBuffer:1024*1024,env:{...process.env,PYTHONIOENCODING:"utf-8"}});
+      const text=String(extracted.stdout||"").trim();
+      if(!text) throw new Error("Aucun texte extrait du CV.");
+      promptSource = TEXT_SRC(text);
     } else {
       return Response.json({ error: "unsupported content-type" }, { status: 400 });
     }

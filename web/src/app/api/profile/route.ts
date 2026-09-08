@@ -5,6 +5,8 @@ import { careerOpsRoot } from "@/lib/career-ops";
 import { atomicWriteWithBackup } from "@/lib/core/safe-write";
 import { profileFile } from "@/lib/profile-context";
 import { activeProfileId } from "@/lib/profile-request";
+import { currentCandidateVersion, historyDirectory } from "@/lib/mobile-history";
+import { CONTRACT_TYPES, withProfileLock } from "@/lib/mobile-state.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +26,8 @@ type ProfilePatch = {
   compMax?: number;
   currency?: string;
   remote?: string;
+  contractTypes?: string[];
+  applicationLanguage?: string;
 };
 
 function isObj(v: unknown): v is Record<string, unknown> {
@@ -47,6 +51,14 @@ function patchToProfile(p: ProfilePatch): Record<string, unknown> {
   if (p.location) candidate.location = p.location;
   if (Object.keys(candidate).length) out.candidate = candidate;
   if (p.roles?.length) out.target_roles = { primary: p.roles.slice(0, 6) };
+  if (p.contractTypes !== undefined) {
+    if (!Array.isArray(p.contractTypes) || p.contractTypes.some(t => !CONTRACT_TYPES.includes(t))) throw new Error("Types de contrat invalides.");
+    out.target_roles = { ...(out.target_roles as object || {}), contract_types: [...new Set(p.contractTypes)] };
+  }
+  if(p.applicationLanguage !== undefined) {
+    if(!['fr','en'].includes(p.applicationLanguage)) throw new Error('Invalid application language');
+    out.cv={language:p.applicationLanguage};
+  }
   const comp: Record<string, unknown> = {};
   if (p.compMin && p.compMax) comp.target_range = `${p.compMin}-${p.compMax}`;
   if (p.currency) comp.currency = p.currency;
@@ -64,11 +76,14 @@ export async function POST(req: Request) {
   } catch {
     return Response.json({ error: "bad json" }, { status: 400 });
   }
-  const proposed = patchToProfile(patch);
+  let proposed: Record<string, unknown>;
+  try { proposed = patchToProfile(patch); }
+  catch (error) { return Response.json({error: String(error)},{status:400}); }
   if (Object.keys(proposed).length === 0) return Response.json({ error: "nothing to write" }, { status: 400 });
 
   const root = careerOpsRoot();
-  const profileId = await activeProfileId();
+  // Browser tabs carry an explicit scope; the gateway also checks this against session grants.
+  const profileId = await activeProfileId(new URL(req.url).searchParams.get("profileId"));
   const file = profileFile(profileId, "config");
   let base: Record<string, unknown> = {};
   let seeded = false;
@@ -96,7 +111,15 @@ export async function POST(req: Request) {
   try {
     // Back up the prior profile before the first normalized write (yaml.dump
     // reformats — comments are not preserved; the .bak is the safety net).
-    atomicWriteWithBackup(file, yaml.dump(merged, { lineWidth: 100, noRefs: true }));
+    await withProfileLock(historyDirectory(profileId), () => {
+      currentCandidateVersion(profileId);
+      // Re-read under the same lock as CV actions so a saved preference cannot clobber another edit.
+      const latest = fs.existsSync(file) ? yaml.load(fs.readFileSync(file,"utf8")) : base;
+      if (!isObj(latest)) throw new Error("Profil YAML invalide ; aucune donnée remplacée.");
+      const final = deepMerge(latest, proposed);
+      if (JSON.stringify(final) !== JSON.stringify(latest)) atomicWriteWithBackup(file, yaml.dump(final, { lineWidth: 100, noRefs: true }));
+      currentCandidateVersion(profileId);
+    });
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : "write failed" }, { status: 500 });
   }

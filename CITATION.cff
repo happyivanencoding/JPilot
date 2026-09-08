@@ -1,21 +1,17 @@
 cff-version: 1.2.0
-message: "If you use career-ops, please cite it using these metadata."
-title: "Career-Ops: AI-Powered Job Search Pipeline"
+message: "If you use JobPilot, please cite this repository. Upstream Career-Ops attribution is preserved in THIRD_PARTY_NOTICES.md."
+title: "JobPilot"
 type: software
 authors:
-  - family-names: "Fernández de Valderrama"
-    given-names: "Santiago"
-    website: "https://santifer.io"
-url: "https://santifer.io"
-repository-code: "https://github.com/santifer/career-ops"
-license: MIT
+  - alias: "happyivanencoding"
+    website: "https://github.com/happyivanencoding"
+repository-code: "https://github.com/happyivanencoding/JobPilot"
+license: AGPL-3.0-only
 keywords:
   - ai
   - job-search
-  - claude-code
+  - jobpilot
+  - android
   - career
-  - career-ops
-  - careerops
   - automation
-  - llmops
-  - go-tui
+  - llm

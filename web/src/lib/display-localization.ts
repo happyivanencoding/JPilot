@@ -1,0 +1,100 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {historyDirectory} from '@/lib/mobile-history';
+import {careerOpsRoot} from '@/lib/career-ops';
+import {readJson,writeJson,withProfileLock,processAlive} from '@/lib/mobile-state.mjs';
+import {openAgentDockCodex,runAgentDockCodex} from '@/lib/agentdock-acp';
+import {extractJsonObject} from '@/lib/extract-json-object.mjs';
+import {uiLocale,choose} from '@/lib/language-contract.mjs';
+import {displaySlots,translationKey,alreadyLocalized,productText,pendingText,setDisplaySlot,protectTranslation,restoreTranslation,translationPrompt} from '@/lib/localization-core.mjs';
+
+type Entry={key:string;text:string;id:string;packed:ReturnType<typeof protectTranslation>};
+const host=globalThis as typeof globalThis & {jobPilotLocalizations?:Map<string,Promise<void>>};
+const running=host.jobPilotLocalizations ??= new Map<string,Promise<void>>();
+
+/** Translation operations use the existing cross-process profile lock, but NOT
+ * business tasks/results. Locale switches cannot create evaluation/CV task rows.
+ * Source-addressed segments let different projections of the same result reuse
+ * the translation. Each result version also gets an immutable manifest.
+ */
+export async function localizeDisplay(profileId:string,target:unknown,value:any,scope:string,options:{schedule?:boolean;retry?:boolean;identity?:string}={}) {
+  if(value==null)return value;
+  const locale=uiLocale(target),directory=path.join(historyDirectory(profileId),'localizations',locale);
+  const cacheDir=path.join(directory,'segments'),operations=path.join(directory,'operations');
+  const slots=displaySlots(value,scope);
+  const result=structuredClone(value);
+  const missing=new Map<string,string>();
+  const sourceKeys:string[]=[];
+  for(const slot of slots) {
+    const fixed=productText(slot.text,locale);
+    if(fixed!==slot.text || alreadyLocalized(slot.text,locale,slot.hint)) {setDisplaySlot(result,slot.path,fixed);continue;}
+    const key=translationKey(slot.text);sourceKeys.push(key);
+    const saved=readJson(path.join(cacheDir,key+'.json'));
+    if(saved?.source===slot.text && saved?.locale===locale && typeof saved.translation==='string') setDisplaySlot(result,slot.path,saved.translation);
+    else {missing.set(key,slot.text);setDisplaySlot(result,slot.path,pendingText(locale));}
+  }
+  let active:any=readJson(path.join(directory,'active.json'));
+  if(options.schedule!==false && missing.size) {
+    await withProfileLock(historyDirectory(profileId),()=>{
+      active=readJson(path.join(directory,'active.json'));
+      if(active && ['queued','running'].includes(active.status) && processAlive(active.ownerPid))return;
+      // Interrupted readonly work never silently launches a replacement Agent.
+      if(active && ['queued','running'].includes(active.status)) {
+        active={...active,status:'interrupted',updatedAt:new Date().toISOString()};
+        writeJson(path.join(operations,active.key+'.json'),active);writeJson(path.join(directory,'active.json'),active);
+      }
+      const entries:Entry[]=[];let characters=0;
+      for(const [key,text] of missing) {
+        if(fs.existsSync(path.join(cacheDir,key+'.json')))continue;
+        if(entries.length && (characters+text.length>20000 || entries.length>=70))break;
+        entries.push({key,text,id:String(entries.length),packed:protectTranslation(text)});characters+=text.length;
+      }
+      if(!entries.length)return;
+      const key=translationKey(JSON.stringify(['localize',locale,entries.map(e=>e.key).sort()]));
+      const previous=readJson(path.join(operations,key+'.json'));
+      if(previous && ['failed','interrupted'].includes(previous.status) && !options.retry) {active=previous;return;}
+      const now=new Date().toISOString();
+      active={key,kind:'localize',profileId,locale,scope,identity:options.identity || scope,status:'queued',ownerPid:process.pid,createdAt:now,updatedAt:now,segmentKeys:entries.map(e=>e.key),model:'gpt-5.6-luna',reasoning:'low',attempt:(previous?.attempt || 0)+1};
+      writeJson(path.join(operations,key+'.json'),active);writeJson(path.join(directory,'active.json'),active);
+      const operation={...active};
+      const work=executeLocalization(directory,operation,entries);
+      running.set(`${profileId}:${locale}:${key}`,work);
+      void work.finally(()=>running.delete(`${profileId}:${locale}:${key}`));
+    });
+  }
+  const failed=missing.size>0 && active && ['failed','interrupted'].includes(active.status);
+  const state={locale,pending:missing.size>0,failed:!!failed,missingSegments:missing.size,operationId:active?.key || null,
+    message:missing.size ? failed ? choose(locale,'翻译暂未完成，原始结果仍保留。请重试显示翻译，不需要重新评估。','Traduction indisponible. Le résultat original est conservé ; réessayez la traduction, pas l’analyse.','Translation is unavailable. The original result is preserved; retry translation, not analysis.') : choose(locale,'正在翻译已有结果，不会重新分析，也不会修改评分或简历。','Traduction du résultat enregistré, sans nouvelle analyse ni modification du score ou du CV.','Translating saved results without reanalysis or changes to scores or CV.') : ''};
+  result.localization=state;
+  if(options.schedule!==false && sourceKeys.length && !missing.size) {
+    const version=translationKey(JSON.stringify([scope,options.identity || '',slots.map(s=>[s.path,s.text])]));
+    const manifest=path.join(directory,'results',version+'.json');
+    if(!fs.existsSync(manifest))writeJson(manifest,{identity:options.identity || scope,resultVersion:version,locale,segmentKeys:[...new Set(sourceKeys)],createdAt:new Date().toISOString()});
+  }
+  return result;
+}
+
+async function executeLocalization(directory:string,operation:any,entries:Entry[]) {
+  const file=path.join(directory,'operations',operation.key+'.json');
+  const save=()=>{operation.updatedAt=new Date().toISOString();writeJson(file,operation);writeJson(path.join(directory,'active.json'),operation);};
+  try {
+    const connection=await openAgentDockCodex();let output='';
+    // Use the existing bounded ACP budget. The former 180s translation-only
+    // cutoff cancelled real queued turns with no output on this busy host.
+    // This does not retry, rescore or create a second operation.
+    await runAgentDockCodex({client:connection.client,cwd:careerOpsRoot(),prompt:translationPrompt(entries,operation.locale),model:'gpt-5.6-luna',reasoning:'low',mode:'read-only',timeoutMs:480000,
+      onRun:run=>{Object.assign(operation,run,{status:'running'});save();},
+      onMetrics:metrics=>{operation.metrics=metrics;save();},
+      onText:text=>{output+=text;},onFinalText:text=>{output=text;},
+    });
+    // Retain the exact translation response for recovery/QA; never touch source results.
+    fs.writeFileSync(path.join(directory,'operations',operation.key+'.output.txt'),output,'utf8');
+    const parsed=extractJsonObject(output);
+    const rows=(parsed.obj as any)?.translations;
+    if(parsed.truncated || !Array.isArray(rows) || rows.length!==entries.length || new Set(rows.map((r:any)=>r.id)).size!==entries.length) throw new Error('Localization response has missing or duplicate segments');
+    const translations=entries.map(entry=>({entry,text:restoreTranslation(rows.find((r:any)=>r.id===entry.id)?.text,entry.packed.protectedValues)}));
+    for(const {entry,text} of translations)writeJson(path.join(directory,'segments',entry.key+'.json'),{locale:operation.locale,source:entry.text,translation:text,operationId:operation.key,createdAt:new Date().toISOString()});
+    operation.status='completed';operation.completedAt=new Date().toISOString();
+  } catch(error) {operation.status='failed';operation.error=error instanceof Error?error.message:String(error);}
+  finally {operation.wallMs=Date.now()-Date.parse(operation.createdAt);save();}
+}

@@ -1,3 +1,5 @@
+> **JobPilot license notice:** This file is a retained translation of the inherited Career-Ops documentation. The current JobPilot project is licensed under **AGPL-3.0-only** for JobPilot-authored material; pre-existing Career-Ops code retains its original MIT terms in `LICENSES/career-ops-MIT.txt`. See the root `README.md` and `THIRD_PARTY_NOTICES.md`.
+
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/wordmark-dark.svg"><img src="docs/wordmark-light.svg" alt="career-ops" width="250" height="56"></picture></p>
 
 <div align="center">
@@ -76,7 +78,7 @@
   <img src="https://img.shields.io/badge/Go-00ADD8?style=flat&logo=go&logoColor=white" alt="Go">
   <img src="https://img.shields.io/badge/Playwright-2EAD33?style=flat&logo=playwright&logoColor=white" alt="Playwright">
   <img src="https://img.shields.io/badge/Bubble_Tea-FF75B5?style=flat&logo=go&logoColor=white" alt="Bubble Tea">
-  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT">
+  <img src="https://img.shields.io/badge/License-AGPL--3.0--only-blue.svg" alt="AGPL-3.0-only">
   <a href="TRADEMARK.md"><img src="https://img.shields.io/badge/Trademark-Policy-blue.svg" alt="Trademark Policy"></a>
 </p>
 
@@ -471,7 +473,7 @@ career-ops kullanarak işe mi girdiniz? [Hikayenizi paylaşın!](https://github.
 
 ## Lisans ve Ticari Marka
 
-Kod [MIT](LICENSE) altında lisanslanmıştır. "career-ops" adı ve
+Kod [MIT](LICENSES/career-ops-MIT.txt) altında lisanslanmıştır. "career-ops" adı ve
 markası, topluluk kullanımı için serbestçe uygulanan ancak ticari ürün
 adlandırma ve onayı için saklı tutulan [Ticari Marka Politikası](TRADEMARK.md)
 tarafından yönetilir.

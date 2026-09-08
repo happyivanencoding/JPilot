@@ -14,3 +14,10 @@ next-env.d.ts
 
 # agent session memory — internal notes, never in the public repo
 .claude/
+
+# Built from pinned pdfjs-dist; no third-party CDN or checked-in generated assets.
+/public/jobpilot-pdf/
+
+# Local synthetic/real-profile acceptance harnesses can bind to the private
+# workstation profile registry. Public regression coverage lives in web/tests/.
+/scripts/localization-acceptance.mjs

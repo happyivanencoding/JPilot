@@ -66,6 +66,9 @@ const EXCLUDES = [
   'batch/logs/.gitkeep',
   'batch/tracker-additions/.gitkeep',
   'interview-prep/.gitkeep',
+  // JobPilot fork-owned legal notice. The inherited Career-Ops updater must not
+  // replace it from upstream.
+  'THIRD_PARTY_NOTICES.md',
   // The declaration file itself. Normally untracked, so normally invisible to
   // this check — but a FORK that runs this suite in CI has to commit it, or CI
   // checks out the repo without it, every declared path is an orphan there, and
@@ -92,11 +95,11 @@ const EXCLUDES = [
 // this repository only, leaving a candidate's CV stageable in every fork.
 const RECONCILED_NOT_CHECKED_OUT = ['.gitignore'];
 
-// Trees that live in the repo but deliberately OUTSIDE the updater's world:
-// web/ is the experimental web UI — its own release-please component, never
-// shipped by update-system.mjs, never in the npm package. Excluding it here is
-// part of that isolation contract, not a coverage gap.
-const EXCLUDE_PREFIXES = ['web/'];
+// Trees that live in the repo but deliberately OUTSIDE the inherited updater's world.
+// JobPilot owns its Web/Android clients and fork-level license notices; the legacy
+// Career-Ops updater still targets the upstream engine and must never delete or
+// replace these trees merely because upstream does not contain them.
+const EXCLUDE_PREFIXES = ['web/', 'android/', 'LICENSES/'];
 
 function covered(file) {
   // If explicitly excluded, it is covered
@@ -146,7 +149,10 @@ if (process.argv.includes('--self-test')) {
 
   // Test sibling mismatch (strict prefix match)
   assert(covered('providers-sibling/justjoin.mjs') === false, 'providers-sibling/justjoin.mjs must NOT be covered');
-  assert(covered('web/package.json') === true, 'web/ tree must be covered (isolation-contract prefix exclude)');
+  assert(covered('web/package.json') === true, 'web/ tree must be covered (JobPilot fork-owned prefix exclude)');
+  assert(covered('android/app/build.gradle') === true, 'android/ tree must be covered (JobPilot fork-owned prefix exclude)');
+  assert(covered('LICENSES/career-ops-MIT.txt') === true, 'LICENSES/ must be covered (fork-level legal notices)');
+  assert(covered('THIRD_PARTY_NOTICES.md') === true, 'fork-level third-party notice must be explicitly covered');
   assert(covered('web-dashboard/index.html') === false, 'web-dashboard/ must NOT ride the web/ prefix exclude');
   assert(covered('.npmignore') === true, '.npmignore must be covered (excluded)');
 

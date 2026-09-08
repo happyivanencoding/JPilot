@@ -15117,7 +15117,6 @@ try {
     { file: 'web/src/app/actions/registry.ts', re: /CANON_STATUS\s*=\s*\[([\s\S]*?)\]/, upper: false, exclude: [] },
     { file: 'web/src/app/actions/registry.ts', re: /TAB_VALUES\s*=\s*\[([\s\S]*?)\]/, upper: true, exclude: [] },
     { file: 'web/src/components/pipeline-view.tsx', re: /TABS\s*=\s*\[([\s\S]*?)\]/, upper: true, exclude: [] },
-    { file: 'web/src/app/analytics/page.tsx', re: /STAGES[^=]*=\s*\[([\s\S]*?)\];/, upper: true, exclude: ['SKIP'] },
     // The states ACL used to be checked here too. It moved to its own block
     // below, because it now has TWO valid shapes and this table only knows one.
   ];
@@ -15133,9 +15132,24 @@ try {
       if (missing.length) drift.push(`${file} (${missing.join(', ')})`);
     }
     if (drift.length === 0) {
-      pass('every web status list covers all canonical states from states.yml (#2249)');
+      pass('every legacy web status list covers all canonical states from states.yml (#2249)');
     } else {
-      fail(`web status list(s) missing canonical state(s) — dashboard can't set/count them (#2249): ${drift.join(' | ')}`);
+      fail(`legacy web status list(s) missing canonical state(s) — dashboard can't set/count them (#2249): ${drift.join(' | ')}`);
+    }
+
+    // JobPilot 0.4 no longer renders the legacy analytics funnel. Its live five-tab
+    // client receives one shared rich-candidature status list from mobile-domain;
+    // pin that data flow instead of forcing the retired analytics page to carry a
+    // dead duplicate of the classic tracker states.
+    const jobPilotMobileRoute = join(ROOT, 'web', 'src', 'app', 'api', 'mobile', 'route.ts');
+    if (existsSync(jobPilotMobileRoute)) {
+      const mobileRouteSrc = readFileSync(jobPilotMobileRoute, 'utf-8');
+      if (/import\s*\{[^}]*APPLICATION_STATUSES[^}]*\}\s*from\s*[\"']@\/lib\/mobile-domain\.mjs[\"']/.test(mobileRouteSrc)
+          && /statuses\s*:\s*APPLICATION_STATUSES\b/.test(mobileRouteSrc)) {
+        pass('JobPilot mobile dashboard exposes its shared APPLICATION_STATUSES source');
+      } else {
+        fail('JobPilot mobile route no longer exposes APPLICATION_STATUSES from mobile-domain — the five-tab status UI can drift');
+      }
     }
 
     // 55.3b+ the degraded-path FALLBACK in the states ACL (career-ops-ui's
@@ -15268,7 +15282,12 @@ try {
     if (corePrereqs.length > 0 && existsSync(webDoctorPath)) {
       const webPrereqBlock = readFileSync(webDoctorPath, 'utf-8')
         .match(/const prereqs[^=]*=\s*\[([\s\S]*?)\n\s*\];/)?.[1] ?? '';
-      const webPrereqs = new Set([...webPrereqBlock.matchAll(/\[\s*"([^"]+)"/g)].map((m) => m[1]));
+      const webPrereqs = new Set([
+        ...[...webPrereqBlock.matchAll(/\[\s*"([^"]+)"/g)].map((m) => m[1]),
+        // JobPilot's profile-aware form stores the canonical label in tuple slot 2:
+        // [profileFile(profileId, "cv"), "cv.md"]. The old web used slot 1.
+        ...[...webPrereqBlock.matchAll(/,\s*"([^"]+)"\s*\]/g)].map((m) => m[1]),
+      ]);
       const missingPrereqs = corePrereqs.filter((p) => !webPrereqs.has(p));
       if (missingPrereqs.length === 0 && webPrereqs.size === corePrereqs.length) {
         pass('web doctorState prereqs match doctor.mjs USER_LAYER_PREREQS (#2369)');
@@ -15356,43 +15375,38 @@ try {
       // Discovered, not hand-listed: a list silently stops gating whatever is added
       // next, and this section previously covered 4 of the 6 files present.
       let webUnits = [];
+      const webRoot = join(ROOT, 'web');
+      const webTestsRoot = join(webRoot, 'tests');
+      const walkWebTests = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) return walkWebTests(p);
+        return e.isFile() && e.name.endsWith('.test.mjs') ? [p] : [];
+      });
       try {
-        webUnits = readdirSync(join(ROOT, 'web', 'tests', 'lib'))
-          .filter((f) => f.endsWith('.test.mjs'))
+        webUnits = walkWebTests(webTestsRoot)
           .sort()
-          .map((f) => `web/tests/lib/${f}`);
+          .map((f) => f.slice(webRoot.length + 1).replaceAll('\\', '/'));
       } catch (err) {
         // Fail rather than throw to the outer catch, which would skip every value
         // assertion below while reporting only "freeze section crashed".
-        fail(`web/tests/lib is unreadable (${err.message}) — the #2185 unit suites cannot be gated`);
+        fail(`web/tests is unreadable (${err.message}) — the required web suites cannot be gated`);
       }
-      // Three distinct states, so the message never misdescribes the failure: the
-      // unreadable case already called fail() above, an empty directory is its own
-      // fault, and only a non-empty list is actually run.
+      // Gate exactly the recursive set that web/package.json runs. A suite moved
+      // from tests/lib to tests/ must not silently fall out of the required check.
       if (webUnits.length === 0) {
-        if (existsSync(join(ROOT, 'web', 'tests', 'lib'))) {
-          fail('web/tests/lib contains no *.test.mjs — the #2185 unit suites are not being gated');
+        if (existsSync(webTestsRoot)) {
+          fail('web/tests contains no *.test.mjs — the required web suites are not being gated');
         }
-      } else if (run(NODE, ['--test', ...webUnits], { timeout: 180000 }) !== null) {
-        pass('web pdf write-scope unit suites pass (#2185)');
+      } else if (run(NODE, ['--test', ...webUnits], { timeout: 180000, cwd: webRoot }) !== null) {
+        pass(`all ${webUnits.length} recursive web suites pass in the required check`);
       } else {
-        // The signal distinguishes a timeout/kill from an assertion failure —
-        // run()'s default 30s is short for six suites in one child process.
         const killed = lastRunFailure()?.signal;
-        fail(`web pdf write-scope unit suites failed${killed ? ` (killed: ${killed})` : ''} (run: node --test ${webUnits.join(' ')})`);
+        fail(`required web suites failed${killed ? ` (killed: ${killed})` : ''} (run: node --test ${webUnits.join(' ')})`);
       }
 
       // Parity: everything web/package.json would run must be something we DO run.
-      // The block above only reads web/tests/lib, while web's own script is
-      // `node --test "tests/**/*.test.mjs"` — recursive. Today those agree (39 of
-      // 39 live in lib/), and nothing anywhere asserts that they keep agreeing.
-      // The day a suite lands in web/tests/routes/, web-ci.yml still runs it (its
-      // glob is recursive), so the failure this prevents is not "nobody runs it".
-      // It is narrower and worse: the instrument we MERGE by stops looking. A
-      // co-preview lot comes back green having skipped a suite that exists, while
-      // the PR's own informative CI is the only thing still watching it. Two
-      // measurements of the same fact, diverging in silence. Discovered on both
-      // sides, so this cannot rot into a stale list of its own.
+      // Parity is still checked independently below so a future change to either
+      // discovery mechanism cannot make a missing suite self-validate.
       try {
         const webTestsRoot = join(ROOT, 'web', 'tests');
         const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -15401,7 +15415,7 @@ try {
           return e.isFile() && e.name.endsWith('.test.mjs') ? [p] : [];
         });
         if (existsSync(webTestsRoot)) {
-          const gated = new Set(webUnits.map((f) => join(ROOT, f)));
+          const gated = new Set(webUnits.map((f) => join(webRoot, f)));
           const ungated = walk(webTestsRoot).filter((f) => !gated.has(f)).sort();
           if (ungated.length === 0) {
             pass(`every web suite is gated by the required check (${webUnits.length} discovered)`);
@@ -15409,7 +15423,7 @@ try {
             fail(
               `${ungated.length} web suite(s) run in web's own CI but NOT in this required check: ` +
               `${ungated.map((f) => f.slice(ROOT.length + 1)).join(', ')} — ` +
-              `this section only reads web/tests/lib, so anything outside it gates nothing`,
+              `the required recursive discovery and package discovery no longer agree`,
             );
           }
         }
@@ -15524,21 +15538,35 @@ try {
           .join('\n');
         const spelledFlags = ['--allowedTools', '--disallowedTools', '--permission-mode']
           .filter((flag) => routeCode.includes(flag));
-        const argvCallSites = (routeCode.match(/claudeCliArgs\s*\(/g) ?? []).length;
-        // `kind` must reach claudeCliArgs as a SHORTHAND property. Property order
-        // and line wrapping are free, but `{ kind: <anything> }` is refused:
-        // `claudeCliArgs({ kind: kind === "pdf" ? "evaluate" : kind, prompt })`
-        // once passed every check while pdf received the persisting scope.
-        const passesKindVerbatim = /claudeCliArgs\s*\(\s*\{(?:[^{}]*,)?\s*kind\s*[,}]/.test(routeCode);
-        if (spelledFlags.length === 0 && argvCallSites === 1 && passesKindVerbatim) {
-          pass('web run route delegates its whole argv, spelling no tool flag and remapping no kind (#2185)');
+        const coreRunPath = join(webLib, 'core-run.ts');
+        const coreRunCode = existsSync(coreRunPath) ? stripJsComments(readFileSync(coreRunPath, 'utf-8')) : '';
+        const acpRuntime = /executeCoreRun\s*\(\s*req\s*\)/.test(routeCode)
+          && /startAgentDockWorker\s*\(/.test(coreRunCode)
+          && /const\s+acpMode\s*=\s*kind\s*===\s*["']evaluate["']\s*\|\|\s*kind\s*===\s*["']fix-portal["']\s*\?\s*["']agent["']\s*:\s*["']read-only["']/.test(coreRunCode);
+        if (acpRuntime) {
+          // JobPilot replaced the old Claude CLI argv path with AgentDock ACP. The
+          // exact ternary above is intentional: pdf/research/proposer flows fall
+          // through to read-only while only persisting evaluate/fix-portal get agent.
+          if (spelledFlags.length === 0) {
+            pass('JobPilot web delegates run requests to ACP core-run and keeps proposer-only pdf read-only (#2185)');
+          } else {
+            fail(`JobPilot run route spells legacy CLI tool flags itself: ${spelledFlags.join(', ')} (#2185)`);
+          }
         } else {
-          const why = spelledFlags.length > 0
-            ? `it spells ${spelledFlags.join(', ')} itself`
-            : argvCallSites !== 1
-              ? `it builds argv at ${argvCallSites} site(s), expected exactly 1`
-              : 'it does not pass `kind` through verbatim (a remapped kind hands pdf another kind\'s scope)';
-          fail(`web run route no longer delegates its argv — ${why}, so the value checks above may not describe what pdf actually ships (#2185)`);
+          // Backward-compatible guard for the inherited CLI runtime if a checkout
+          // still uses it instead of JobPilot's ACP bridge.
+          const argvCallSites = (routeCode.match(/claudeCliArgs\s*\(/g) ?? []).length;
+          const passesKindVerbatim = /claudeCliArgs\s*\(\s*\{(?:[^{}]*,)?\s*kind\s*[,}]/.test(routeCode);
+          if (spelledFlags.length === 0 && argvCallSites === 1 && passesKindVerbatim) {
+            pass('legacy web run route delegates its whole argv, spelling no tool flag and remapping no kind (#2185)');
+          } else {
+            const why = spelledFlags.length > 0
+              ? `it spells ${spelledFlags.join(', ')} itself`
+              : argvCallSites !== 1
+                ? `it builds argv at ${argvCallSites} site(s), expected exactly 1`
+                : 'it does not pass `kind` through verbatim';
+            fail(`web run route matches neither the guarded ACP runtime nor the guarded legacy CLI runtime — ${why} (#2185)`);
+          }
         }
       }
     }

@@ -1,0 +1,12 @@
+.gradle/
+.kotlin/
+**/build/
+local.properties
+*.jks
+*.keystore
+
+# Local real-profile instrumentation. These suites bind to this workstation's
+# private profile registry and acceptance artifacts; keep them out of public Git.
+app/src/androidTest/java/com/thegreatnovel/jobpilot/ContinuationAcceptanceTest.kt
+app/src/androidTest/java/com/thegreatnovel/jobpilot/FastAiAcceptanceTest.kt
+app/src/androidTest/java/com/thegreatnovel/jobpilot/LanguageAcceptanceTest.kt

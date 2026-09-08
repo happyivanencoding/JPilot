@@ -350,7 +350,9 @@ function auditAts(html, opts = {}) {
 
   // 5. No CV text baked into images.
   let imageScore = WEIGHTS.images;
-  const imgs = [...html.matchAll(/<img\b[^>]*>/gi)].map(m => m[0]);
+  // Template comments/CSS can mention "<img>" without rendering an image.
+  const imageMarkup = html.replace(/<!--[\s\S]*?-->/g, '').replace(/<(style|script)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
+  const imgs = [...imageMarkup.matchAll(/<img\b[^>]*>/gi)].map(m => m[0]);
   const contentImgs = imgs.filter(tag => !/class\s*=\s*(?:"[^"]*\bcv-photo\b[^"]*"|'[^']*\bcv-photo\b[^']*')/i.test(tag));
   if (contentImgs.length > 0 && text.length < TEXT_LOW_WITH_IMG) {
     imageScore = 0;
@@ -528,6 +530,8 @@ function runSelfTest() {
   const imgCv = auditAts('<html><head><meta charset="utf-8"></head><body><img src="resume.png"><p>Resume</p></body></html>');
   check('content image with low text is flagged', hasIssue(imgCv.issues, 'image'));
   check('content image with low text is critical', hasCritical(imgCv.issues));
+  const commentedImage = auditAts('<html><head><meta charset="utf-8"><style>/* Optional <img> goes here. */</style></head><body><p>Resume</p><!-- <img src="not-rendered.png"> --></body></html>');
+  check('template comments and CSS examples are not content images', !commentedImage.issues.some(i => /Found \d+ (?:content|non-photo) image/.test(i.message)));
 
   // Non-standard font ⇒ warning naming the font.
   const badFont = auditAts(buildCleanHtml({ font: "'Comic Sans MS', cursive" }));

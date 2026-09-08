@@ -1,3 +1,29 @@
+# JobPilot
+
+JobPilot is a profile-based job search product with a native Android app and a matching phone-first Web client. Web 0.4.0 replaces the upstream workbench at the existing root URL; there is no separate Classic UI.
+
+The desktop Web experience stays in a **384 × 832 portrait frame** and follows the Android product: Home, Offers, Applications, Prepare and Profile. Both clients use the same candidate data, evaluation reports, AI tasks, CV versions, preparation checklists and application tracking.
+
+Upload and review a CV before saving, explore and evaluate roles, compare opportunities, inspect real PDF drafts before accepting changes, prepare interviews and track replies. UI/analysis language (Chinese, French or English) is independent from the language of application documents (French or English).
+
+This is a local-first deployment: the PC, backend and AgentDock must remain running. Public access uses the existing authenticated gateway; the trusted-LAN demo is opt-in. Neither client creates a second database or independent cloud service. The Android APK remains a development build, not a store release.
+
+## Development and handoff
+
+Read `DEEP_CONTEXT_HANDOFF_FINAL.md` before modifying the project. See [Web architecture and acceptance](docs/WEB_ANDROID_PARITY.md), [Web setup](web/README.md), [Android handoff](docs/ANDROID_HANDOFF.md), [mobile acceptance](docs/MOBILE_ACCEPTANCE.md), and [language separation](docs/ANDROID_LANGUAGE_SEPARATION.md).
+
+The product is developed independently from the upstream engine. Candidate data, private runtime artifacts, CVs, credentials and gateway sessions must not be committed. Inherited and third-party copyright notices remain preserved.
+
+## License
+
+JobPilot is licensed under the **GNU Affero General Public License v3.0 only** (`AGPL-3.0-only`) for material this project has the right to license.
+
+See [`LICENSE`](LICENSE) for the full AGPL-3.0 text. Portions inherited from the Career-Ops upstream project remain available under their original MIT terms; the original notice is preserved in [`LICENSES/career-ops-MIT.txt`](LICENSES/career-ops-MIT.txt). See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for attribution and other dependency notices.
+
+<details>
+<summary>Historical upstream engine documentation — not the current JobPilot Web product</summary>
+
+
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/wordmark-dark.svg"><img src="docs/wordmark-light.svg" alt="career-ops" width="250" height="56"></picture></p>
 
 <div align="center">
@@ -90,7 +116,7 @@
   <img src="https://img.shields.io/badge/Go-00ADD8?style=flat&logo=go&logoColor=white" alt="Go">
   <img src="https://img.shields.io/badge/Playwright-2EAD33?style=flat&logo=playwright&logoColor=white" alt="Playwright">
   <img src="https://img.shields.io/badge/Bubble_Tea-FF75B5?style=flat&logo=go&logoColor=white" alt="Bubble Tea">
-  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT">
+  <img src="https://img.shields.io/badge/License-AGPL--3.0--only-blue.svg" alt="AGPL-3.0-only">
   <a href="TRADEMARK.md"><img src="https://img.shields.io/badge/Trademark-Policy-blue.svg" alt="Trademark Policy"></a>
 </p>
 
@@ -515,7 +541,7 @@ Wikidata: [Santiago Fernández de Valderrama Aparicio](https://www.wikidata.org/
 3. **You comply with third-party ToS.** You must use this tool in accordance with the Terms of Service of the career portals you interact with (Greenhouse, Lever, Workday, LinkedIn, etc.). Do not use this tool to spam employers or overwhelm ATS systems.
 4. **No guarantees.** Evaluations are recommendations, not truth. AI models may hallucinate skills or experience. The authors are not liable for employment outcomes, rejected applications, account restrictions, or any other consequences.
 
-See [LEGAL_DISCLAIMER.md](LEGAL_DISCLAIMER.md) for full details. This software is provided under the [MIT License](LICENSE) "as is", without warranty of any kind.
+See [LEGAL_DISCLAIMER.md](LEGAL_DISCLAIMER.md) for full details. This historical section describes the inherited Career-Ops engine; its pre-existing code remains under the [original MIT License](LICENSES/career-ops-MIT.txt). JobPilot additions are licensed under the root [AGPL-3.0-only license](LICENSE).
 
 ## Contributors
 
@@ -529,12 +555,9 @@ the graph above cannot show.
 
 Got hired using career-ops? [Share your story!](https://github.com/santifer/career-ops/issues/new?template=i-got-hired.yml)
 
-## License & Trademark
+## Upstream License & Trademark
 
-The code is licensed under [MIT](LICENSE). The "career-ops" name and
-brand are governed by the [Trademark Policy](TRADEMARK.md), permissive
-for community use, reserved for commercial product naming and
-endorsement.
+The pre-existing Career-Ops code described in this historical section remains under its [original MIT License](LICENSES/career-ops-MIT.txt). The "career-ops" name and brand remain governed by the upstream [Trademark Policy](TRADEMARK.md). JobPilot itself is separately named and its project additions are licensed under [AGPL-3.0-only](LICENSE).
 
 ## Let's Connect
 
@@ -543,3 +566,6 @@ endorsement.
 [![X](https://img.shields.io/badge/X-000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/santifer)
 [![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/8pRpHETxa4)
 [![Email](https://img.shields.io/badge/Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white)](mailto:hi@santifer.io)
+
+
+</details>

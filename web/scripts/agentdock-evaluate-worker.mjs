@@ -1,4 +1,5 @@
 import process from "node:process";
+import { FLOW_DEFAULTS } from "../src/lib/ai-metrics.mjs";
 
 function write(event) {
   process.stdout.write(`${JSON.stringify(event)}\n`);
@@ -24,7 +25,7 @@ async function readStdin() {
   return text;
 }
 
-const [, , cwd = "", timeoutRaw = "780000"] = process.argv;
+const [, , cwd = "", timeoutRaw = "780000", model = FLOW_DEFAULTS.evaluate.model, reasoning = FLOW_DEFAULTS.evaluate.reasoning] = process.argv;
 const timeoutMs = Number(timeoutRaw) || 780_000;
 const prompt = await readStdin();
 if (!cwd || !prompt) {
@@ -38,20 +39,18 @@ try {
   for (;;) {
     try {
       const { client, agent } = await mod.openAgentDockCodex();
-      write({ status: `AgentDock ACP · ${agent.title} ${agent.version} · gpt-5.6-sol` });
-      let lastUsed = 0;
+      write({ status: `AgentDock ACP · ${agent.title} ${agent.version} · ${model}/${reasoning}` });
       const result = await mod.runAgentDockCodex({
         client,
         prompt,
         cwd,
-        mode: "agent-full-access",
-        model: "gpt-5.6-sol",
-        reasoning: "medium",
+        mode: "read-only",
+        model,
+        reasoning,
         timeoutMs,
         onText: (text) => write({ text }),
-        onUsage: (usage) => {
-          if (typeof usage.used === "number") lastUsed = usage.used;
-        },
+        onRun: (run) => write({execution:{sessionId:run.sessionId,runId:run.runId,remoteSessionId:run.remoteSessionId,workerPid:process.pid}}),
+        onMetrics: (metrics) => write({metrics,...(typeof metrics.totalTokens === "number" ? {tokens:metrics.totalTokens} : {})}),
         onEvent: (event) => {
           const label = eventLabel(event);
           if (label) write(label);
@@ -60,7 +59,6 @@ try {
       if (!result.textEmitted) {
         throw new Error("AgentDock Codex ended without a final answer — the turn was interrupted or blocked by an interactive tool approval.");
       }
-      if (lastUsed > 0) write({ tokens: lastUsed });
       break;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

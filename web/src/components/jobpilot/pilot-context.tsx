@@ -1,0 +1,218 @@
+"use client";
+
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import dictionary from "../../../shared/jobpilot-i18n.json";
+import { ACTIVE, destinationFor, parseRoute, pendingDisplay, routeUrl } from "./model.mjs";
+
+// The existing mobile API is a versioned JSON projection, not a second browser database.
+export type Json = Record<string, any>;
+export type Locale = "zh" | "fr" | "en";
+export type Route = { tab: string; filter?: string; view?: string; job?: string; jobTab?: string; task?: string; draft?: string; report?: string; ids?: string };
+export const rows = (value: unknown): Json[] => Array.isArray(value) ? value.filter(x => x && typeof x === "object") : [];
+export const texts = (value: unknown): string[] => Array.isArray(value) ? value.filter(x => typeof x === "string") : [];
+const empty = (): Json => ({ jobs: [], tasks: [], profiles: [], profile: {}, config: {}, dashboard: { actionSets: {} }, discovery: { offers: [] }, cv: "", cvState: {}, analysis: {} });
+const translations = dictionary as Record<string, Partial<Record<Locale, string>>>;
+type Notice = { text: string; taskId?: string } | null;
+
+function useController(profileId: string) {
+  const [locale, setLocale] = useState<Locale>("zh");
+  const [theme, setTheme] = useState("system");
+  const [ready, setReady] = useState(false);
+  const [data, setData] = useState<Json>(empty);
+  const [detail, setDetail] = useState<Json | null>(null);
+  const [route, setRoute] = useState<Route>({ tab: "home" });
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [expired, setExpired] = useState(false);
+  const [notice, setNotice] = useState<Notice>(null);
+  const [trainingJob, setTrainingJob] = useState("");
+  const dataRef = useRef(data), routeRef = useRef(route), detailRef = useRef(detail);
+  dataRef.current = data; routeRef.current = route; detailRef.current = detail;
+  const scope = `${profileId}:${locale}`;
+  const scopeRef = useRef(scope); scopeRef.current = scope;
+  const controllers = useRef(new Set<AbortController>());
+  const busyRef = useRef(false);
+  const refreshRef = useRef<{ scope: string; promise: Promise<void> } | null>(null);
+  const displayIdsRef = useRef("");
+  const tr = useCallback((zh: string, fr: string, en: string = fr) => locale === "zh" ? zh : locale === "en" ? en : fr, [locale]);
+  const product = useCallback((value: unknown): string => {
+    if (value == null) return "";
+    const text = String(value);
+    return translations[text]?.[locale] || text;
+  }, [locale]);
+  const notify = useCallback((text: string, taskId?: string) => setNotice({ text, taskId }), []);
+  const fail = useCallback((e: unknown) => {
+    if (e instanceof DOMException && e.name === "AbortError") return;
+    setError(product(e instanceof Error ? e.message : String(e)));
+  }, [product]);
+
+  const apiUrl = useCallback((path: string) => {
+    const u = new URL(path, window.location.origin);
+    if (u.origin !== window.location.origin || !u.pathname.startsWith("/api/")) throw new Error("Same-origin JobPilot API required");
+    if (!u.pathname.startsWith("/api/mobile-auth/") && u.pathname !== "/api/profiles") u.searchParams.set("profileId", profileId);
+    return u.pathname + u.search;
+  }, [profileId]);
+  const fetchScoped = useCallback(async (path: string, init: RequestInit = {}, binary = false): Promise<any> => {
+    const controller = new AbortController(); controllers.current.add(controller);
+    let timedOut = false;
+    const timeout = window.setTimeout(() => { timedOut = true; controller.abort(); }, binary || path.startsWith("/api/mobile/cv") ? 95000 : 60000);
+    try {
+      const headers = new Headers(init.headers);
+      headers.set("X-JobPilot-Locale", locale); headers.set("X-JobPilot-Profile", profileId);
+      if (!binary) headers.set("Accept", "application/json");
+      if (typeof init.body === "string") headers.set("Content-Type", "application/json");
+      const response = await fetch(apiUrl(path), { ...init, headers, credentials: "same-origin", cache: "no-store", signal: controller.signal });
+      if (response.status === 401 && scopeRef.current === scope) setExpired(true);
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || tr(`请求失败 (${response.status})`, `Requête impossible (${response.status})`, `Request failed (${response.status})`));
+      }
+      const result = binary ? new Uint8Array(await response.arrayBuffer()) : await response.json();
+      if (scopeRef.current !== scope) throw new DOMException("Outdated profile or language", "AbortError");
+      return result;
+    } catch (e) {
+      if (timedOut && scopeRef.current === scope) throw new Error(tr("连接超时。后台任务不会因此取消，请稍后刷新。", "Connexion expirée. Les tâches en arrière-plan continuent ; actualisez dans un instant.", "Connection timed out. Background tasks continue; refresh shortly."));
+      throw e;
+    } finally { clearTimeout(timeout); controllers.current.delete(controller); }
+  }, [apiUrl, locale, profileId, scope, tr]);
+  const request = useCallback((path: string, init?: RequestInit): Promise<Json> => fetchScoped(path, init), [fetchScoped]);
+  const documentBytes = useCallback((path: string): Promise<Uint8Array> => fetchScoped(path, {}, true), [fetchScoped]);
+
+  const navigate = useCallback((next: Partial<Route>, replace = false) => {
+    const target: Route = { tab: next.tab || routeRef.current.tab, ...next };
+    const depth = replace ? (history.state?.jpDepth || 0) : (history.state?.jpDepth || 0) + 1;
+    history[replace ? "replaceState" : "pushState"]({ jpDepth: depth }, "", routeUrl(target));
+    setRoute(target); setError(null);
+  }, []);
+  const close = useCallback(() => {
+    if (history.state?.jpDepth > 0) history.back();
+    else navigate({ tab: routeRef.current.tab, filter: routeRef.current.filter }, true);
+  }, [navigate]);
+  const refresh = useCallback(async (retry = false) => {
+    if (refreshRef.current?.scope === scope) return refreshRef.current.promise;
+    const promise = (async () => {
+      try {
+        const suffix = new URLSearchParams();
+        if (displayIdsRef.current) suffix.set("displayJobIds", displayIdsRef.current);
+        if (retry) suffix.set("retryLocalization", "1");
+        const snapshot = await request(`/api/mobile?${suffix}`);
+        const previous = rows(dataRef.current.tasks);
+        const completed = rows(snapshot.tasks).find(t => t.status === "completed" && previous.some(p => p.id === t.id && ACTIVE.has(p.status)));
+        dataRef.current = snapshot; setData(snapshot); setExpired(false);
+        if (completed) notify(completed.title, completed.id);
+      } catch (e) { if (scopeRef.current === scope) fail(e); }
+      finally { if (scopeRef.current === scope) setLoading(false); }
+    })();
+    refreshRef.current = { scope, promise };
+    try { await promise; } finally { if (refreshRef.current?.promise === promise) refreshRef.current = null; }
+  }, [request, scope, fail, notify]);
+
+  const refreshDetail = useCallback(async (retry = false) => {
+    const r = routeRef.current;
+    const query = r.view === "report" ? `reportJobId=${encodeURIComponent(r.report || r.job || "")}` : r.view === "task" ? `taskId=${encodeURIComponent(r.task || "")}` : "";
+    if (!query) return;
+    const key = routeUrl(r);
+    try {
+      const result = await request(`/api/mobile?${query}${retry ? "&retryLocalization=1" : ""}`);
+      if (routeUrl(routeRef.current) === key) setDetail(result);
+    } catch (e) { if (scopeRef.current === scope) fail(e); }
+  }, [request, scope, fail]);
+
+  useEffect(() => {
+    let lang = "zh", appearance = "system";
+    try { lang = localStorage.getItem("jobpilot:language") || "zh"; appearance = localStorage.getItem("jobpilot:theme") || localStorage.getItem("career-ops:theme") || "system"; } catch { /* Private browsing can deny storage; session state still works. */ }
+    setLocale(["zh", "fr", "en"].includes(lang) ? lang as Locale : "zh");
+    setTheme(["system", "light", "dark"].includes(appearance) ? appearance : "system");
+    setRoute(parseRoute(window.location.search) as Route); setReady(true);
+    const pop = () => { setRoute(parseRoute(window.location.search) as Route); setError(null); };
+    window.addEventListener("popstate", pop); return () => window.removeEventListener("popstate", pop);
+  }, []);
+  useEffect(() => {
+    if (!ready) return;
+    document.documentElement.lang = locale === "zh" ? "zh-CN" : locale;
+    try { localStorage.setItem("jobpilot:language", locale); localStorage.setItem("jobpilot:theme", theme); } catch { /* Session-only preferences. */ }
+    const media = matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => {
+      const dark = theme === "dark" || theme === "system" && media.matches;
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#10191D" : "#F3F5F3");
+    };
+    apply(); media.addEventListener("change", apply); return () => media.removeEventListener("change", apply);
+  }, [ready, locale, theme]);
+  useEffect(() => {
+    if (!ready) return;
+    setLoading(true); setError(null); setDetail(null); busyRef.current = false; setBusy(false);
+    setData(old => ({ ...empty(), profile: old.profile, profiles: old.profiles, cv: old.cv, cvState: old.cvState, config: old.config, languageSettings: old.languageSettings }));
+    void refresh();
+    let timer: ReturnType<typeof setTimeout>;
+    let disposed = false;
+    let lastPoll = Date.now();
+    const tick = async () => {
+      const s = dataRef.current, d = detailRef.current;
+      const ids = displayIdsRef.current.split(",");
+      const active = rows(s.tasks).some(t => ACTIVE.has(t.status)) || ACTIVE.has(d?.status) || pendingDisplay(s) || rows(s.jobs).some(j => ids.includes(j.id) && pendingDisplay(j)) || pendingDisplay(d) || pendingDisplay(d?.result);
+      // Check for newly active work every 2.5 s, but keep idle network reads at 15 s.
+      // A task started during an idle interval must not inherit a 15-second UI delay.
+      if (!document.hidden && (active || Date.now() - lastPoll >= 15000)) {
+        await refresh();
+        if (pendingDisplay(d) || pendingDisplay(d?.result) || ACTIVE.has(d?.status)) await refreshDetail();
+        lastPoll = Date.now();
+      }
+      if (!disposed) timer = setTimeout(tick, 2500);
+    };
+    timer = setTimeout(tick, 2500);
+    const visible = () => { if (!document.hidden) void refresh(); };
+    window.addEventListener("focus", visible); document.addEventListener("visibilitychange", visible);
+    return () => { disposed = true; clearTimeout(timer); controllers.current.forEach(c => c.abort()); controllers.current.clear(); window.removeEventListener("focus", visible); document.removeEventListener("visibilitychange", visible); };
+  }, [ready, scope, refresh, refreshDetail]);
+  const selectedJob = rows(data.jobs).find(j => j.id === route.job || String(j.reportNum) === route.job);
+  const displayIds = route.view === "compare" ? route.ids || "" : selectedJob && ["job", "report", "pdf"].includes(route.view || "") ? selectedJob.id : route.tab === "prepare" ? trainingJob || rows(data.jobs)[0]?.id || "" : "";
+  useEffect(() => { if (displayIdsRef.current !== displayIds) { displayIdsRef.current = displayIds; if (ready && displayIds) void refresh(); } }, [displayIds, ready, refresh]);
+  useEffect(() => { setDetail(null); if (ready) void refreshDetail(); }, [route.view, route.task, route.report, ready, scope, refreshDetail]);
+  useEffect(() => { if (!notice) return; const id = setTimeout(() => setNotice(null), 3500); return () => clearTimeout(id); }, [notice]);
+
+  const execute = useCallback(async <T,>(operation: () => Promise<T>): Promise<T | undefined> => {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(true); setError(null);
+    try { return await operation(); } catch (e) { if (scopeRef.current === scope) fail(e); return; }
+    finally { if (scopeRef.current === scope) { busyRef.current = false; setBusy(false); } }
+  }, [scope, fail]);
+  const act = useCallback(async (body: Json, path = "/api/mobile") => execute(async () => {
+    const result = await request(path, { method: "POST", body: JSON.stringify({ ...body, profileId }) });
+    await refresh(); notify(tr("已保存", "Enregistré", "Saved")); return result;
+  }), [execute, request, profileId, refresh, notify, tr]);
+  const openTask = useCallback(async (id: string) => execute(async () => {
+    const task = await request(`/api/mobile?taskId=${encodeURIComponent(id)}`);
+    await refresh(); navigate(destinationFor(task));
+  }), [execute, request, refresh, navigate]);
+  const startTask = useCallback(async (input: Json) => execute(async () => {
+    const task = await request("/api/mobile", { method: "POST", body: JSON.stringify({ action: "task", profileId, input: { ...input, uiLocale: locale, language: locale } }) });
+    await refresh();
+    if (task.status === "completed" || task.status === "failed") navigate(destinationFor(task));
+    else notify(`${task.title} · ${task.estimate?.label || tr("可继续使用其他页面", "Vous pouvez continuer à naviguer", "You can keep browsing")}`, task.id);
+    return task;
+  }), [execute, request, profileId, locale, refresh, navigate, notify, tr]);
+  const upload = useCallback(async (file: File) => execute(async () => {
+    if (!/\.(pdf|docx|txt|md)$/i.test(file.name) || !file.size || file.size > 12 * 1024 * 1024) throw new Error(tr("请选择 PDF、DOCX、TXT 或 MD，最大 12 MB。", "PDF, DOCX, TXT ou MD · 12 Mo maximum.", "Choose PDF, DOCX, TXT or MD, up to 12 MB."));
+    const form = new FormData(); form.set("file", file);
+    const task = await request("/api/mobile/upload", { method: "POST", body: form });
+    await refresh(); navigate({ tab: "profile", view: "task", task: task.id });
+  }), [execute, request, refresh, navigate, tr]);
+  const switchProfile = useCallback((id: string) => execute(async () => {
+    await request("/api/profiles", { method: "POST", body: JSON.stringify({ profileId: id }) });
+    window.location.assign("/");
+  }), [execute, request]);
+  const retryLocalization = useCallback(() => routeRef.current.view === "task" || routeRef.current.view === "report" ? refreshDetail(true) : refresh(true), [refresh, refreshDetail]);
+  const openJob = useCallback((job: string, jobTab = 0) => navigate({ tab: routeRef.current.tab, view: "job", job, jobTab: String(jobTab) }), [navigate]);
+  return { profileId, locale, theme, ready, data, detail, route, selectedJob, loading, busy, error, expired, notice,
+    tr, product, setLocale, setTheme, setError, setNotice, setTrainingJob, request, documentBytes, apiUrl, fail, notify,
+    navigate, close, refresh, retryLocalization, act, startTask, openTask, upload, switchProfile, openJob, execute };
+}
+type PilotController = ReturnType<typeof useController>;
+const Context = createContext<PilotController | null>(null);
+export function PilotProvider({ profileId, children }: { profileId: string; children: ReactNode }) {
+  const value = useController(profileId);
+  return <Context.Provider value={value}>{children}</Context.Provider>;
+}
+export function usePilot() { const value = useContext(Context); if (!value) throw new Error("JobPilot provider missing"); return value; }

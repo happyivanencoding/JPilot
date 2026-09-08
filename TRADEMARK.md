@@ -1,12 +1,12 @@
-# career-ops Trademark Policy
+# career-ops Trademark Policy (inherited upstream notice)
 
-This document explains how the "career-ops" name and brand may be used.
-It complements — not replaces — the MIT [LICENSE](LICENSE) that governs
-the source code.
+This upstream document explains how the "career-ops" name and brand may be used. It applies to the inherited Career-Ops branding, not to the separately named JobPilot product.
+
+The pre-existing Career-Ops code remains available under its original MIT terms in [`LICENSES/career-ops-MIT.txt`](LICENSES/career-ops-MIT.txt). JobPilot-authored additions are licensed separately under the repository root [AGPL-3.0-only license](LICENSE).
 
 ## TL;DR
 
-- **MIT covers the code.** Use it, modify it, fork it, build on it.
+- **MIT covers the inherited Career-Ops code.** Use it, modify it, fork it, build on it under those terms.
 - **This policy covers the name and brand.** It's intentionally
   permissive for community use and reserved for commercial product
   naming and endorsement.

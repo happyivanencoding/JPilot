@@ -61,23 +61,17 @@ By using career-ops, you agree to indemnify, defend, and hold harmless the autho
 
 If you use paid AI providers (Anthropic API, OpenAI API, etc.), you are solely responsible for monitoring and managing your own token usage and associated costs. The maintainers are not responsible for unexpected charges.
 
-## 9. MIT License
+## 9. Software licenses
 
-As stated in the [LICENSE](LICENSE) file:
+JobPilot-authored material is distributed under the [GNU Affero General Public License v3.0 only](LICENSE). The AGPL includes its own warranty disclaimer and conditions for copying, modification, distribution, and network use.
 
-> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+This repository also contains pre-existing Career-Ops material that was received under the MIT License. Its original copyright and permission notice is preserved in [`LICENSES/career-ops-MIT.txt`](LICENSES/career-ops-MIT.txt). Other third-party material remains under its own terms; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+Nothing in JobPilot's AGPL notice removes rights or obligations attached to that inherited or third-party material.
 
 ## 10. Trademark
 
-The "career-ops" name and brand identity are separate from the MIT
-license that governs the source code. The MIT license grants broad
-rights to use, modify, and redistribute the code; it does not grant
-rights to use the project name in commercial product naming,
-endorsement claims, or affiliation messaging.
-
-See [TRADEMARK.md](TRADEMARK.md) for permitted uses, restricted uses,
-and how to request written permission for commercial naming or
-endorsement.
+The inherited "career-ops" name and brand identity are separate from software licensing and remain subject to the upstream [Trademark Policy](TRADEMARK.md). JobPilot uses its own product name and does not claim upstream endorsement or affiliation.
 
 ## 11. Changes
 
