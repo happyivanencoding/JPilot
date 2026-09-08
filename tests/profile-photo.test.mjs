@@ -81,7 +81,7 @@ test('valid data URL remains supported', () => {
 test('missing, unsupported, and invalid-style photos fail clearly', () => {
   const cases = [
     [payload('does-not-exist.png'), /not found or unreadable/],
-    [payload('docs/roadmap-phases.jpg', 'hexagon'), /Unsupported profile photo style/],
+    [payload('docs/logo.png', 'hexagon'), /Unsupported profile photo style/],
     [payload('docs/file.svg'), /Unsupported profile photo format/],
   ];
   for (const [value, expected] of cases) {

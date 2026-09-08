@@ -1,7 +1,7 @@
 {
-  "name": "career-ops",
+  "name": "jpilot-engine",
   "version": "1.31.0",
-  "description": "AI-powered job search pipeline — works with any AI coding CLI (Claude Code, Codex, OpenCode, Antigravity, Grok, Qwen, Kimi, Copilot)",
+  "description": "JPilot local backend compatibility engine for the Android-first product",
   "private": true,
   "engines": {
     "node": ">=18"
@@ -28,10 +28,6 @@
     "test:cv-visual": "playwright test --config=playwright.cv.config.mjs",
     "test:cv-visual:update": "playwright test --config=playwright.cv.config.mjs --update-snapshots",
     "sync-check": "node cv-sync-check.mjs",
-    "update:check": "node update-system.mjs check",
-    "update:test": "node updater-migration-tests.mjs",
-    "update": "node update-system.mjs apply",
-    "rollback": "node update-system.mjs rollback",
     "liveness": "node check-liveness.mjs",
     "extract": "node browser-extract.mjs",
     "scan:hn": "node scan-hn.mjs",
@@ -64,36 +60,24 @@
     "archive": "node archive-posting.mjs",
     "prepare:application": "node prepare-application.mjs",
     "application:init": "node application-artifacts.mjs --init",
-    "build:dashboard": "node build-dashboard.mjs",
-    "serve:dashboard": "cd dashboard && go run . --path ..",
-    "postinstall": "npx playwright install chromium --with-deps || npx playwright install chromium --with-deps",
-    "manifesto": "node manifesto.mjs"
+    "postinstall": "npx playwright install chromium --with-deps || npx playwright install chromium --with-deps"
   },
   "keywords": [
-    "ai",
+    "jpilot",
     "job-search",
-    "claude-code",
-    "opencode",
+    "android",
     "career",
-    "career-ops",
-    "careerops",
-    "automation",
-    "codex",
-    "antigravity",
-    "qwen",
-    "kimi",
-    "copilot",
-    "grok",
-    "ai-agent-skill"
+    "ai",
+    "local-first"
   ],
   "author": "Santiago Fernández de Valderrama <hi@santifer.io> (upstream Career-Ops engine)",
   "contributors": [
     "happyivanencoding (JobPilot product)"
   ],
-  "homepage": "https://github.com/happyivanencoding/JobPilot",
+  "homepage": "https://github.com/happyivanencoding/JPilot",
   "repository": {
     "type": "git",
-    "url": "https://github.com/happyivanencoding/JobPilot"
+    "url": "https://github.com/happyivanencoding/JPilot"
   },
   "license": "AGPL-3.0-only",
   "dependencies": {

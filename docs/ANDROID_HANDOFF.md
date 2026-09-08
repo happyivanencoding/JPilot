@@ -2,6 +2,8 @@
 
 Updated: 2026-09-08 (Europe/Paris). Current Android source, APK and actual USB installation: **0.3.2 / versionCode 6**. Current public backend build: **0.3.2**. Read `ANDROID_LANGUAGE_SEPARATION.md` first for the independent UI/material language contracts and the current native acceptance boundary. Earlier 0.3.1 search/runtime evidence below remains historical, not invalidated.
 
+**Repository authority:** `https://github.com/happyivanencoding/JPilot`. Android is the canonical frontend for JPilot product decisions. Web follows this native implementation; it is not a second desktop product. `santifer/career-ops` is historical provenance only and its updater is no longer part of the JPilot development workflow. See `PROJECT_STRUCTURE.md`.
+
 ## Web counterpart — 0.4.0, 2026-09-08
 
 The Web root now serves the JobPilot phone-first product, following this Android implementation, with a 384×832 desktop portrait frame and the same five core destinations. The old AppShell/sidebar/pages are retired; historical Web routes redirect into the new product. Do not reintroduce the original upstream workbench as an advanced or Classic option. Existing Android browser links therefore open the new Web experience too.

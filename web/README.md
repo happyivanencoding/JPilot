@@ -1,55 +1,51 @@
-# JobPilot Web 0.4.0
+# JPilot Web
 
-The Web client follows the current native Android experience. It replaces the old Career-Ops workbench rather than adding another page or an optional theme. The root route renders the only product shell; historical page URLs redirect to the corresponding JobPilot tab or detail.
+JPilot Web is the browser mirror of the native Android product and the host for the current local backend/API.
 
-Desktop: fixed 384 × 832 portrait composition, scaled down to fit. Phone: real viewport, safe areas, fixed five-tab navigation and scrollable content. Light/dark themes and Chinese/French/English UI follow Android. Application document language remains independent.
+**Development repository:** `https://github.com/happyivanencoding/JPilot`
 
-## Develop and deploy
+## Product rule
 
-Use Node 22+ and the existing repository setup. From this directory:
+Android is the frontend authority. Web follows the current Android navigation, interaction, states and phone-first visual language. It does not have a separate desktop information architecture and must not restore the historical Career-Ops workbench or Classic UI.
+
+The root route renders the supported JobPilot shell. Historical URLs may redirect to the matching JobPilot destination only.
+
+Desktop browsers use the phone portrait composition; actual phone browsers use the real viewport and safe areas. Chinese/French/English UI follows the same product language contract as Android. Application-document language remains independent.
+
+## Develop
+
+Use Node 22+:
 
 ```powershell
+cd C:\dev\career-ops\web
 npm ci
 npm run dev
 ```
 
-Production:
+Product checks:
 
 ```powershell
 npm run typecheck
 npm test
 npm run build
-.\scripts\start-mobile.ps1 -RestartWeb
 ```
 
-The production listener stays on 127.0.0.1:3000, behind the existing authenticated gateway. Keep secrets in ignored local configuration, not client environment variables. For optional trusted-LAN access use the existing start/stop LAN demo scripts, not a public unauthenticated binding.
+Production remains on the existing loopback service and authenticated gateway. Do not expose Candidate data, runtime secrets or a new unauthenticated public endpoint while developing the Web mirror.
 
 ## Implementation
 
-`src/components/jobpilot/` contains the phone shell, screens, scoped client state, details and PDF preview. `src/app/page.tsx` and `layout.tsx` are the only product entry; the old AppShell is not mounted. The existing `/api/mobile` backend contract and `shared/jobpilot-i18n.json` remain shared with Android.
+- `src/components/jobpilot/` — supported Web product shell and screens.
+- `src/app/page.tsx` — product entry.
+- `/api/mobile` and related routes — Android/Web mobile backend contract.
+- `../shared/jobpilot-i18n.json` — shared UI language dictionary.
+- inherited root engine scripts/providers/templates — retained only where current backend code still calls them.
 
-CVs remain backend-owned. Preview uses actual PDF bytes, not a visual approximation. Imports, edits and draft acceptance require explicit confirmation; version conflicts stay visible without losing edits. All calls are scoped to the displayed profile, independently of a cookie another browser tab may change.
+CV preview uses actual PDF bytes. Imports, canonical CV edits and draft acceptance keep explicit confirmation/version checks. Profile-scoped requests must remain isolated from other profiles and browser tabs.
 
-`scripts/prepare-web-assets.mjs` copies self-hosted PDF.js resources from the pinned dependency before dev/build. Generated `public/jobpilot-pdf/` is ignored and rebuilt, not committed. No runtime CDN or service-worker CV cache is used.
+## Acceptance
 
-## Browser acceptance
+Current architecture/acceptance evidence is documented in [`../docs/WEB_ANDROID_PARITY.md`](../docs/WEB_ANDROID_PARITY.md) and [`../docs/MOBILE_ACCEPTANCE.md`](../docs/MOBILE_ACCEPTANCE.md). Read `../DEEP_CONTEXT_HANDOFF_FINAL.md` before changes.
 
-```powershell
-$env:BUILD_DIST = '.next-web-parity-qa'
-npm run build
-node scripts/qa-jobpilot-web.mjs
-$env:JOBPILOT_QA_ENGINE = 'webkit'
-node node_modules/playwright-core/cli.js install webkit
-node scripts/qa-jobpilot-web.mjs
-Remove-Item Env:JOBPILOT_QA_ENGINE, Env:BUILD_DIST
-```
+## License
 
-The default browser is installed Microsoft Edge; `JOBPILOT_QA_BROWSER` can select another Chromium executable. The suite owns and cleans up a temporary loopback server, intercepts every API with isolated fictional records, and fails unknown requests instead of sending real business writes. It exercises actual DOM interaction, PDF rendering/download, languages/themes, profile isolation, completed-result navigation and small-screen geometry. It does not claim to run new production AI model calls.
-
-Private screenshots and logs belong in ignored runtime QA storage, never Git. See [the architecture and acceptance record](../docs/WEB_ANDROID_PARITY.md) for exact results and platform limitations. Read the repository's `DEEP_CONTEXT_HANDOFF_FINAL.md` before modifying the project.
-
-## License and attribution
-
-JobPilot Web is part of the JobPilot distribution and is licensed under **AGPL-3.0-only** for JobPilot-authored material. See the repository root [`LICENSE`](../LICENSE).
-
-Pre-existing Career-Ops engine code retains its original MIT notice in [`../LICENSES/career-ops-MIT.txt`](../LICENSES/career-ops-MIT.txt). Rounded navigation icons match Android's Material Icons and keep their Apache-2.0 license beside the source. PDF.js retains the licenses shipped with its pinned dependency. See [`../THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
+JPilot-authored Web material is AGPL-3.0-only. Inherited Career-Ops code retains its original MIT notice in `../LICENSES/career-ops-MIT.txt`; dependency notices remain in `../THIRD_PARTY_NOTICES.md`.

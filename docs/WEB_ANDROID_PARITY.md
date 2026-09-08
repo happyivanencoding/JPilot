@@ -4,6 +4,8 @@
 
 The Web client is now JobPilot, not a separate upstream Career-Ops workbench. The root route is the only product shell. There is no Classic/Advanced UI switch. The existing engine, profile files, evaluation reports, task history and authenticated gateway remain shared with native Android.
 
+**Development repository:** `https://github.com/happyivanencoding/JPilot`. Native Android is the frontend product authority; Web parity follows Android rather than evolving independently. Historical Career-Ops upstream/release/update machinery is not part of the JPilot development path. See `PROJECT_STRUCTURE.md`.
+
 ## AI runtime — transport-only ACP
 
 The shared server-side AI runtime now treats AgentDock/ACP strictly as model transport. Product inference receives backend-assembled data and cannot use terminal/filesystem/web/browser/plugins/skills/sub-agents. Formal evaluation returns JSON and the backend owns report/tracker persistence. Structured providers, not ACP web search, are the discovery network layer. CV ingest is extracted locally before inference; tailored CV generation embeds the frozen Candidate version. This changes backend latency/security boundaries, not the phone-frame Web interaction contract. See `AI_BENCHMARK_2026-09-08.md` for the measured transport tax and quality comparison.
