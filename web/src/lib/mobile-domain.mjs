@@ -2,6 +2,14 @@
 export const UPLOAD_LIMIT = 12 * 1024 * 1024;
 export const UPLOAD_EXTENSIONS = new Set(['.pdf', '.docx', '.txt', '.md']);
 export const APPLICATION_STATUSES = ['À candidater', 'CV prêt', 'Candidature envoyée', 'Réponse reçue', 'Entretien', 'Offre reçue', 'Embauché', 'Refus', 'Archivée'];
+export const DISCOVERY_OFFER_LIMIT = 5;
+
+// Search results are already ordered by the candidate-fit ranking. Keep the
+// daily discovery surface focused without changing the underlying search
+// metrics or the ranked task result retained for later use.
+export function topDiscoveryOffers(offers) {
+  return (Array.isArray(offers) ? offers : []).slice(0, DISCOVERY_OFFER_LIMIT);
+}
 
 export function hasRecordedFitScore(job) {
   return typeof job?.score === 'number' && Number.isFinite(job.score) && job.score >= 0 && job.score <= 5;
