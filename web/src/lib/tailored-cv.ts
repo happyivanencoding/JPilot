@@ -6,7 +6,7 @@ import * as yaml from "js-yaml";
 import { careerOpsRoot } from "@/lib/career-ops";
 import { activeProfileId } from "@/lib/profile-request";
 import { getProfile, profileFile } from "@/lib/profile-context";
-import { openAgentDockCodex, runAgentDockCodex } from "@/lib/agentdock-acp";
+import { runModelTransport } from "@/lib/model-transport";
 import { extractJsonObject } from "@/lib/extract-json-object.mjs";
 import { atomicWrite } from "@/lib/core/safe-write";
 import { currentCandidateVersion, historyDirectory } from "@/lib/mobile-history";
@@ -254,14 +254,13 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
           emit({t:"progress",label:"Contenu déjà enregistré · reprise de la mise en page sans IA"});
           emit({t:"metrics",metrics:{model:"local-render",reasoning:"none",queueMs:0,agentMs:0,inputTokens:0,outputTokens:0,totalTokens:0,actualCostUsd:null,estimatedCostUsd:0,costKind:"no-ai",reusedAgentOutput:true}});
         } else {
-          const connection = await openAgentDockCodex();
-          emit({ t: "progress", label: "Codex adapte le contenu du CV" });
-          await runAgentDockCodex({
-            client: connection.client, prompt, cwd: root, mode: "read-only",
+          emit({ t: "progress", label: "Le modèle adapte le contenu du CV" });
+          await runModelTransport({
+            prompt, cwd: root,
             model: choice?.model || FLOW_DEFAULTS.cv.model as any,
             reasoning: choice?.reasoning || FLOW_DEFAULTS.cv.reasoning as any,
             timeoutMs: 300_000,
-            onRun: run => emit({t:"execution",sessionId:run.sessionId,runId:run.runId,remoteSessionId:run.remoteSessionId}),
+            onRun: run => emit({t:"execution",transport:run.transport,sessionId:run.sessionId,runId:run.runId,remoteSessionId:run.remoteSessionId}),
             onMetrics: metrics => { generationMetrics=metrics;emit({t:"metrics",metrics}); },
             onText: (text) => { output += text; },
             onFinalText: complete=>{output=complete;},
@@ -269,7 +268,7 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
         }
         const parsed = extractJsonObject(output).obj as TailoredPayload | null;
         if (!parsed || typeof parsed.summary !== "string" || !Array.isArray(parsed.experience)) {
-          return fail("Codex n'a pas renvoyé un CV structuré exploitable.");
+          return fail("Le modèle n'a pas renvoyé un CV structuré exploitable.");
         }
         if(cached?.operationKey!==generationKey || !cached.output) writeJson(generationFile,{operationKey:generationKey,profileId,jobId:job.id,inputVersionId:inputVersion.id,output,metrics:generationMetrics,createdAt:new Date().toISOString()});
 

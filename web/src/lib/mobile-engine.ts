@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { careerOpsRoot } from "@/lib/career-ops";
 import { getProfile, profileFile, PROFILE_COOKIE } from "@/lib/profile-context";
 import { atomicWrite } from "@/lib/core/safe-write";
-import { openAgentDockCodex, runAgentDockCodex } from "@/lib/agentdock-acp";
+import { runModelTransport } from "@/lib/model-transport";
 import { extractJsonObject } from "@/lib/extract-json-object.mjs";
 import { searchStructuredOffers, rankSearchResults } from "@/lib/job-search/index.mjs";
 import { searchRequestFromConfig } from "@/lib/job-search/mobile-context.mjs";
@@ -63,7 +63,15 @@ export function readMobileTask(profileId: string, id: string): MobileTask {
   if (["running", "queued", "reconciling"].includes(t.status) && t.ownerPid !== process.pid && !processAlive(t.ownerPid)) {
     const existing = t.kind === "evaluate" ? findPersistedEvaluation(profileId,String(t.input.url)) : null;
     if (existing) { t.status="completed";t.result=existing;t.phase="Évaluation retrouvée dans le dossier";saveTask(t); }
-    else if (!processAlive(t.workerPid)) { t.status="reconciling";t.phase="Vérification de la tâche précédente — aucun nouvel agent lancé"; }
+    else if (!processAlive(t.workerPid) && !t.runId) {
+      t.status="interrupted";
+      t.phase="Serveur redémarré avant le démarrage confirmé du modèle";
+      t.error="La tâche précédente n’a jamais reçu d’identifiant d’exécution. Relancez-la explicitement.";
+      saveTask(t);
+    }
+    else if (!processAlive(t.workerPid) && t.status !== "reconciling") {
+      t.status="reconciling";t.phase="Vérification de la tâche précédente — aucun nouvel agent lancé";saveTask(t);
+    }
   }
   return t;
 }
@@ -151,7 +159,7 @@ async function consume(task: MobileTask, route: string, body: unknown, format: "
     if (type === "error" && !failure) failure = e.msg || e.message || e.error || "Le moteur a signalé une erreur.";
     if (type === "done") done = true;
     if (type === "metrics" && e.metrics) { task.metrics={...task.metrics,...e.metrics};saveTask(task); }
-    if (type === "execution") { task.sessionId=e.sessionId || task.sessionId;task.runId=e.runId || task.runId;task.remoteSessionId=e.remoteSessionId || task.remoteSessionId;task.workerPid=e.workerPid || task.workerPid;if(e.runId)task.status="running";saveTask(task); }
+    if (type === "execution") { task.sessionId=e.sessionId || task.sessionId;task.runId=e.runId || task.runId;task.remoteSessionId=e.remoteSessionId || task.remoteSessionId;task.workerPid=e.workerPid || task.workerPid;if(e.runId || e.transport==="openai-direct")task.status="running";saveTask(task); }
     if (["status", "progress"].includes(type)) task.phase = String(e.label || task.phase);
     if (type === "tool") {
       const tool = String(e.name || "");
@@ -323,10 +331,9 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
       task.result = { jobId: job.id, cv: job.cv };
     } else {
       const prompt = coachingPrompt(task);
-      task.phase = "Connexion au coach AgentDock"; saveTask(task);
-      const connection = await openAgentDockCodex();
+      task.phase = "Connexion au modèle JobPilot"; saveTask(task);
       let output = "";
-      await runAgentDockCodex({ client: connection.client, cwd: careerOpsRoot(), prompt, mode: "read-only", model: defaultFlow.model as any, reasoning: defaultFlow.reasoning as any, timeoutMs: 300_000,
+      await runModelTransport({ cwd: careerOpsRoot(), prompt, model: defaultFlow.model as any, reasoning: defaultFlow.reasoning as any, timeoutMs: 300_000,
         onRun, onMetrics:metrics,
         onText: text => { output += text; },
         onFinalText: complete=>{output=complete;},

@@ -3,7 +3,7 @@ import path from 'node:path';
 import {historyDirectory} from '@/lib/mobile-history';
 import {careerOpsRoot} from '@/lib/career-ops';
 import {readJson,writeJson,withProfileLock,processAlive} from '@/lib/mobile-state.mjs';
-import {openAgentDockCodex,runAgentDockCodex} from '@/lib/agentdock-acp';
+import {runModelTransport} from '@/lib/model-transport';
 import {extractJsonObject} from '@/lib/extract-json-object.mjs';
 import {uiLocale,choose} from '@/lib/language-contract.mjs';
 import {displaySlots,translationKey,alreadyLocalized,productText,pendingText,setDisplaySlot,protectTranslation,restoreTranslation,translationPrompt} from '@/lib/localization-core.mjs';
@@ -78,12 +78,9 @@ async function executeLocalization(directory:string,operation:any,entries:Entry[
   const file=path.join(directory,'operations',operation.key+'.json');
   const save=()=>{operation.updatedAt=new Date().toISOString();writeJson(file,operation);writeJson(path.join(directory,'active.json'),operation);};
   try {
-    const connection=await openAgentDockCodex();let output='';
-    // Use the existing bounded ACP budget. The former 180s translation-only
-    // cutoff cancelled real queued turns with no output on this busy host.
-    // This does not retry, rescore or create a second operation.
-    await runAgentDockCodex({client:connection.client,cwd:careerOpsRoot(),prompt:translationPrompt(entries,operation.locale),model:'gpt-5.6-luna',reasoning:'low',mode:'read-only',timeoutMs:480000,
-      onRun:run=>{Object.assign(operation,run,{status:'running'});save();},
+    let output='';
+    await runModelTransport({cwd:careerOpsRoot(),prompt:translationPrompt(entries,operation.locale),model:'gpt-5.6-luna',reasoning:'low',timeoutMs:120000,
+      onRun:run=>{Object.assign(operation,{sessionId:run.sessionId,runId:run.runId,remoteSessionId:run.remoteSessionId,transport:run.transport,status:'running'});save();},
       onMetrics:metrics=>{operation.metrics=metrics;save();},
       onText:text=>{output+=text;},onFinalText:text=>{output=text;},
     });

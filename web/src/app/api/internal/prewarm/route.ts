@@ -1,5 +1,5 @@
 import { careerOpsRoot } from "@/lib/career-ops";
-import { prewarmAgentDockCodex } from "@/lib/agentdock-acp";
+import { prewarmModelTransport, modelTransportInfo } from "@/lib/model-transport";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,8 +15,8 @@ export async function GET(req: Request) {
   if (!loopbackOnly(req)) return Response.json({ error: "loopback only" }, { status: 403 });
   const started = Date.now();
   try {
-    await prewarmAgentDockCodex(careerOpsRoot());
-    return Response.json({ ready: true, wallMs: Date.now() - started });
+    await prewarmModelTransport(careerOpsRoot());
+    return Response.json({ ready: true, wallMs: Date.now() - started, ...modelTransportInfo() });
   } catch (error) {
     return Response.json({ ready: false, wallMs: Date.now() - started, error: error instanceof Error ? error.message : String(error) }, { status: 503 });
   }

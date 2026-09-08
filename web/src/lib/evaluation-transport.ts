@@ -6,7 +6,7 @@ import * as yaml from "js-yaml";
 import { careerOpsRoot } from "@/lib/career-ops";
 import { profileFile } from "@/lib/profile-context";
 import { candidateEvidenceFiles } from "@/lib/mobile-history";
-import { openAgentDockCodex, runAgentDockCodex, type AgentDockCodexRun } from "@/lib/agentdock-acp";
+import { runModelTransport, type JobPilotModelRun } from "@/lib/model-transport";
 import { extractJsonObject } from "@/lib/extract-json-object.mjs";
 import { normalizeUrl } from "@/lib/core/url-key.mjs";
 import { explanationDirective } from "@/lib/language-contract.mjs";
@@ -47,10 +47,11 @@ async function fetchPosting(url: string) {
     return {text:/html/i.test(response.headers.get("content-type")||"")?stripHtml(raw):raw.replace(/\s+/g," ").trim().slice(0,24_000),status:response.status,finalUrl:response.url||url};
   } catch { return {text:"",status:null,finalUrl:url}; }
 }
-function candidateFiles(profileId:string,inputVersionId?:string) {
+export function evaluationCandidateFiles(profileId:string,inputVersionId?:string) {
   if(inputVersionId){
     const evidence=candidateEvidenceFiles(profileId,inputVersionId);
-    return {cv:evidence.cv,config:evidence.config,notes:evidence.notes};
+    const absolute=(file:string)=>path.isAbsolute(file)?file:path.join(careerOpsRoot(),file);
+    return {cv:absolute(evidence.cv),config:absolute(evidence.config),notes:absolute(evidence.notes)};
   }
   return {cv:profileFile(profileId,"cv"),config:profileFile(profileId,"config"),notes:profileFile(profileId,"notes")};
 }
@@ -110,7 +111,7 @@ async function persist(profileId:string,url:string,job:any,e:Evaluation,postingR
 export async function executeTransportEvaluation(args:{profileId:string;url:string;inputVersionId?:string;locale:string;model?:any;reasoning?:any}) {
   const existing=findPersistedEvaluation(args.profileId,args.url);
   if(existing)return new Response(`${JSON.stringify({type:"done",reused:true})}\n`,{headers:{"Content-Type":"text/plain; charset=utf-8"}});
-  const files=candidateFiles(args.profileId,args.inputVersionId), cv=read(files.cv,45_000), config=read(files.config,25_000), notes=read(files.notes,25_000);
+  const files=evaluationCandidateFiles(args.profileId,args.inputVersionId), cv=read(files.cv,45_000), config=read(files.config,25_000), notes=read(files.notes,25_000);
   if(!cv.trim())return new Response(JSON.stringify({error:"CV manquant"}),{status:400,headers:{"Content-Type":"application/json"}});
   const job=candidatureJob(args.profileId,args.url)||{company:new URL(args.url).hostname,role:"Job",url:args.url};
   const backend=job.sourceDescription||job.description?{text:String(job.sourceDescription||job.description).slice(0,24_000),status:null,finalUrl:args.url}:await fetchPosting(args.url);
@@ -124,9 +125,8 @@ export async function executeTransportEvaluation(args:{profileId:string;url:stri
         let output="",metrics:any={};
         try{
           send({type:"status",label:"Évaluation transport-only · modèle sans outils"});
-          const connection=await openAgentDockCodex();
-          await runAgentDockCodex({client:connection.client,prompt,cwd:careerOpsRoot(),mode:"read-only",model:args.model||"gpt-5.6-luna",reasoning:args.reasoning||"low",timeoutMs:120_000,
-            onRun:(run:AgentDockCodexRun)=>send({type:"execution",sessionId:run.sessionId,runId:run.runId,remoteSessionId:run.remoteSessionId}),
+          await runModelTransport({prompt,cwd:careerOpsRoot(),model:args.model||"gpt-5.6-luna",reasoning:args.reasoning||"low",timeoutMs:120_000,
+            onRun:(run:JobPilotModelRun)=>send({type:"execution",transport:run.transport,sessionId:run.sessionId,runId:run.runId,remoteSessionId:run.remoteSessionId}),
             onMetrics:value=>{metrics={...metrics,...value};send({type:"metrics",metrics:value});},onText:t=>{output+=t;},onFinalText:t=>{output=t;}});
           const parsed=extractJsonObject(output); if(parsed.truncated||!parsed.obj)throw new Error("Le modèle n’a pas renvoyé un JSON complet.");
           const result=validate(parsed.obj); send({type:"status",label:"Enregistrement déterministe du rapport"});

@@ -56,6 +56,14 @@ JPilot still calls part of the inherited Career-Ops implementation. The followin
 
 This layer is an implementation dependency, **not** a product/upstream authority. New product architecture should move toward explicit JPilot backend modules rather than adding more Career-Ops CLI coupling.
 
+### Model transport boundary
+
+Current product AI does not delegate business work to a coding agent. `web/src/lib/model-transport.ts` is the replaceable model transport boundary used by formal evaluation, candidate coaching/CV analysis, display localization and tailored-CV generation. The backend owns prompts, candidate evidence loading, structured job retrieval, task state, report/CV persistence and rendering.
+
+Production is currently configured for `direct-openai` with `gpt-5.6-luna / low`. The API key is read from a local ignored key-file path configured in `web/.env.local`; neither the key nor a machine-specific path belongs in Git. AgentDock/ACP remains only as a transport fallback/legacy compatibility path and must remain transport-only if used.
+
+The loopback `/api/internal/prewarm` endpoint now validates/prepares the selected model transport. Direct OpenAI requires no ACP session creation, so service startup must not block on `acp_session/new`.
+
 ## 4. Historical content that is not product authority
 
 The repository was originally derived from Career-Ops. Old materials for its public community, npm distribution, Manifesto/Hired Wall, Go TUI, multi-CLI onboarding, release bots and marketing are not part of JPilot's product direction.
@@ -108,3 +116,12 @@ Validation after cleanup:
 - Android `testDebugUnitTest assembleDebug`: passed (unit source currently reports `NO-SOURCE`, APK compilation/package succeeded).
 
 The cleanup stops at the live compatibility-engine boundary. In particular, `scan.mjs` is still dynamically loaded by `/api/explore/add` as the canonical pipeline/scan-history writer, and `scan.mjs` still imports `providers/` plus `plugins/_engine.mjs`. Those root engine directories therefore remain until JPilot replaces that dependency with an explicit backend module.
+
+## 9. 2026-09-08 direct-model task reliability fix
+
+Two concrete task failures were fixed after Android/Web manual testing:
+
+- frozen Candidate evidence returned relative paths from `candidateEvidenceFiles`; the formal evaluation transport read those paths relative to the Web service cwd and could report `CV manquant` even though the profile CV existed. Evaluation now resolves frozen evidence paths against the project root;
+- after a service restart, a task whose model run had never received a `runId` could remain `reconciling` indefinitely. Such a task is now marked `interrupted` with an explicit retry requirement instead of pretending recovery is still in progress.
+
+The production model transport was then switched from ACP to direct OpenAI using the existing local private key-file configuration. A real production formal-evaluation retry reached `completed` in about **16.5 s** end-to-end (model ~14.4 s), using `gpt-5.6-luna / low`, 7,305 total tokens and about `$0.002652` API-equivalent cost. The new report and candidature state persisted normally after the model response; no Candidate identity or private evidence is recorded in this public document.

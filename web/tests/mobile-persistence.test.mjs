@@ -27,6 +27,7 @@ for(const p of profiles){
 fs.mkdirSync(path.join(root,'reports'));
 const history=await import('../src/lib/mobile-history.ts');
 const engine=await import('../src/lib/mobile-engine.ts');
+const {evaluationCandidateFiles}=await import('../src/lib/evaluation-transport.ts');
 const {taskView}=await import('../src/lib/mobile-view.ts');
 const p='fixture-a',q='fixture-b';
 function task(profile,kind,input,version,extra={}){
@@ -45,6 +46,20 @@ test('input history ignores metadata-only touches and increments CV version only
  assert.notEqual(a.id,b.id);assert.equal(b.cvVersion,2);assert.equal(b.previousId,a.id);
  const c=candidateVersion(dir,{...b.sources,notes:{text:'new verified skill',modifiedMs:3}});
  assert.equal(c.cvVersion,2);assert.equal(c.revision,3);
+});
+
+test('transport evaluation resolves frozen candidate evidence against the project root',()=>{
+ const version=history.currentCandidateVersion(p),files=evaluationCandidateFiles(p,version.id);
+ assert.equal(path.isAbsolute(files.cv),true);assert.equal(path.isAbsolute(files.config),true);assert.equal(path.isAbsolute(files.notes),true);
+ assert.equal(fs.readFileSync(files.cv,'utf8'),original);
+});
+
+test('a restarted task without an acknowledged model run becomes terminal instead of reconciling forever',()=>{
+ const version=history.currentCandidateVersion(p);
+ const stale=task(p,'coach',{question:'stale process fixture'},version,{status:'queued',ownerPid:2147483647});
+ const recovered=engine.readMobileTask(p,stale.id);
+ assert.equal(recovered.status,'interrupted');assert.match(recovered.error,/identifiant d.exécution|identifiant d’exécution/i);
+ assert.equal(readJson(path.join(engine.mobileDirectory(p),'tasks',stale.id+'.json')).status,'interrupted');
 });
 
 test('cross-process lock serializes competing action claims',async()=>{

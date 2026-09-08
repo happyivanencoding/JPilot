@@ -1,5 +1,15 @@
 # JobPilot AI benchmark — 2026-09-08
 
+## Production direct-OpenAI validation
+
+After the transport-only ACP work, production was switched to the explicit `web/src/lib/model-transport.ts` adapter with `JOBPILOT_MODEL_TRANSPORT=direct-openai`. The API key stays in a local private file referenced from ignored `web/.env.local`; no key or machine-specific path is committed.
+
+The switch was triggered by a concrete production failure rather than a synthetic benchmark: AgentDock itself remained healthy, but repeated `acp_session/new` calls were observed taking minutes or never returning while direct Luna had already benchmarked near 10 seconds. The selected direct transport now avoids ACP session creation entirely; `/api/internal/prewarm` only validates the local direct configuration and returned in about 0.16s wall / 1ms server work after deployment.
+
+An end-to-end production formal-evaluation retry then completed in **16.5s** from task creation to terminal state, with about **14.4s** model time, `gpt-5.6-luna / low`, **6,114 input + 1,191 output = 7,305 total tokens**, and an API-equivalent estimate of **$0.002652**. Deterministic report and candidature persistence completed normally. Candidate identity and private evidence are intentionally omitted from this public benchmark note.
+
+This live result also exposed and fixed two lifecycle bugs: frozen Candidate evidence paths were relative to the repository root but were being read from the Web service cwd, causing false `CV manquant`; and pre-run restart recovery could leave tasks in `reconciling` forever when no model `runId` had ever been acknowledged. Both now have bounded terminal behavior.
+
 ## Later continuation — product validation, not a rerun of this matrix
 
 The original matrix below is preserved unchanged. The 0.3 continuation ran only necessary real operations on the synthetic personas. It obtained three whole-page/longitudinal analyses, one bounded Marketing search and one new formal evaluation. Full queue/setup/agent/wall, input/output/cache/reasoning and estimated-cost measurements are in `ANDROID_0_3_RELEASE.md`. A new formal report now succeeded, but required 755.455s wall and approximately $1.44542 API equivalent; this does not establish an optimized evaluation model winner. Actual subscription cost remains unavailable. Failed session initialization attempts are retained, and output recovery/re-ranking/draft rendering did not call another model. Do not automatically rerun this historical benchmark.
