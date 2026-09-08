@@ -10,6 +10,13 @@ JPilot 是一个 **Android-first** 的 AI 求职产品。原生 Android 客户�
 
 本地 `C:\dev\career-ops` 的 `origin` 必须指向该仓库。`santifer/career-ops` 仅是历史代码来源和许可证归属参考，不再是 JPilot 的产品上游，也不得通过旧 updater 覆盖当前实现。
 
+## 协作分支
+
+- `main` — 集成/生产主线，合并仍由项目负责人手动决定。
+- `codex/development` — Yifeng 的持续开发分支。
+- 每次 push 到 `codex/development` 都运行与 `main` 相同的 Android + Web CI。
+- dev CI 全部通过且分支相对 `main` 存在真实文件差异时，GitHub Actions 会确保存在一个 `codex/development → main` PR；后续 push 自动更新同一个 PR，不自动 merge。
+
 ## 产品结构
 
 - `android/` — **产品前端权威**。新功能和 UX 决策优先以原生 Android 为准。

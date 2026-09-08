@@ -1,0 +1,57 @@
+name: Maintain development PR
+
+on:
+  workflow_run:
+    workflows: ["JPilot CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  ensure-pr:
+    if: >-
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'codex/development' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/development
+          fetch-depth: 0
+      - name: Ensure a non-empty development PR exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_BRANCH: codex/development
+          BASE_BRANCH: main
+        run: |
+          set -euo pipefail
+
+          git fetch origin "${BASE_BRANCH}:refs/remotes/origin/${BASE_BRANCH}"
+          if git diff --quiet "origin/${BASE_BRANCH}" HEAD; then
+            echo "No file changes between ${HEAD_BRANCH} and ${BASE_BRANCH}; no PR needed."
+            exit 0
+          fi
+
+          existing="$(gh pr list \
+            --repo "${REPO}" \
+            --head "${HEAD_BRANCH}" \
+            --base "${BASE_BRANCH}" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')"
+
+          if [ -n "${existing}" ]; then
+            echo "Development PR #${existing} already exists and will track new pushes automatically."
+            exit 0
+          fi
+
+          gh pr create \
+            --repo "${REPO}" \
+            --head "${HEAD_BRANCH}" \
+            --base "${BASE_BRANCH}" \
+            --title "Yifeng development → main" \
+            --body "Automated collaboration PR for \`codex/development\` → \`main\`.\n\nThis PR is created only after JPilot CI passes on the development branch. New pushes to the same branch update this PR automatically. Merge remains a manual decision."

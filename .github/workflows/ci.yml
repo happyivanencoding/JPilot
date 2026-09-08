@@ -2,9 +2,13 @@ name: JPilot CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, codex/development]
   pull_request:
     branches: [main]
+
+concurrency:
+  group: jpilot-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
