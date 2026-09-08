@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, CheckSquare, ChevronRight, GraduationCap, Square } from "lucide-react";
+import { DISCOVERY_OFFER_LIMIT } from "@/lib/mobile-domain.mjs";
 import { rows, texts, usePilot, type Json } from "./pilot-context";
 import { ACTIVE, filteredJobs, safeExternalUrl } from "./model.mjs";
 import { Button, Chip, Empty, External, Hint, Input, Pill, RowLink, Score, TextArea, Title } from "./ui";
@@ -70,7 +71,7 @@ export function OffersPage() {
     <div className="jp-stack"><TextArea label={tr("搜索目标", "Ma recherche", "My search")} rows={3} value={query} onChange={e => setQuery(e.target.value)} /><Hint>{tr("合同类型：", "Contrats : ", "Contracts: ") + (texts(data.config?.target_roles?.contract_types).map(product).join(" · ") || tr("不限", "Tous", "All"))}</Hint><Button data-testid="search-offers" disabled={searching || !query.trim()} onClick={() => startTask({ kind: "search", query })}>{searching ? tr("搜索中", "Recherche en cours", "Searching") : tr("寻找适合我的岗位", "Rechercher des offres", "Find opportunities")}</Button></div>
     <div className="jp-stack"><Input label={tr("或粘贴职位链接", "Ou coller le lien d’un poste", "Or paste a job URL")} value={url} type="url" autoCapitalize="none" onChange={e => setUrl(e.target.value)} /><Button kind="text" disabled={!safeExternalUrl(url.trim())} onClick={() => startTask({ kind: "evaluate", url: url.trim() })}>{tr("查看／评估该岗位", "Consulter / évaluer cette offre", "View / evaluate this role")}<ArrowRight size={16} /></Button><hr /></div>
     <div className="jp-row spread"><strong>{tr("待处理岗位", "À examiner", "To review")}</strong><Hint>{discovery.searchedAt?.slice(0, 10)}</Hint></div>{discovery.partial && <Hint>{discovery.warning}</Hint>}<SearchMetrics value={discovery.searchMetrics} />
-    {!rows(discovery.offers).length && <Empty title={tr("这里没有待处理的岗位", "Aucune offre en attente ici", "No pending offers here")}>{tr("可以发起搜索，或到投递页查看已有评估。", "Lancez une recherche ou consultez vos évaluations dans Candidatures.", "Search for opportunities or view evaluations in Applications.")}</Empty>}{rows(discovery.offers).map(offer => <OfferCard key={offer.url} offer={offer} />)}
+    {!rows(discovery.offers).length && <Empty title={tr("这里没有待处理的岗位", "Aucune offre en attente ici", "No pending offers here")}>{tr("可以发起搜索，或到投递页查看已有评估。", "Lancez une recherche ou consultez vos évaluations dans Candidatures.", "Search for opportunities or view evaluations in Applications.")}</Empty>}{rows(discovery.offers).slice(0, DISCOVERY_OFFER_LIMIT).map(offer => <OfferCard key={offer.url} offer={offer} />)}
   </div>;
 }
 export function ApplicationsPage() {

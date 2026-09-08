@@ -81,6 +81,7 @@ import org.json.JSONObject
 
 @Composable fun ExploreScreen(state: PilotState,vm: JobPilotViewModel) {
     val context = LocalContext.current
+    val discoveryOfferLimit = 5
     val defaultQuery = tr("根据当前简历、合同类型和目标，优先寻找巴黎和法国岗位，并扩展到欧洲其他国家或欧洲远程机会。优先官方职位页。","Selon mon CV, les contrats ciblés et mes objectifs, chercher d’abord à Paris et en France, puis élargir aux autres pays européens et aux opportunités européennes à distance. Privilégier les pages employeur officielles.","Based on my CV, target contracts and goals, search Paris and France first, then broaden to other European countries and Europe-based remote opportunities. Prefer official employer pages.")
     var query by rememberSaveable(state.profileId) { mutableStateOf(defaultQuery) }
     var previousDefault by rememberSaveable(state.profileId) { mutableStateOf(defaultQuery) }
@@ -88,6 +89,7 @@ import org.json.JSONObject
     var url by rememberSaveable(state.profileId) { mutableStateOf("") }
     val searching = state.snapshot.objects("tasks").any { it.text("kind") == "search" && it.text("status") in setOf("queued","running","reconciling") }
     val discovery = state.snapshot.child("discovery")
+    val visibleOffers = discovery.objects("offers").take(discoveryOfferLimit)
     LazyColumn(Modifier.fillMaxSize(),contentPadding = PaddingValues(18.dp),verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { SectionTitle(tr("值得看的机会","Les bonnes opportunités","Worth a closer look"),tr("已评估的岗位在「投递」中，不会重复出现在这里。","Les postes évalués se retrouvent dans Candidatures.","Evaluated roles move to Applications.")) }
         item { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -103,8 +105,8 @@ import org.json.JSONObject
         } }
         item { Row { Text(tr("待处理岗位","À examiner","To review"),Modifier.weight(1f),fontWeight = FontWeight.SemiBold); Hint(discovery.text("searchedAt").take(10)) }; if(discovery.optBoolean("partial"))Hint(discovery.text("warning")) }
         if(discovery.child("searchMetrics").has("returnedCount")) item { SearchMetricsPanel(discovery.child("searchMetrics")) }
-        if(discovery.objects("offers").isEmpty()) item { EmptyCard(tr("这里没有待处理的岗位","Aucune offre en attente ici","No pending offers here"),tr("可以发起搜索，或到投递页查看已有评估。","Lancez une recherche ou consultez vos évaluations dans Candidatures.","Search for opportunities or view evaluations in Applications.")) }
-        items(discovery.objects("offers"),key = { it.text("url") }) { offer ->
+        if(visibleOffers.isEmpty()) item { EmptyCard(tr("这里没有待处理的岗位","Aucune offre en attente ici","No pending offers here"),tr("可以发起搜索，或到投递页查看已有评估。","Lancez une recherche ou consultez vos évaluations dans Candidatures.","Search for opportunities or view evaluations in Applications.")) }
+        items(visibleOffers,key = { it.text("url") }) { offer ->
             val saved = offer.text("jobId").isNotBlank() || state.snapshot.objects("jobs").any { it.text("url") == offer.text("url") }
             val evaluating = offer.text("lifecycle") == "evaluating"
             Column(Modifier.fillMaxWidth(),verticalArrangement = Arrangement.spacedBy(9.dp)) {

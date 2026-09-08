@@ -4,7 +4,7 @@ import * as yaml from "js-yaml";
 import { activeProfileId } from "@/lib/profile-request";
 import { getProfile, listProfiles, profileFile } from "@/lib/profile-context";
 import { coreRequest, mobileDirectory, prepareTaskHistory, readMobileTask, readCandidatureStore, saveMobileOffer, startMobileTask, updateMobileJob, type MobileTask } from "@/lib/mobile-engine";
-import { dashboardFor, APPLICATION_STATUSES, stageOf } from "@/lib/mobile-domain.mjs";
+import { dashboardFor, APPLICATION_STATUSES, DISCOVERY_OFFER_LIMIT, stageOf, topDiscoveryOffers } from "@/lib/mobile-domain.mjs";
 import { readReport, readApplications, careerOpsRoot } from "@/lib/career-ops";
 import { currentCandidateVersion, currentAnalysis, decideCvDraft, saveCanonicalCv } from "@/lib/mobile-history";
 import { discoveryProjection, withProfileLock, persistedJobEvaluation, contractMatches } from "@/lib/mobile-state.mjs";
@@ -67,7 +67,7 @@ export async function GET(req: Request) {
       config: config || {}, jobs: store.jobs.map(j=>({...j,stage:stageOf(j.status),evaluationState:persistedJobEvaluation(j)?"evaluated":"discovered"})), dashboard: dashboardFor(store.jobs), statuses: APPLICATION_STATUSES,
       tasks: tasks.slice(0,60).map((t:MobileTask)=>taskView(t,store.jobs,false,locale)),
       analysis: currentAnalysis(profileId,version,tasks),
-      discovery: (()=>{const result=discoveryProjection(tasks.find((t:MobileTask)=>t.kind==="search" && t.result?.offers)?.result || null,store.jobs,tasks);return {...result,offers:result.offers.filter((o:any)=>contractMatches(o,(config as any)?.target_roles?.contract_types || []).matches)};})(),
+      discovery: (()=>{const result=discoveryProjection(tasks.find((t:MobileTask)=>t.kind==="search" && t.result?.offers)?.result || null,store.jobs,tasks);const eligible=result.offers.filter((o:any)=>contractMatches(o,(config as any)?.target_roles?.contract_types || []).matches);return {...result,offers:topDiscoveryOffers(eligible),displayLimit:DISCOVERY_OFFER_LIMIT,availableCount:eligible.length};})(),
       flowEstimates:Object.fromEntries(Object.entries(FLOW_DEFAULTS).map(([kind,choice])=>[kind,estimateView(historicalEstimate(tasks,kind,choice.model,choice.reasoning),locale)])),
       updatedAt: store.updatedAt,
     };
