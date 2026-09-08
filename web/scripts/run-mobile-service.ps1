@@ -17,8 +17,9 @@ if ($Service -eq 'web') {
 # Direct file redirection keeps Node diagnostics from terminating the service.
 $Process = Start-Process -FilePath $Node -ArgumentList $Arguments -WorkingDirectory (Join-Path $Root 'web') -WindowStyle Hidden -RedirectStandardOutput ($Log + '.out') -RedirectStandardError ($Log + '.err') -PassThru
 if ($Service -eq 'web') {
-    # Prepare one JobPilot ACP session as part of service startup. This pays the
-    # variable Codex session/new latency before a phone user taps an AI action.
+    # Prepare the selected JobPilot model transport as part of service startup.
+    # Direct OpenAI only validates local configuration; ACP fallback may prewarm
+    # a session before a phone user taps an AI action.
     try {
         $Ready = $false
         for ($i = 0; $i -lt 120; $i++) {
@@ -29,9 +30,9 @@ if ($Service -eq 'web') {
         }
         if (-not $Ready) { throw 'JobPilot web did not listen on port 3000 within 60 seconds.' }
         $Warm = Invoke-RestMethod -Method Get -Uri 'http://127.0.0.1:3000/api/internal/prewarm' -TimeoutSec 370
-        Add-Content -Path ($Log + '.out') -Value ("JobPilot ACP prewarm ready={0} wallMs={1}" -f $Warm.ready,$Warm.wallMs)
+        Add-Content -Path ($Log + '.out') -Value ("JobPilot model transport ready={0} transport={1} wallMs={2}" -f $Warm.ready,$Warm.transport,$Warm.wallMs)
     } catch {
-        Add-Content -Path ($Log + '.err') -Value ("JobPilot ACP prewarm failed: " + $_.Exception.Message)
+        Add-Content -Path ($Log + '.err') -Value ("JobPilot model transport warmup failed: " + $_.Exception.Message)
     }
 }
 if ($Service -eq 'gateway') {

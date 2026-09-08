@@ -40,7 +40,7 @@ Conversely, upstream distribution/community machinery, marketing material, unrel
 
 ## 5. AI runtime architecture
 
-All product ACP calls are **transport-only**. ACP/AgentDock is a model transport adapter, not a coding-agent runtime for JPilot business flows.
+All product model calls go through the replaceable JobPilot model transport boundary. Production currently uses **direct OpenAI API**; ACP/AgentDock is a fallback/legacy transport and, whenever used, must remain **transport-only** rather than acting as a coding-agent runtime for JPilot business flows.
 
 - Business orchestration, search, file access, persistence, browser actions and prompt assembly belong to JPilot backend code.
 - Model transports receive explicit bounded inputs and return model output.
