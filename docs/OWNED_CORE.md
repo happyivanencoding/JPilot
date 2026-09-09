@@ -74,3 +74,11 @@ The project is independently maintained and the legacy runtime has been replaced
 ## Release boundary
 
 Integrate only after the above gates pass and a fresh main/status check confirms no concurrent work will be overwritten. A running old backend may still spawn the deleted legacy scripts, so stop it before advancing its working directory, rebuild/install Web dependencies and restart Web plus the gateway together. Preserve all private data and existing sessions. Final integration/deployment identifiers belong in the release handoff after the cutover is verified.
+
+## Verified main cutover — 2026-09-10
+
+Main was fast-forwarded from `1c3ebb3` to source commit `7501b9f` after acceptance; no reset, force push or overwrite of parallel work was used. The owned-core branch and main were both pushed and their remote references checked. The previously accepted simplification branch remains available as historical evidence.
+
+The installed main directory completed `npm ci` and a fresh Web 0.5.0 production build. Web and gateway were restarted: local Web returned HTTP 200 with the JobPilot page, and the unauthenticated gateway returned its expected HTTP 302 login redirect. This is a backend deployment, not an Android installation or an authenticated phone acceptance claim.
+
+A private before/after comparison confirmed that 50 existing canonical/profile/ledger/report files across four profiles retained their contents through the cutover. No Candidate data was committed. An orphaned old gateway process was explicitly verified and stopped during maintenance; stopping the scheduled task alone is not proof that its listener has gone away.
