@@ -100,15 +100,6 @@ export function Localization({ value, onRetry }: { value?: Json; onRetry?: () =>
   if (!value?.pending) return null;
   return <aside className="jp-localization" data-testid="localization-status" aria-live="polite"><p>{value.message || tr("正在翻译已有结果，不会重新分析。", "Traduction du résultat enregistré, sans nouvelle analyse.", "Translating the saved result, without reanalysis.")}</p>{value.failed ? <Button kind="text" onClick={onRetry || retryLocalization}>{tr("重试显示翻译", "Réessayer la traduction", "Retry translation")}</Button> : <div className="jp-progress indeterminate" />}</aside>;
 }
-export function Metrics({ value }: { value?: Json }) {
-  const { tr } = usePilot(); if (!value) return null;
-  const parts: string[] = [];
-  if (value.wallMs != null) { const s = Math.floor(value.wallMs / 1000); parts.push(s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${s % 60} s`); }
-  if (value.totalTokens != null) parts.push(`${Number(value.totalTokens).toLocaleString()} tokens`);
-  else parts.push(tr("Token 未提供", "Tokens non disponibles", "Tokens unavailable"));
-  if (value.estimatedCostUsd != null) parts.push(`${tr("API 等价估算", "Équiv. API estimé", "API equivalent estimate")} $${Number(value.estimatedCostUsd).toFixed(4)}`);
-  return <Hint>{parts.join(" · ")}</Hint>;
-}
 export function taskName(kind: string, tr: (z: string, f: string, e?: string) => string) {
   const names: Record<string, [string, string, string]> = { ingest: ["简历导入", "Import du CV", "CV import"], search: ["岗位搜索", "Recherche d’offres", "Offer search"], evaluate: ["岗位评估", "Évaluation du poste", "Job evaluation"], cv: ["定制简历", "CV adapté", "Tailored CV"], cv_review: ["重新评估简历草稿", "Réévaluation du CV adapté", "Reassess tailored CV"], rewrite: ["简历草稿", "Brouillon du CV", "CV draft"], report: ["岗位评估报告", "Rapport d’évaluation", "Evaluation report"], analysis: ["简历与能力", "CV et compétences", "CV and skills"], plan: ["面试准备", "Préparation de l’entretien", "Interview preparation"], practice: ["面试练习反馈", "Simulation d’entretien", "Interview practice"], compare: ["岗位对比", "Comparaison des offres", "Offer comparison"] };
   return tr(...(names[kind] || ["职业建议", "Conseil de carrière", "Career advice"]));

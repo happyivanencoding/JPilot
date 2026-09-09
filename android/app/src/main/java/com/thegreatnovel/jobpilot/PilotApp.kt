@@ -140,7 +140,6 @@ import kotlin.math.exp
                     }
                     Hint(task.text("phase"))
                     if(task.text("status") in setOf("queued","running","reconciling")) EstimatedTaskProgress(task.text("createdAt"),task.child("estimate"))
-                    TaskMetrics(task.child("metrics"))
                     HorizontalDivider(Modifier.padding(top = 6.dp))
                 }
             }
@@ -218,14 +217,6 @@ import kotlin.math.exp
     }
 }
 
-@Composable fun TaskMetrics(metrics: JSONObject) {
-    val parts = mutableListOf<String>()
-    if(!metrics.isNull("wallMs") && metrics.has("wallMs")) { val seconds = metrics.optLong("wallMs")/1000; parts.add(if(seconds < 60) tr("${seconds} 秒","${seconds} s","${seconds} s") else tr("${seconds/60} 分 ${seconds%60} 秒","${seconds/60} min ${seconds%60} s","${seconds/60} min ${seconds%60} s")) }
-    if(!metrics.isNull("totalTokens") && metrics.has("totalTokens")) parts.add("%,d tokens".format(metrics.optLong("totalTokens")))
-    else if(metrics.length()>0) parts.add(tr("Token 未提供","Tokens non disponibles","Tokens unavailable"))
-    if(!metrics.isNull("estimatedCostUsd") && metrics.has("estimatedCostUsd")) parts.add(tr("API 等价估算","Équiv. API estimé","API equivalent estimate") + " $%.4f".format(metrics.optDouble("estimatedCostUsd")))
-    if(parts.isNotEmpty()) Hint(parts.joinToString(" · "))
-}
 @Composable fun taskTitle(kind: String) = when(kind) {
     "ingest" -> tr("简历导入","Import du CV","CV import")
     "search" -> tr("岗位搜索","Recherche d’offres","Offer search")
