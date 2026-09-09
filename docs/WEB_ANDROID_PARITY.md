@@ -1,4 +1,4 @@
-# JobPilot Web 0.4.2 — Android-aligned product
+# JobPilot Web 0.4.6 — Android-aligned product
 
 ## Product decision — 2026-09-08
 
@@ -7,6 +7,41 @@ The Web client is now JobPilot, not a separate upstream Career-Ops workbench. Th
 **Development repository:** `https://github.com/happyivanencoding/JPilot`. Native Android is the frontend product authority; Web parity follows Android rather than evolving independently. Historical Career-Ops upstream/release/update machinery is not part of the JPilot development path. See `PROJECT_STRUCTURE.md`.
 
 **Hard parity release gate:** every Android UI/product behavior change must include and verify its equivalent phone-first Web behavior in the same development change/release. An Android release is not complete while the Web version is intentionally left behind. Backend-only changes are the normal exception.
+
+## 0.4.6 parity delta — Android 0.3.8
+
+- Web and Android both ship the same first-use welcome plus one-time five-tab onboarding. Web persists it in `localStorage`; Android uses app preferences.
+- Skipping onboarding suppresses all remaining guides on both clients; normal start keeps one-time tab walkthroughs.
+- User-facing Token/API-cost metrics are hidden on both clients, while ETA/progress remains visible and backend metrics stay intact for internal analysis.
+- This release is layered on top of 0.4.5/0.3.7 and therefore retains collapsible interview plans, inline AI progress, CV draft review, localization and current application filters. Production `typecheck`/Next build pass; Node **325/325** pass; Chromium/Edge and WebKit synthetic browser QA both **25/25 PASS** including onboarding skip-all with zero production business writes. The persistent service was restarted; `127.0.0.1:3000/api/mobile` returns backend **0.3.8** and root HTTP 200 while gateway 3002 remains listening.
+
+## 0.4.5 parity delta — Android 0.3.7
+
+- Generated Job Detail interview plans now mirror native Android’s collapse/expand behavior. The plan starts expanded, keeps a visible **Interview preparation plan** header, exposes `aria-expanded`, and can remove/reveal the long Markdown body without changing the saved plan.
+- The shared Web `AiProgressButton` mirrors the Android model-action surface: analysis, formal evaluation, tailored CV generation/review, plan generation/update, practice feedback, coach, and discovery/pasted-URL evaluation. While active, the button itself is filled with a translucent progress layer and displays `≈NN%` rather than leaving progress only in the task center.
+- Progress remains an ETA visualization rather than pretending to be provider-reported completion. It uses the same `0.96 × (1 - exp(-3t/T))` curve as Android, caps at 96% while active, slows visibly near the end, and only jumps to 100% when the task snapshot is truly `completed`. Failed/interrupted tasks terminate the estimate and surface a visible error.
+- The centered background-task ETA ring now uses the same non-linear curve and real-terminal completion snap. Web polling also clears a matching launch overlay when an active task becomes failed/interrupted, so a background failure is not hidden behind a stale “processing” card.
+- Chromium/Edge and WebKit synthetic browser QA are both **24/24 PASS** and specifically exercise collapse→expand, active inline progress, completed 100% snap, and failure visibility. The fixture is fail-closed for production writes. Production `npm run build` passes for Web **0.4.5**.
+- The persistent Web service was restarted through `web/scripts/start-mobile.ps1 -RestartWeb`; `127.0.0.1:3000/api/mobile` returns backend contract **0.3.7** while the existing gateway on 3002 stays up.
+
+## 0.4.4 parity delta — Android 0.3.6
+
+- The job CV tab now exposes the same pending tailored-CV proposal loop as native Android: current accepted version, candidate draft, 0–100 presentation comparison, ATS warnings, actual PDF preview, manual editing, reassessment, Keep and Reject. Generating a draft does not silently replace the accepted job-specific CV.
+- The score comparison is explicitly presentation-only and shares a fixed baseline across subsequent edits. The visible draft score cannot fall below baseline; a worse/equal rewrite is displayed as `+0` with guidance to improve substantive evidence rather than keep polishing wording.
+- `cv_review` is a separate lightweight assessment action after manual edits; it does not ask the model to regenerate the CV body. A deliberate “new candidate version” or reassessment can rerun completed work; concurrent duplicate clicks still reuse the active task.
+- ATS audit warnings are non-terminal when a real PDF was generated. The UI surfaces the warning list instead of presenting a whole CV generation failure.
+- Tailored-CV improvement prose is now part of display localization, while the actual draft CV payload is excluded from UI localization. Cached translation segments and new provider responses are validated against the requested target language; a `locale=fr` cache containing Chinese is invalid and automatically replaced.
+- Synthetic browser QA: Chromium/Edge **23/23** and WebKit **23/23**, including `58 → 76`, manual edit, reassessment to `58 → 80`, real PDF rendering and Reject preserving the accepted fixture CV.
+
+## 0.4.3 parity delta — Android 0.3.5
+
+- Every sheet scroll surface now uses `overscroll-behavior:none`; horizontal chip/comparison/table/PDF scrollers do the same. Browser acceptance scrolls CV analysis to its bottom, sends another large wheel gesture, and asserts both `scrollTop` and sheet bounds remain unchanged.
+- Applications exposes only chronological lifecycle categories as primary navigation: **All / Prepare / Applied / Replies / Interviews / Offer-Hired / Closed**. High match, follow-up and evaluated-to-apply remain quick filters rather than lifecycle states.
+- A persistent **Filter & sort** entry is available in every category. Users can select all/evaluated/unrated roles and sort high→low score (default), low→high score or recently updated.
+- Discovery evaluation now auto-saves the exact offer first. Single and bulk evaluation inputs carry the discovered offer to the shared backend; the saved URL remains recoverable even when evaluation later fails or is interrupted. The save path uses the canonical pipeline writer directly rather than localhost HTTP.
+- Completed formal evaluations are projected by exact normalized URL onto stale candidature cards. This fixes the real case where two same-company/same-title France Travail postings were merged by legacy tracker identity: low-score completed evaluations no longer remain permanently “unrated”, valid 0.0 scores count as evaluated, and mismatched report links/details are removed.
+- `Evaluate all unrated` now explicitly retries a previous failed/interrupted operation. Existing completed exact-URL tasks remain idempotently reused.
+- Chromium/Edge and WebKit synthetic suites each pass **22/22** with assertions for stage ordering, score sorting/evaluation filtering, evaluate→save and drawer edge stability. TypeScript, production build, targeted **19/19** and full Node **321/321** pass.
 
 ## 0.4.2 parity delta — Android 0.3.4
 
@@ -28,7 +63,7 @@ The Web client is now JobPilot, not a separate upstream Career-Ops workbench. Th
 
 The shared server-side AI runtime now treats AgentDock/ACP strictly as model transport. Product inference receives backend-assembled data and cannot use terminal/filesystem/web/browser/plugins/skills/sub-agents. Formal evaluation returns JSON and the backend owns report/tracker persistence. Structured providers, not ACP web search, are the discovery network layer. CV ingest is extracted locally before inference; tailored CV generation embeds the frozen Candidate version. This changes backend latency/security boundaries, not the phone-frame Web interaction contract. See `AI_BENCHMARK_2026-09-08.md` for the measured transport tax and quality comparison.
 
-The reference is the actual Android 0.3.4 implementation in `android/app/src/main/java/com/thegreatnovel/jobpilot/`, particularly `PilotApp`, `PilotDesign`, `CatalogScreens`, `PreparationScreens`, `DetailSheets`, `CvAnalysisScreens` and `CvPreview`. Do not infer current requirements from old Web screenshots or the historical upstream README.
+The reference is the current Android 0.3.8 implementation in `android/app/src/main/java/com/thegreatnovel/jobpilot/`, particularly `PilotApp`, `PilotDesign`, `CatalogScreens`, `PreparationScreens`, `DetailSheets`, `CvAnalysisScreens` and `CvPreview`. Do not infer current requirements from old Web screenshots or the historical upstream README.
 
 ## Layout and interaction
 
@@ -98,7 +133,7 @@ Regular deployment uses the existing `JobPilot web` Scheduled Task and `web/scri
 
 ## Acceptance status
 
-**0.4.2 is built and deployed to the existing product service on 2026-09-09 together with Android 0.3.4/code8 and backend mobile contract 0.3.4.** The earlier 0.4.1/0.4.0 evidence below remains historical evidence for prior releases, not the current running build.
+**0.4.5 is built and deployed to the existing product service on 2026-09-09 together with Android source/APK 0.3.7/code11 and backend mobile contract 0.3.7.** The Samsung was not connected to ADB during this release, so its latest physically verified installed build remains 0.3.6/code10. The earlier 0.4.4/0.4.2/0.4.1/0.4.0 evidence below remains historical evidence for prior releases, not the current running Web build.
 
 | Verification | Observed result |
 | --- | --- |
@@ -119,3 +154,9 @@ Actual production smoke is implemented in `scripts/qa-jobpilot-live.mjs`. Use `J
 **Operational boundaries:** the desktop PC and AgentDock still need to stay running. The prior historical-translation queue/cold-start limitations documented in `ANDROID_LANGUAGE_SEPARATION.md` remain separate backend work. No upstream update, reset, clean, stash, commit or push was performed; concurrent Android, language, ACP and LAN changes remain in the dirty worktree.
 
 Private evidence root: `.career-ops-web/mobile-qa/web-parity-20260908/`. See `browser/`, `browser-webkit/`, `live-chrome/`, `live-edge-headed/`, `live-webkit/`, `tests-final.log`, and `build-production.log`. Never publish the directory: it also contains private backups, source-byte comparisons and saved CV screenshots. Old production build backup is retained privately for recovery, not served as an alternative UI.
+
+## Isolated refactor acceptance — 2026-09-09
+
+`refactor/jobpilot-simplify-20260909` includes the published 0.4.6 / Android 0.3.8 features, with shared candidature services and retired internal-HTTP/CLI paths. Current-code verification: Node 217/217; Next build passed; Chromium and WebKit fixture QA 25/25 each; both engines also passed five real-backend browser checks. Current CV draft generation/assessment and explicit re-review completed with a fictional Candidate, leaving the saved CV unchanged until confirmation. Android APK builds; unit tests remain `NO-SOURCE` and no device installation was performed.
+
+This is **not deployed** and **not merged into main**. The user explicitly put main integration on hold. Lower Node counts reflect removal of tests exclusive to retired implementations, not skipped live-path failures. Full scope/evidence: `REFACTOR_2026-09-09.md`.

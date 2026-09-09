@@ -13,19 +13,19 @@ jobs:
   ensure-pr:
     if: >-
       github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'codex/development' &&
+      github.event.workflow_run.head_branch == 'Yifeng' &&
       github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: codex/development
+          ref: Yifeng
           fetch-depth: 0
       - name: Ensure a non-empty development PR exists
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          HEAD_BRANCH: codex/development
+          HEAD_BRANCH: Yifeng
           BASE_BRANCH: main
         run: |
           set -euo pipefail
@@ -53,5 +53,5 @@ jobs:
             --repo "${REPO}" \
             --head "${HEAD_BRANCH}" \
             --base "${BASE_BRANCH}" \
-            --title "Yifeng development → main" \
-            --body "Automated collaboration PR for \`codex/development\` → \`main\`.\n\nThis PR is created only after JPilot CI passes on the development branch. New pushes to the same branch update this PR automatically. Merge remains a manual decision."
+            --title "Yifeng → main" \
+            --body "Automated collaboration PR for \`Yifeng\` → \`main\`.\n\nThis PR is created only after JPilot CI passes on the development branch. New pushes to the same branch update this PR automatically. Merge remains a manual decision."

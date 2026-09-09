@@ -87,6 +87,7 @@ export function operationKey(kind, input, version, jobs, day = new Date().toISOS
   if (kind === 'analysis') return JSON.stringify([kind, version.id]);
   if (kind === 'search') return JSON.stringify([kind, SEARCH_OPERATION_VERSION, version.id, clean(input.query), day]);
   if (kind === 'cv') return JSON.stringify([kind, version.id, evidence(job), ...(input.applicationLanguage ? [input.applicationLanguage] : [])]);
+  if (kind === 'cv_review') return JSON.stringify([kind, input.jobId, input.draftId, Number(input.revision || 0)]);
   if (kind === 'rewrite') return JSON.stringify([kind, version.id, input.analysisId, [...(input.suggestionIds || [])].sort()]);
   if (kind === 'plan') return JSON.stringify([kind, version.id, evidence(job), Number(input.minutesPerDay || 30), clean(input.interviewDate)]);
   if (kind === 'compare') return JSON.stringify([kind, version.id, jobs.filter(j => (input.jobIds || []).includes(j.id)).sort((a,b) => a.id.localeCompare(b.id)).map(evidence)]);
@@ -99,6 +100,17 @@ export function reusableTask(tasks, key) {
 export function persistedJobEvaluation(job) {
   return Boolean(job && typeof job.score === 'number' && Number.isFinite(job.score)
     && (job.reportNum || job.summary?.trim() || job.match?.length) && !(!job.reportNum && job.priority === 'À évaluer'));
+}
+export function evaluationProjection(job, tasks = []) {
+  const key=normalizeUrl(job?.url);
+  const completed=key ? tasks.find(t=>t?.kind==='evaluate' && t?.status==='completed' && t?.result?.done && normalizeUrl(t?.input?.url)===key) : null;
+  const completedScore=Number(completed?.result?.score);
+  // A completed task is keyed by the exact normalized posting URL and profile.
+  // Prefer that score over a candidature card that may have been hydrated by the
+  // legacy company+role tracker matcher from a different posting.
+  const score=Number.isFinite(completedScore) ? completedScore : typeof job?.score==='number' && Number.isFinite(job.score) ? job.score : job?.score;
+  const evaluated=persistedJobEvaluation(job) || Boolean(completed);
+  return {...job,...(evaluated&&Number.isFinite(Number(score))?{score:Number(score)}:{}),evaluationTaskId:completed?.id || null,evaluationState:evaluated?'evaluated':'discovered'};
 }
 export function discoveryProjection(discovery, jobs, tasks) {
   return { ...(discovery || {}), offers: (discovery?.offers || []).flatMap(offer => {

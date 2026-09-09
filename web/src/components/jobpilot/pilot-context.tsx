@@ -14,7 +14,7 @@ const empty = (): Json => ({ jobs: [], tasks: [], profiles: [], profile: {}, con
 const translations = dictionary as Record<string, Partial<Record<Locale, string>>>;
 type Notice = { text: string; taskId?: string } | null;
 export type TaskLaunch = { ids: string[]; title: string; estimate: Json; createdAt: string } | null;
-const AI_TASK_KINDS = new Set(["evaluate", "cv", "analysis", "plan", "practice", "compare", "coach"]);
+const AI_TASK_KINDS = new Set(["evaluate", "cv", "cv_review", "analysis", "plan", "practice", "compare", "coach"]);
 
 function useController(profileId: string) {
   const [locale, setLocale] = useState<Locale>("zh");
@@ -102,14 +102,20 @@ function useController(profileId: string) {
         const snapshot = await request(`/api/mobile?${suffix}`);
         const previous = rows(dataRef.current.tasks);
         const completed = rows(snapshot.tasks).find(t => t.status === "completed" && previous.some(p => p.id === t.id && ACTIVE.has(p.status)));
+        const failed = rows(snapshot.tasks).find(t => ["failed","interrupted"].includes(String(t.status)) && previous.some(p => p.id === t.id && ACTIVE.has(p.status)));
         dataRef.current = snapshot; setData(snapshot); setExpired(false);
-        if (completed) notify(completed.title, completed.id);
+        if (failed) {
+          setTaskLaunch(current => current?.ids.includes(String(failed.id)) ? null : current);
+          const title = failed.title || tr("AI 处理失败", "Échec du traitement IA", "AI processing failed");
+          const reason = product(failed.error || failed.phase || tr("请查看任务详情后重试。", "Consultez le détail de la tâche avant de réessayer.", "Review the task details before retrying."));
+          setError(`${title} · ${reason}`);
+        } else if (completed) notify(completed.title, completed.id);
       } catch (e) { if (scopeRef.current === scope) fail(e); }
       finally { if (scopeRef.current === scope) setLoading(false); }
     })();
     refreshRef.current = { scope, promise };
     try { await promise; } finally { if (refreshRef.current?.promise === promise) refreshRef.current = null; }
-  }, [request, scope, fail, notify]);
+  }, [request, scope, fail, notify, product, tr]);
 
   const refreshDetail = useCallback(async (retry = false) => {
     const r = routeRef.current;

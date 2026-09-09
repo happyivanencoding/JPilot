@@ -114,11 +114,15 @@ if(caseIndex<0) {
         record.checks.persisted=job?.mobilePlan?.taskId===task.id && Array.isArray(job?.prepTasks) && job.prepTasks.length>0;
         if(!record.checks.persisted)throw new Error('Plan completed but did not persist checklist/plan.');
       } else if(flow==='cv') {
-        const job=readCandidatureStore('benchmark').jobs.find(j=>j.id===fixtureJob.id);const pdf=path.join(directory,job?.cv?.file||'missing');
+        const job=readCandidatureStore('benchmark').jobs.find(j=>j.id===fixtureJob.id),draft=job?.cvDraft;
+        const pdf=path.join(directory,draft?.file||'missing');
         record.checks.pdf=fs.existsSync(pdf) && fs.readFileSync(pdf).subarray(0,5).toString()==='%PDF-';
-        record.checks.ats=typeof job?.cv?.atsScore==='number';
-        record.checks.emptyKeywordCoverage=job?.cv?.keywordCoverage===null;
-        if(!record.checks.pdf||!record.checks.ats||!record.checks.emptyKeywordCoverage)throw new Error('Tailored CV did not complete the empty-keyword ATS/PDF regression.');
+        record.checks.ats=typeof draft?.atsScore==='number';
+        record.checks.emptyKeywordCoverage=draft?.keywordCoverage===null;
+        record.checks.pendingConfirmation=draft?.status==='pending' && task.result?.draftId===draft?.id;
+        record.checks.savedCvUnchanged=JSON.stringify(job?.cv)===JSON.stringify(primary.cv);
+        record.checks.presentationScore=Number.isFinite(draft?.assessment?.baselineScore) && draft.assessment.draftScore>=draft.assessment.baselineScore;
+        if(Object.values(record.checks).some(value=>value!==true))throw new Error('Tailored CV did not persist a valid pending PDF/ATS/assessment draft or changed the saved CV before confirmation.');
       } else if(flow==='evaluate') {
         const {findPersistedEvaluation}=await import('../src/lib/evaluation-state.ts');
         const evaluation=findPersistedEvaluation('benchmark',fixtureJob.url);

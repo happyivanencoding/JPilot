@@ -2,7 +2,7 @@ name: JPilot CI
 
 on:
   push:
-    branches: [main, codex/development]
+    branches: [main, Yifeng]
   pull_request:
     branches: [main]
 

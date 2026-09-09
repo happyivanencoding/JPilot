@@ -108,8 +108,9 @@ class JobPilotApi(private val context: Context) {
             file to if (extension == "pdf") "application/pdf" else mime
         } finally { c.disconnect() }
     }
-    fun downloadCv(job: JSONObject, profile: String): File {
-        val c = connection("/api/candidatures/cv?id=${Uri.encode(job.text("id"))}&profileId=${Uri.encode(profile)}", profile, "GET")
+    fun downloadCv(job: JSONObject, profile: String, draftId: String? = null): File {
+        val draft = draftId?.takeIf { it.isNotBlank() }?.let { "&draftId=${Uri.encode(it)}" } ?: ""
+        val c = connection("/api/candidatures/cv?id=${Uri.encode(job.text("id"))}&profileId=${Uri.encode(profile)}$draft", profile, "GET")
         return try {
             val bytes = checkedBytes(c)
             require(bytes.take(4).toByteArray().contentEquals("%PDF".toByteArray())) { "Le serveur n’a pas renvoyé de PDF." }

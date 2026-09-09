@@ -34,6 +34,7 @@ import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
 import org.json.JSONObject
 import java.time.Instant
+import kotlin.math.exp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun PilotApp(vm: JobPilotViewModel, state: PilotState) {
@@ -85,7 +86,7 @@ import java.time.Instant
                 Column {
                     HorizontalDivider()
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha=.92f),tonalElevation = 1.dp) {
-                        labels.forEachIndexed { i,label -> NavigationBarItem(modifier=Modifier.testTag("nav-$i"),selected = tab == i,onClick = { tab = i; if(i == 2) filter = "" },icon = { Icon(icons[i],label,Modifier.size(22.dp)) },label = { Text(label,fontSize = 10.sp,maxLines = 1) },colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer)) }
+                        labels.forEachIndexed { i,label -> NavigationBarItem(modifier=Modifier.testTag("nav-$i"),selected = tab == i,onClick = { tab = i; if(i == 2) filter = ""; vm.showTabGuide(i) },icon = { Icon(icons[i],label,Modifier.size(22.dp)) },label = { Text(label,fontSize = 10.sp,maxLines = 1) },colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer)) }
                     }
                 }
             }
@@ -126,7 +127,7 @@ import java.time.Instant
     }
     if(taskCenter) ModalBottomSheet(containerColor=MaterialTheme.colorScheme.surface.copy(alpha=.97f),contentColor=MaterialTheme.colorScheme.onSurface,onDismissRequest = { taskCenter = false },sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         val recent = tasks.filter { it.text("status") !in setOf("queued","running","reconciling") }.distinctBy { it.text("kind") + ":" + it.text("inputVersionId") + ":" + it.text("jobId") }.take(3)
-        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 570.dp),contentPadding = PaddingValues(horizontal = 20.dp,vertical = 10.dp),verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 570.dp).blockSheetEdgeMotion(),contentPadding = PaddingValues(horizontal = 20.dp,vertical = 10.dp),verticalArrangement = Arrangement.spacedBy(12.dp),overscrollEffect=null) {
             item { SectionTitle(tr("后台任务","Vos traitements","Background tasks"),tr("已完成的结果，直接回到对应页面。","Vos résultats, au bon endroit.","Your results, where they belong.")) }
             item { LocalizationNotice(state.snapshot.child("localization"),vm::retryLocalization) }
             if(active.isEmpty() && recent.isEmpty()) item { Hint(tr("当前没有任务。","Aucun traitement pour ce profil.","No tasks for this profile.")) }
@@ -139,7 +140,6 @@ import java.time.Instant
                     }
                     Hint(task.text("phase"))
                     if(task.text("status") in setOf("queued","running","reconciling")) EstimatedTaskProgress(task.text("createdAt"),task.child("estimate"))
-                    TaskMetrics(task.child("metrics"))
                     HorizontalDivider(Modifier.padding(top = 6.dp))
                 }
             }
@@ -150,10 +150,12 @@ import java.time.Instant
     else state.selectedJob?.let { id -> state.snapshot.objects("jobs").find { it.text("id") == id }?.let { JobDetailSheet(it,state,vm) } }
     if(state.analysisVisible && state.snapshot.has("analysis")) AnalysisSheet(state,vm)
     if(state.cvPreview != null || state.previewLoading) CvPreviewDialog(state,vm)
-    state.taskLaunch?.let { BackgroundTaskLaunch(it,vm::clearTaskLaunch) }
+    state.taskLaunch?.let { BackgroundTaskLaunch(it,state,vm::clearTaskLaunch) }
+    if(state.showWelcome) OnboardingDialog(welcome = true, tab = null, onDismiss = vm::dismissWelcome, onSkip = vm::skipOnboarding)
+    else state.walkthroughTab?.let { OnboardingDialog(welcome = false, tab = it, onDismiss = vm::dismissTabGuide, onSkip = vm::skipOnboarding) }
 }
 
-@Composable private fun BackgroundTaskLaunch(feedback: TaskLaunchFeedback,onDone: () -> Unit) {
+@Composable private fun BackgroundTaskLaunch(feedback: TaskLaunchFeedback,state:PilotState,onDone: () -> Unit) {
     var flying by remember(feedback.ids) { mutableStateOf(false) }
     val scale by animateFloatAsState(if(flying) .16f else 1f,tween(420),label="task-launch-scale")
     val alpha by animateFloatAsState(if(flying) .12f else 1f,tween(360),label="task-launch-alpha")
@@ -174,7 +176,9 @@ import java.time.Instant
                 }
                 Text(tr("正在后台处理","Traitement en arrière-plan","Processing in the background"),fontSize=22.sp,fontWeight=FontWeight.SemiBold)
                 Text(feedback.title,fontSize=15.sp,fontWeight=FontWeight.Medium)
-                EstimatedTaskProgress(feedback.createdAt,feedback.estimate,large=true)
+                val launchTasks=state.snapshot.objects("tasks").filter { it.text("id") in feedback.ids }
+                val launchStatus=if(launchTasks.isNotEmpty() && launchTasks.all { it.text("status")=="completed" }) "completed" else null
+                EstimatedTaskProgress(feedback.createdAt,feedback.estimate,large=true,terminalStatus=launchStatus)
                 Hint(if(feedback.ids.size>1) tr("${feedback.ids.size} 个任务已经加入右上角任务列表。你可以继续使用其他页面。","${feedback.ids.size} tâches ont été ajoutées en haut à droite. Vous pouvez continuer à naviguer.","${feedback.ids.size} tasks were added to the top-right task center. You can keep browsing.") else tr("任务已经加入右上角任务列表。你可以继续使用其他页面。","La tâche a été ajoutée en haut à droite. Vous pouvez continuer à naviguer.","The task was added to the top-right task center. You can keep browsing."))
                 Button({ flying=true },Modifier.fillMaxWidth().testTag("confirm-background-task"),enabled=!flying) { Text(tr("知道了","Compris","Got it")) }
             }
@@ -182,7 +186,7 @@ import java.time.Instant
     }
 }
 
-@Composable private fun EstimatedTaskProgress(createdAt:String,estimate:JSONObject,large:Boolean=false) {
+@Composable private fun EstimatedTaskProgress(createdAt:String,estimate:JSONObject,large:Boolean=false,terminalStatus:String?=null) {
     val target=estimate.optDouble("targetSeconds",estimate.optDouble("maxSeconds",0.0)).toLong()
     val started=remember(createdAt) { runCatching { Instant.parse(createdAt).toEpochMilli() }.getOrElse { System.currentTimeMillis() } }
     var now by remember(createdAt,target) { mutableLongStateOf(System.currentTimeMillis()) }
@@ -191,14 +195,17 @@ import java.time.Instant
     }
     if(target<=0) { Hint(product(estimate.text("label","Habituellement quelques minutes")));return }
     val elapsed=((now-started)/1000L).coerceAtLeast(0L)
-    val overdue=elapsed>=target
+    val completed=terminalStatus=="completed"
+    val overdue=!completed && elapsed>=target
     val remaining=(target-elapsed).coerceAtLeast(0L)
     // This is elapsed time versus an ETA, not model-reported completion.
-    // Keep it below 100% until a real terminal task state arrives.
-    val progress=(elapsed.toFloat()/target.toFloat()).coerceIn(.04f,.96f)
+    // The asymptotic curve visibly slows near the end and stays below 100%
+    // until a real terminal task state arrives.
+    val estimated=(0.96*(1.0-exp(-3.0*elapsed.toDouble()/target.toDouble()))).coerceIn(.04,.96).toFloat()
+    val progress by animateFloatAsState(if(completed)1f else estimated,tween(if(completed)260 else 450),label="task-eta-progress")
     val ringSize=if(large) 66.dp else 38.dp
-    val ringText=if(overdue) "…" else if(remaining<60) "${remaining}s" else "${(remaining+59)/60}m"
-    val remainingLabel=if(overdue) tr("已超过预计时间，仍在处理中","Durée estimée dépassée · toujours en cours","Estimated time exceeded · still processing") else if(remaining<60) tr("预计剩余 ${remaining} 秒","Environ ${remaining} s restantes","About ${remaining} s remaining") else tr("预计剩余约 ${(remaining+59)/60} 分钟","Environ ${(remaining+59)/60} min restantes","About ${(remaining+59)/60} min remaining")
+    val ringText=if(completed) "✓" else if(overdue) "…" else if(remaining<60) "${remaining}s" else "${(remaining+59)/60}m"
+    val remainingLabel=if(completed)tr("已完成","Terminé","Completed") else if(overdue) tr("已超过预计时间，仍在处理中","Durée estimée dépassée · toujours en cours","Estimated time exceeded · still processing") else if(remaining<60) tr("预计剩余 ${remaining} 秒","Environ ${remaining} s restantes","About ${remaining} s remaining") else tr("预计剩余约 ${(remaining+59)/60} 分钟","Environ ${(remaining+59)/60} min restantes","About ${(remaining+59)/60} min remaining")
     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=if(large) Arrangement.Center else Arrangement.Start) {
         Box(Modifier.size(ringSize),contentAlignment=Alignment.Center) {
             CircularProgressIndicator(progress={progress},modifier=Modifier.fillMaxSize(),strokeWidth=if(large) 6.dp else 4.dp,trackColor=MaterialTheme.colorScheme.primaryContainer)
@@ -212,19 +219,12 @@ import java.time.Instant
     }
 }
 
-@Composable fun TaskMetrics(metrics: JSONObject) {
-    val parts = mutableListOf<String>()
-    if(!metrics.isNull("wallMs") && metrics.has("wallMs")) { val seconds = metrics.optLong("wallMs")/1000; parts.add(if(seconds < 60) tr("${seconds} 秒","${seconds} s","${seconds} s") else tr("${seconds/60} 分 ${seconds%60} 秒","${seconds/60} min ${seconds%60} s","${seconds/60} min ${seconds%60} s")) }
-    if(!metrics.isNull("totalTokens") && metrics.has("totalTokens")) parts.add("%,d tokens".format(metrics.optLong("totalTokens")))
-    else if(metrics.length()>0) parts.add(tr("Token 未提供","Tokens non disponibles","Tokens unavailable"))
-    if(!metrics.isNull("estimatedCostUsd") && metrics.has("estimatedCostUsd")) parts.add(tr("API 等价估算","Équiv. API estimé","API equivalent estimate") + " $%.4f".format(metrics.optDouble("estimatedCostUsd")))
-    if(parts.isNotEmpty()) Hint(parts.joinToString(" · "))
-}
 @Composable fun taskTitle(kind: String) = when(kind) {
     "ingest" -> tr("简历导入","Import du CV","CV import")
     "search" -> tr("岗位搜索","Recherche d’offres","Offer search")
     "evaluate" -> tr("岗位评估","Évaluation du poste","Job evaluation")
     "cv" -> tr("定制简历","CV adapté","Tailored CV")
+    "cv_review" -> tr("重新评估简历草稿","Réévaluation du CV adapté","Reassess tailored CV")
     "rewrite" -> tr("简历草稿","Brouillon du CV","CV draft")
     "report" -> tr("岗位评估报告","Rapport d’évaluation","Evaluation report")
     "analysis" -> tr("简历与能力","CV et compétences","CV and skills")

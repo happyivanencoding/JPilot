@@ -32,9 +32,9 @@ import org.json.JSONObject
         item { SectionTitle(tr("今天，推进哪一步？","Votre prochain pas.","Your next step."),state.snapshot.child("profile").text("name")) }
         item {
             Column(Modifier.fillMaxWidth().padding(vertical = 6.dp),verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(if(jobs.isEmpty() && state.snapshot.text("cv").isBlank()) tr("从你的简历开始。","Commençons par votre CV.","Start with your CV.") else if(jobs.isEmpty()) tr("选好你的第一批机会。","Faites votre première sélection.","Choose your first opportunities.") else if(actionable>0) tr("$actionable 个岗位等待你决定是否投递","$actionable postes attendent votre décision","$actionable roles await your decision") else tr("把下一步安排好。","Gardez une longueur d’avance.","Plan your next move."),fontSize = 25.sp,lineHeight = 32.sp,fontWeight = FontWeight.SemiBold)
+                Text(if(jobs.isEmpty() && state.snapshot.text("cv").isBlank()) tr("从你的简历开始。","Commençons par votre CV.","Start with your CV.") else if(jobs.isEmpty()) tr("选好你的第一批机会。","Faites votre première sélection.","Choose your first opportunities.") else if(actionable>0) tr("$actionable 个岗位已经评估，待安排投递","$actionable postes évalués restent à candidater","$actionable evaluated roles are ready to apply") else tr("把下一步安排好。","Gardez une longueur d’avance.","Plan your next move."),fontSize = 25.sp,lineHeight = 32.sp,fontWeight = FontWeight.SemiBold)
                 Hint(tr("把精力放在值得投递的岗位与下一步行动上。","Les postes qui méritent votre attention. Les actions qui suivent.","Roles worth your attention. Clear next steps."))
-                PrimaryButton(if(actionable>0) tr("查看待决定岗位","Voir les postes à décider","Review roles to decide") else if(state.snapshot.text("cv").isBlank()) tr("导入我的简历","Importer mon CV","Import my CV") else tr("寻找适合我的岗位","Trouver des opportunités","Find opportunities")) { if(actionable>0) onFilter("decide") else if(state.snapshot.text("cv").isBlank()) onProfile() else onExplore() }
+                PrimaryButton(if(actionable>0) tr("查看已评估待投递岗位","Voir les postes évalués à candidater","Review evaluated roles to apply") else if(state.snapshot.text("cv").isBlank()) tr("导入我的简历","Importer mon CV","Import my CV") else tr("寻找适合我的岗位","Trouver des opportunités","Find opportunities")) { if(actionable>0) onFilter("decide") else if(state.snapshot.text("cv").isBlank()) onProfile() else onExplore() }
             }
         }
         if(jobs.isNotEmpty()) item {
@@ -52,7 +52,7 @@ import org.json.JSONObject
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(tr("我的求职进展","Votre recherche","Your job search"),fontSize = 18.sp,fontWeight = FontWeight.SemiBold)
                 val stages = d.child("byStage")
-                val rows = listOf("" to (tr("所有岗位","Tous les postes","All roles") to jobs.size),"preparing" to (tr("准备与决定","Préparation & décision","Prepare & decide") to stages.optInt("preparing")),"applied" to (tr("等待回复","En attente de réponse","Awaiting reply") to stages.optInt("applied")),"responded" to (tr("收到回复","Réponses reçues","Replies received") to stages.optInt("responded")),"offer" to (tr("收到 Offer","Offres reçues","Offers received") to stages.optInt("offer")))
+                val rows = listOf("" to (tr("所有岗位","Tous les postes","All roles") to jobs.size),"preparing" to (tr("准备投递","À préparer","Prepare to apply") to stages.optInt("preparing")),"applied" to (tr("已投递 / 等待回复","Envoyées / en attente","Applied / awaiting reply") to stages.optInt("applied")),"responded" to (tr("收到回复","Réponses reçues","Replies received") to stages.optInt("responded")),"interview" to (tr("面试","Entretiens","Interviews") to stages.optInt("interview")),"offer" to (tr("Offer / 入职","Offre / embauche","Offer / hired") to (stages.optInt("offer")+stages.optInt("hired"))),"closed" to (tr("已结束","Terminées","Closed") to (stages.optInt("rejected")+stages.optInt("archived"))))
                 rows.forEach { (key,data) -> Row(Modifier.fillMaxWidth().clickable { onFilter(key) }.padding(vertical = 13.dp),verticalAlignment = Alignment.CenterVertically) { Text(data.first,Modifier.weight(1f),fontSize = 15.sp); Text(data.second.toString(),fontWeight = FontWeight.SemiBold); Icon(Icons.Rounded.ChevronRight,null,Modifier.padding(start = 8.dp).size(18.dp)) } }
             }
         }
@@ -105,7 +105,8 @@ import org.json.JSONObject
         } }
         item { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(url,{ url = it },Modifier.fillMaxWidth(),label = { Text(tr("或粘贴职位链接","Ou coller le lien d’un poste","Or paste a job URL")) },singleLine = true,shape = RoundedCornerShape(10.dp))
-            TextButton({ vm.startTask(json("kind" to "evaluate","url" to url.trim())) },enabled = !state.working && url.startsWith("http")) { Text(tr("查看／评估该岗位","Consulter / évaluer cette offre","View / evaluate this role")); Icon(Icons.Rounded.ArrowForward,null,Modifier.padding(start = 6.dp).size(16.dp)) }
+            val pastedJobId=state.snapshot.objects("jobs").find { it.text("url")==url.trim() }?.text("id")
+            AiProgressButton(state,"evaluate",pastedJobId,tr("查看／评估该岗位","Consulter / évaluer cette offre","View / evaluate this role"),!state.working && url.startsWith("http"),outlined=true) { vm.startTask(json("kind" to "evaluate","url" to url.trim())) }
             HorizontalDivider()
         } }
         item { Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -113,7 +114,7 @@ import org.json.JSONObject
             if(visibleOffers.isNotEmpty()) TextButton({ selectedUrls=if(allSelected) emptySet() else visibleOffers.map { it.text("url") }.toSet() },Modifier.testTag("select-all-pending")) { Icon(if(allSelected) Icons.Rounded.Deselect else Icons.Rounded.SelectAll,null,Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(if(allSelected)tr("取消全选","Tout désélectionner","Clear selection")else tr("一键选中所有待处理岗位","Tout sélectionner","Select all pending roles")) }
             if(selectedOffers.isNotEmpty()) Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                 OutlinedButton({ val batch=selectedOffers.map { JSONObject(it.toString()) };selectedUrls=emptySet();vm.saveOffers(batch) },Modifier.weight(1f).testTag("bulk-save-offers"),enabled=!state.working) { Text(tr("收藏 ${selectedOffers.size}","Enregistrer ${selectedOffers.size}","Save ${selectedOffers.size}")) }
-                Button({ val batch=selectedOffers.filter { it.text("lifecycle")!="evaluating" }.map { json("kind" to "evaluate","url" to it.text("url")) };selectedUrls=emptySet();vm.startTasks(batch,batchEvaluationTitle) },Modifier.weight(1f).testTag("bulk-evaluate-offers"),enabled=!state.working && selectedOffers.any { it.text("lifecycle")!="evaluating" }) { Text(tr("评估 ${selectedOffers.size}","Évaluer ${selectedOffers.size}","Evaluate ${selectedOffers.size}")) }
+                Button({ val batch=selectedOffers.filter { it.text("lifecycle")!="evaluating" }.map { json("kind" to "evaluate","url" to it.text("url"),"offer" to JSONObject(it.toString())) };selectedUrls=emptySet();vm.startTasks(batch,batchEvaluationTitle) },Modifier.weight(1f).testTag("bulk-evaluate-offers"),enabled=!state.working && selectedOffers.any { it.text("lifecycle")!="evaluating" }) { Text(tr("评估 ${selectedOffers.size}","Évaluer ${selectedOffers.size}","Evaluate ${selectedOffers.size}")) }
             }
             if(discovery.optBoolean("partial"))Hint(discovery.text("warning"))
         } }
@@ -153,7 +154,8 @@ import org.json.JSONObject
                 TextButton({ context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(offer.text("url")))) },contentPadding = PaddingValues(0.dp)) { Text(tr("查看职位来源","Voir l’annonce source","View source posting")); Icon(Icons.Rounded.OpenInNew,null,Modifier.padding(start = 6.dp).size(15.dp)) }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedButton({ vm.saveOffer(offer) },Modifier.weight(1f),enabled = !saved && !state.working) { Text(if(saved) tr("已收藏","Enregistrée","Saved") else tr("保存","Enregistrer","Save")) }
-                    Button({ vm.startTask(json("kind" to "evaluate","url" to offer.text("url"))) },Modifier.weight(1f),enabled = !evaluating && !state.working) { Text(if(evaluating) tr("分析中","Analyse en cours","Analyzing") else tr("岗位评估","Évaluer","Evaluate")) }
+                    val evaluateJobId=offer.text("jobId").takeIf(String::isNotBlank) ?: state.snapshot.objects("jobs").find { it.text("url")==offer.text("url") }?.text("id")
+                    AiProgressButton(state,"evaluate",evaluateJobId,tr("岗位评估","Évaluer","Evaluate"),!evaluating && !state.working,modifier=Modifier.weight(1f)) { vm.startTask(json("kind" to "evaluate","url" to offer.text("url"),"offer" to JSONObject(offer.toString()))) }
                 }
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
             }
@@ -188,8 +190,6 @@ import org.json.JSONObject
         val mode = if(metrics.optBoolean("aiFallbackUsed")) tr("结构化源不足，已使用精简 AI 补充。","Sources structurées insuffisantes : complément IA ciblé utilisé.","Structured sources were insufficient; targeted AI fallback was used.") else tr("本次未调用搜索 Agent。","Aucun agent de recherche utilisé pour cette requête.","No search agent was used for this query.")
         Hint(mode)
         if(providerBits.isNotEmpty()) Hint(providerBits.joinToString("  ·  "))
-        val apiCost = metrics.optDouble("estimatedApiCostUsd",0.0)
-        if(apiCost > 0) Hint(tr("估算搜索 API 成本：$" + String.format(java.util.Locale.US,"%.3f",apiCost),"Coût API estimé : $" + String.format(java.util.Locale.US,"%.3f",apiCost),"Estimated search API cost: $" + String.format(java.util.Locale.US,"%.3f",apiCost)))
         HorizontalDivider()
     }
 }
@@ -200,27 +200,51 @@ import org.json.JSONObject
     var compareMode by rememberSaveable { mutableStateOf(false) }
     var chosen by remember(state.profileId) { mutableStateOf(setOf<String>()) }
     var comparison by remember { mutableStateOf(false) }
+    var refine by rememberSaveable(state.profileId) { mutableStateOf(false) }
+    var sortMode by rememberSaveable(state.profileId) { mutableStateOf("score-desc") }
+    var evaluationFilter by rememberSaveable(state.profileId) { mutableStateOf("all") }
     val jobs = state.snapshot.objects("jobs")
     val activeEvaluations=state.snapshot.objects("tasks").filter { it.text("kind")=="evaluate" && it.text("status") in setOf("queued","running","reconciling") }
     val unrated=jobs.filter { job -> job.text("evaluationState")!="evaluated" && job.text("url").startsWith("http") && activeEvaluations.none { it.text("jobId")==job.text("id") || it.child("input").text("url")==job.text("url") } }
     val evaluateUnratedTitle=tr("批量评估 ${unrated.size} 个未评估岗位","Évaluation de ${unrated.size} offres","Evaluate ${unrated.size} unrated roles")
     val sets = state.snapshot.child("dashboard").child("actionSets")
-    val ids = sets.strings(filter.ifBlank { "all" }).toSet()
+    val specialIds=if(filter in setOf("high","due","decide"))sets.strings(filter).toSet()else emptySet()
+    fun categoryMatches(job:JSONObject)=when(filter){
+        ""->true
+        "offer"->job.text("stage") in setOf("offer","hired")
+        "closed"->job.text("stage") in setOf("rejected","archived")
+        "high","due","decide"->job.text("id") in specialIds
+        else->job.text("stage")==filter
+    }
+    fun updatedKey(job:JSONObject)=listOf(job.text("updatedAt"),job.text("lastChecked"),job.text("discoveredAt"),job.text("postedAt")).firstOrNull { it.isNotBlank() } ?: ""
     val filtered = jobs.filter { job ->
-        val matches = if(sets.has(filter.ifBlank { "all" })) job.text("id") in ids else job.text("stage") == filter || job.text("status") == filter
-        matches && (job.text("company") + " " + job.text("role")).contains(query,true)
-    }.sortedByDescending { it.optDouble("score",-1.0) }
+        categoryMatches(job) && (job.text("company") + " " + job.text("role")).contains(query,true) && when(evaluationFilter){"evaluated"->job.text("evaluationState")=="evaluated";"unrated"->job.text("evaluationState")!="evaluated";else->true}
+    }.sortedWith(when(sortMode){
+        "score-asc"->compareBy<JSONObject> { it.optDouble("score",Double.NaN).let { score->if(score.isFinite())score else Double.POSITIVE_INFINITY } }.thenByDescending(::updatedKey)
+        "recent"->compareByDescending(::updatedKey)
+        else->compareByDescending<JSONObject> { it.optDouble("score",Double.NaN).let { score->if(score.isFinite())score else Double.NEGATIVE_INFINITY } }.thenByDescending(::updatedKey)
+    })
     LazyColumn(Modifier.fillMaxSize().testTag("applications-$filter-${filtered.size}"),contentPadding = PaddingValues(18.dp),verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { SectionTitle(tr("我的投递","Mes candidatures","My applications")); Hint("${filtered.size} " + tr("个岗位","postes","roles")) }; TextButton({ if(compareMode && chosen.size>=2) comparison=true else compareMode=!compareMode }) { Text(if(compareMode) "${chosen.size}/4" else tr("对比","Comparer","Compare")) } }
-            if(unrated.isNotEmpty()) OutlinedButton({ vm.startTasks(unrated.map { json("kind" to "evaluate","url" to it.text("url")) },evaluateUnratedTitle) },Modifier.fillMaxWidth().testTag("evaluate-all-unrated"),enabled=!state.working) { Icon(Icons.Rounded.AutoAwesome,null,Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(tr("一键评估所有未评估岗位（${unrated.size}）","Évaluer toutes les offres non évaluées (${unrated.size})","Evaluate all unrated roles (${unrated.size})")) }
+            if(unrated.isNotEmpty()) OutlinedButton({ vm.startTasks(unrated.map { json("kind" to "evaluate","url" to it.text("url"),"retry" to true) },evaluateUnratedTitle) },Modifier.fillMaxWidth().testTag("evaluate-all-unrated"),enabled=!state.working) { Icon(Icons.Rounded.AutoAwesome,null,Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(tr("一键评估所有未评估岗位（${unrated.size}）","Évaluer toutes les offres non évaluées (${unrated.size})","Evaluate all unrated roles (${unrated.size})")) }
         } }
         item { OutlinedTextField(query,{ query=it },Modifier.fillMaxWidth(),placeholder = { Text(tr("公司或职位","Entreprise ou poste","Company or role")) },leadingIcon = { Icon(Icons.Rounded.Search,null) },singleLine = true,shape = RoundedCornerShape(10.dp)) }
-        item { Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val options = listOf("" to tr("全部","Tout","All"),"high" to tr("高匹配","Match ≥85%","Match ≥85%"),"due" to tr("待跟进","À relancer","Follow up"),"decide" to tr("待决定","À décider","Decide"),"interview" to tr("面试","Entretiens","Interviews")) + state.snapshot.strings("statuses").filter { it != "Entretien" }.map { it to product(it) }
+        item { Row(Modifier.horizontalScroll(rememberScrollState(),overscrollEffect=null),horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val options=listOf("" to tr("全部","Tout","All"),"preparing" to tr("准备投递","À préparer","Prepare"),"applied" to tr("已投递","Envoyées","Applied"),"responded" to tr("收到回复","Réponses","Replies"),"interview" to tr("面试","Entretiens","Interviews"),"offer" to tr("Offer / 入职","Offre / embauche","Offer / hired"),"closed" to tr("已结束","Terminées","Closed"))
             options.forEach { (key,label) -> FilterChip(filter==key,{ onFilter(key) },modifier=Modifier.testTag("filter-$key"),label = { Text(label) }) }
         } }
-        if(filter.isNotBlank()) item { TextButton({ onFilter("") }) { Text(tr("清除筛选","Effacer le filtre","Clear filter")) } }
+        item { Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            OutlinedButton({refine=!refine},Modifier.weight(1f).testTag("application-refine")) { Icon(Icons.Rounded.Tune,null,Modifier.size(18.dp));Spacer(Modifier.width(7.dp));Text(tr("筛选与排序","Filtrer et trier","Filter & sort")) }
+            if(filter in setOf("high","due","decide")) Pill(when(filter){"high"->tr("高匹配","Match élevé","High match");"due"->tr("待跟进","À relancer","Follow up");else->tr("已评估待投递","Évaluées à candidater","Evaluated to apply")})
+        } }
+        if(refine)item { GlassCard {
+            Text(tr("评估状态","État de l’évaluation","Evaluation status"),fontWeight=FontWeight.SemiBold)
+            Row(Modifier.horizontalScroll(rememberScrollState(),overscrollEffect=null),horizontalArrangement=Arrangement.spacedBy(8.dp)) { listOf("all" to tr("全部","Toutes","All"),"evaluated" to tr("仅已评估","Évaluées","Evaluated"),"unrated" to tr("仅未评估","Non évaluées","Unrated")).forEach { (key,label)->FilterChip(evaluationFilter==key,{evaluationFilter=key},label={Text(label)}) } }
+            Text(tr("排序","Tri","Sort"),fontWeight=FontWeight.SemiBold)
+            Row(Modifier.horizontalScroll(rememberScrollState(),overscrollEffect=null),horizontalArrangement=Arrangement.spacedBy(8.dp)) { listOf("score-desc" to tr("评分高→低","Score décroissant","Score high→low"),"score-asc" to tr("评分低→高","Score croissant","Score low→high"),"recent" to tr("最近更新","Plus récentes","Recently updated")).forEach { (key,label)->FilterChip(sortMode==key,{sortMode=key},label={Text(label)}) } }
+        } }
+        if(filter in setOf("high","due","decide")) item { TextButton({ onFilter("") }) { Text(tr("清除快捷筛选","Effacer ce filtre","Clear quick filter")) } }
         if(compareMode) item { Row(verticalAlignment = Alignment.CenterVertically) { Hint(tr("选择 2–4 个岗位","Sélectionnez 2 à 4 postes","Select 2–4 roles")); Spacer(Modifier.weight(1f)); TextButton({ compareMode=false;chosen=emptySet() }) { Text(tr("取消","Annuler","Cancel")) } } }
         if(filtered.isEmpty()) item { EmptyCard(tr("当前筛选没有岗位","Aucun poste dans ce filtre","No roles in this filter"),tr("更换筛选，或到机会页寻找岗位。","Changez le filtre ou recherchez des opportunités.","Change the filter or explore opportunities.")) }
         items(filtered,key = { it.text("id") }) { job ->

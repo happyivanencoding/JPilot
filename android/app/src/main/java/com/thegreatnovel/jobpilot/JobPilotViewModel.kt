@@ -18,8 +18,8 @@ import org.json.JSONArray
 import java.io.File
 
 private val activeStates = setOf("queued", "running", "reconciling")
-private val aiTaskKinds = setOf("evaluate", "cv", "analysis", "plan", "practice", "compare", "coach")
-data class CvPreview(val files: List<File>, val meta: JSONObject = JSONObject(), val draftId: String? = null)
+private val aiTaskKinds = setOf("evaluate", "cv", "cv_review", "analysis", "plan", "practice", "compare", "coach")
+data class CvPreview(val files: List<File>, val meta: JSONObject = JSONObject(), val draftId: String? = null, val tailoredJobId: String? = null)
 data class TaskLaunchFeedback(val ids: List<String>, val title: String, val estimate: JSONObject, val createdAt: String)
 data class PilotState(
     val loggedIn: Boolean = false, val loading: Boolean = false, val working: Boolean = false,
@@ -32,11 +32,12 @@ data class PilotState(
     val cvPreview: CvPreview? = null, val previewLoading: Boolean = false,
     val noticeTaskId: String? = null, val selectedJobTab: Int = 0,
     val taskLaunch: TaskLaunchFeedback? = null,
+    val showWelcome: Boolean = false, val walkthroughTab: Int? = null,
 )
 class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     val api = JobPilotApi(app)
     private val prefs = app.getSharedPreferences("jobpilot", 0)
-    private val mutable = MutableStateFlow(PilotState(loggedIn = api.token != null, profileId = prefs.getString("profile", "") ?: "", language = prefs.getString("language", "fr") ?: "fr", theme = prefs.getString("theme", "system") ?: "system", server = api.base))
+    private val mutable = MutableStateFlow(PilotState(loggedIn = api.token != null, profileId = prefs.getString("profile", "") ?: "", language = prefs.getString("language", "fr") ?: "fr", theme = prefs.getString("theme", "system") ?: "system", server = api.base, showWelcome = api.token != null && !prefs.getBoolean("onboarding_welcome_v1", false)))
     val state = mutable.asStateFlow()
     private var foreground = true
     private var generation = 0
@@ -72,6 +73,19 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     fun clearMessage() { mutable.update { it.copy(error = null, notice = null) } }
     fun clearNotice() { mutable.update { it.copy(notice = null, noticeTaskId = null) } }
     fun clearTaskLaunch() { mutable.update { it.copy(taskLaunch = null) } }
+    fun dismissWelcome() { prefs.edit().putBoolean("onboarding_welcome_v1", true).apply(); mutable.update { it.copy(showWelcome = false) } }
+    fun skipOnboarding() {
+        val editor=prefs.edit().putBoolean("onboarding_welcome_v1", true)
+        (0..4).forEach { editor.putBoolean("onboarding_tab_${it}_v1", true) }
+        editor.apply()
+        mutable.update { it.copy(showWelcome = false, walkthroughTab = null) }
+    }
+    fun showTabGuide(tab: Int) {
+        if (tab !in 0..4 || prefs.getBoolean("onboarding_tab_${tab}_v1", false)) return
+        prefs.edit().putBoolean("onboarding_tab_${tab}_v1", true).apply()
+        mutable.update { it.copy(showWelcome = false, walkthroughTab = tab) }
+    }
+    fun dismissTabGuide() { mutable.update { it.copy(walkthroughTab = null) } }
     fun consumeDestination() { mutable.update { it.copy(destination = null) } }
     fun showAnalysis(show: Boolean = true) { mutable.update { it.copy(analysisVisible = show) } }
     fun closePreview() { previewGeneration++; previewMetaJob?.cancel(); previewMetaJob=null; mutable.update { it.copy(cvPreview = null, previewLoading = false) } }
@@ -110,8 +124,18 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
                 prefs.edit().putString("profile", actual).apply()
                 val prior = mutable.value.snapshot.objects("tasks").associateBy { it.text("id") }
                 val completed = data.objects("tasks").firstOrNull { it.text("status") == "completed" && (prior[it.text("id")]?.text("status") in activeStates || (prior[it.text("id")] == null && mutable.value.noticeTaskId == it.text("id"))) }
+                val failed = data.objects("tasks").firstOrNull { it.text("status") in setOf("failed","interrupted") && prior[it.text("id")]?.text("status") in activeStates }
+                val failedMessage = failed?.let { task ->
+                    val title = task.text("title").ifBlank { when(mutable.value.language) { "zh" -> "AI 处理失败"; "en" -> "AI processing failed"; else -> "Échec du traitement IA" } }
+                    val reason = ProductStrings.error(getApplication(),mutable.value.language,task.text("error",task.text("phase")))
+                    "$title · $reason"
+                }
                 mutable.update { it.copy(snapshot = data, profileId = actual, loading = false, loggedIn = true,
-                    notice = completed?.text("title") ?: it.notice, noticeTaskId = completed?.text("id") ?: it.noticeTaskId) }
+                    notice = if(failed!=null) null else completed?.text("title") ?: it.notice,
+                    noticeTaskId = if(failed!=null) null else completed?.text("id") ?: it.noticeTaskId,
+                    error = failedMessage ?: it.error,
+                    task = failed ?: it.task,
+                    taskLaunch = if(failed!=null) null else it.taskLaunch) }
                 val open = mutable.value.task
                 if (open != null && open.text("status") in activeStates) loadTask(open.text("id"))
                 else if(open?.child("result")?.child("localization")?.optBoolean("pending")==true && !open.child("result").child("localization").optBoolean("failed")) {
@@ -295,9 +319,10 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
                 mutable.update { it.copy(destination = json("tab" to 2), task = null) }
                 selectJob(destination.text("jobId").takeIf(String::isNotBlank))
             }
-            "cv" -> {
+            "cv","cv_review" -> {
                 val id = destination.text("jobId", task.child("result").text("jobId"))
-                mutable.value.snapshot.objects("jobs").find { it.text("id") == id }?.let { openCvPreview(job = it) }
+                mutable.update { it.copy(destination = json("tab" to 2), task = null) }
+                selectJob(id.takeIf(String::isNotBlank),1)
             }
             "plan" -> {
                 mutable.update { it.copy(destination = json("tab" to 3), task = null) }
@@ -316,14 +341,17 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
             } catch(e: Exception) { if(epoch == generation) failure(e) }
         }
     }
-    fun openCvPreview(draftId: String? = null, job: JSONObject? = null) {
+    fun openCvPreview(draftId: String? = null, job: JSONObject? = null, tailoredDraftId: String? = null) {
         val profile = mutable.value.profileId; val epoch = generation
         val previewEpoch = ++previewGeneration
         viewModelScope.launch {
             mutable.update { it.copy(previewLoading = true, cvPreview = null, task = null, error = null) }
             try {
                 val preview = withContext(Dispatchers.IO) {
-                    if (job != null) CvPreview(listOf(api.downloadCv(job, profile)), json("title" to job.text("company"), "pages" to job.child("cv").optInt("pages")))
+                    if (job != null) {
+                        val draft=tailoredDraftId?.takeIf { it.isNotBlank() }?.let { job.child("cvDraft") }
+                        CvPreview(listOf(api.downloadCv(job, profile, tailoredDraftId)), if(draft!=null) JSONObject(draft.toString()) else json("title" to job.text("company"), "pages" to job.child("cv").optInt("pages")), tailoredDraftId, if(draft!=null)job.text("id") else null)
+                    }
                     else {
                         val suffix = "?profileId=${Uri.encode(profile)}" + (draftId?.takeIf(String::isNotBlank)?.let { "&draftId=${Uri.encode(it)}" } ?: "")
                         val meta = api.request("/api/mobile/cv$suffix&format=meta", profile)
@@ -343,7 +371,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         if(previewMetaJob?.isActive==true)return
         val preview=mutable.value.cvPreview ?: return
         // Tailored job PDFs have no preview-layout metadata endpoint to poll.
-        if(!preview.meta.has("layoutNote") && !preview.meta.has("draft"))return
+        if(preview.tailoredJobId!=null || (!preview.meta.has("layoutNote") && !preview.meta.has("draft")))return
         val epoch=generation;val previewEpoch=previewGeneration;val profile=mutable.value.profileId
         previewMetaJob=viewModelScope.launch {
             try {
@@ -366,6 +394,21 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) { if(epoch == generation) failure(e) }
         }
     }
+    fun updateTailoredDraft(id:String,payload:JSONObject) {
+        val profile=mutable.value.profileId;val epoch=generation
+        viewModelScope.launch { mutable.update { it.copy(working=true,error=null) };try {
+            withContext(Dispatchers.IO) { api.request("/api/mobile",profile,json("action" to "updateTailoredCvDraft","profileId" to profile,"draftId" to id,"payload" to payload)) }
+            if(epoch==generation){mutable.update { it.copy(working=false,notice="Brouillon mis à jour · PDF régénéré",noticeTaskId=null) };refresh(silent=true)}
+        } catch(e:Exception){if(epoch==generation)failure(e)} }
+    }
+    fun decideTailoredDraft(id:String,decision:String) {
+        val profile=mutable.value.profileId;val epoch=generation
+        viewModelScope.launch { mutable.update { it.copy(working=true,error=null) };try {
+            withContext(Dispatchers.IO) { api.request("/api/mobile",profile,json("action" to "decideTailoredCvDraft","profileId" to profile,"draftId" to id,"decision" to decision)) }
+            if(epoch==generation){mutable.update { it.copy(working=false,cvPreview=null,notice=if(decision=="accept")"Version de CV conservée" else "Brouillon refusé",noticeTaskId=null) };refresh(silent=true)}
+        } catch(e:Exception){if(epoch==generation)failure(e)} }
+    }
+
     fun useServer(value: String) {
         try { api.setBase(value); mutable.update { it.copy(server = api.base, error = null) }; refresh() } catch (e: Exception) { failure(e) }
     }
@@ -386,7 +429,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         api.saveToken(token)
         val profile = result.strings("profiles").firstOrNull() ?: ""
         generation++; refreshJob?.cancel(); refreshJob = null
-        mutable.update { it.copy(loggedIn = true, loginPending = false, working = false, server = api.base, profileId = profile, error = null) }
+        mutable.update { it.copy(loggedIn = true, loginPending = false, working = false, server = api.base, profileId = profile, error = null, showWelcome = !prefs.getBoolean("onboarding_welcome_v1", false), walkthroughTab = null) }
         refresh()
     }
     fun beginLogin(openBrowser: (String) -> Unit) {
@@ -413,7 +456,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { withContext(Dispatchers.IO) { api.request("/api/mobile-auth/logout",body = json()) } }
             api.saveToken(null)
             android.webkit.CookieManager.getInstance().removeAllCookies(null)
-            mutable.update { it.copy(loggedIn = false, snapshot = JSONObject(), task = null, selectedJob = null, working = false) }
+            mutable.update { it.copy(loggedIn = false, snapshot = JSONObject(), task = null, selectedJob = null, working = false, showWelcome = false, walkthroughTab = null) }
         }
     }
     fun shareDocument(url: String) {

@@ -43,6 +43,14 @@ try {
   const shot = async name => { await byId('jobpilot-phone').screenshot({ path: path.join(out, name + '.png'), animations: 'disabled' }); };
   const buttons = (name, exact = true) => page.getByRole('button', { name, exact });
   await goto();
+  await check('first-use onboarding appears and skip suppresses remaining tab guides', async () => {
+    await shown('onboarding-welcome');
+    await page.getByRole('button', { name: '跳过引导', exact: true }).click();
+    await byId('onboarding-welcome').waitFor({ state: 'hidden' });
+    await byId('nav-offers').click(); await shown('offers-page');
+    assert.equal(await byId('onboarding-offers').count(), 0);
+    await byId('nav-home').click(); await shown('home-page');
+  });
   await check('phone frame is exactly 384x832 on desktop; five navigation entries; own branding', async () => {
     const b = await byId('jobpilot-phone').boundingBox(); assert.equal(b.width, 384); assert.equal(b.height, 832);
     assert.equal(await page.locator('.jp-nav button').count(), 5); assert.equal(await page.title(), 'JobPilot');
@@ -54,6 +62,10 @@ try {
     assert.equal(await byId('applications-page').getAttribute('data-count'), '1');
     assert.equal(await byId('applications-page').getAttribute('data-filter'), 'high');
     await byId('filter-all').click(); assert.equal(await byId('applications-page').getAttribute('data-count'), '3');
+    const applications=byId('applications-page');assert.deepEqual(await applications.locator('.jp-chips').first().getByRole('button').allTextContents(),['全部','准备投递','已投递','收到回复','面试','Offer / 入职','已结束']);
+    assert.equal(await applications.locator('.jp-list-item').first().getAttribute('data-testid'),'job-qa-role-1');
+    await byId('application-refine').click();await buttons('评分低→高').click();assert.equal(await applications.locator('.jp-list-item').first().getAttribute('data-testid'),'job-qa-role-2');
+    await buttons('仅已评估').click();assert.equal(await byId('applications-page').getAttribute('data-count'),'2');await buttons('全部').last().click();await buttons('评分高→低').click();
     assert.match(await byId('job-qa-role-3').innerText(), /待评估/); await shot('applications-zh');
   });
   await check('saved formal evaluation opens without a second business call; report is a GET', async () => {
@@ -61,6 +73,15 @@ try {
     assert.equal(await byId('evaluate-job').count(), 0); await shot('job-fit-zh');
     await byId('view-report').click(); await shown('result-sheet'); await page.getByText('这是测试报告，不会重新评估。').waitFor();
     assert.equal(api.posts.length, count); await byId('close-sheet').click(); await shown('job-detail-qa-role-1');
+  });
+  await check('tailored CV draft shows score lift, supports manual edits, reassessment, PDF preview and explicit rejection', async () => {
+    await shown('job-detail-qa-role-1');await byId('job-tab-1').click();await byId('tailored-cv-draft').waitFor();
+    const acceptedFile=api.fixtures[ids[0]].jobs[0].cv.file;assert.match(await byId('tailored-cv-draft').innerText(),/58[\s\S]*76[\s\S]*\+18/);
+    await buttons('手动修改这个版本').click();const summary=page.getByLabel('职业摘要',{exact:true});await summary.fill('Edited synthetic tailored summary');await byId('save-tailored-draft-edit').click();
+    await eventually(()=>api.fixtures[ids[0]].jobs[0].cvDraft.revision===2);assert.equal(api.fixtures[ids[0]].jobs[0].cvDraft.assessment,null);assert.equal(api.fixtures[ids[0]].jobs[0].cv.file,acceptedFile);
+    await byId('review-tailored-draft').click();await eventually(()=>api.fixtures[ids[0]].jobs[0].cvDraft.assessment?.revision===2);await shown('job-detail-qa-role-1');assert.equal(await byId('job-tab-1').getAttribute('aria-selected'),'true');await eventually(async()=>/58[\s\S]*80[\s\S]*\+22/.test(await byId('tailored-cv-draft').innerText()));
+    await byId('preview-tailored-draft').click();await shown('pdf-preview');await page.locator('.jp-pdf-page[data-rendered="true"]').first().waitFor({timeout:30000});assert.match(await byId('pdf-preview').innerText(),/58[\s\S]*80[\s\S]*\+22/);await buttons('不要这个版本').click();
+    await shown('job-detail-qa-role-1');assert.equal(await byId('job-tab-1').getAttribute('aria-selected'),'true');assert.equal(api.fixtures[ids[0]].jobs[0].cv.file,acceptedFile);assert.equal(api.fixtures[ids[0]].jobs[0].cvDraft.status,'rejected');
   });
   await check('tracking preserves untouched automatic next action and saves selected-profile notes/status/date', async () => {
     await byId('job-tab-3').click(); await page.getByLabel('当前阶段').selectOption('Candidature envoyée');
@@ -70,7 +91,7 @@ try {
     assert.equal(post.profile, ids[0]); assert.equal(post.body.change.dueDate, '2026-09-15'); assert.ok(!Object.hasOwn(post.body.change, 'nextAction'));
     await page.getByLabel('粘贴或概括收到的回复', { exact: true }).fill('Fictional interview invitation'); await buttons('保存回复').click();
     await eventually(() => api.fixtures[ids[0]].jobs[0].replies.length === 1); assert.equal(api.fixtures[ids[1]].jobs.length, 0);
-    await shot('job-tracking-zh'); await close();
+    await shot('job-tracking-zh'); await goto('/?tab=applications');
   });
   await check('multi-role comparison uses saved roles and explicit analyze action', async () => {
     await buttons('对比').click(); await byId('job-qa-role-1').click(); await byId('job-qa-role-2').click();
@@ -93,7 +114,11 @@ try {
     const count = api.posts.length; await byId('view-analysis').click(); await shown('analysis-sheet');
     await byId('analysis-tab-1').click(); await page.getByText('Clarify research evidence', { exact: true }).waitFor();
     await byId('analysis-tab-2').click(); await page.getByText('Practice an interview', { exact: true }).waitFor();
-    await byId('analysis-tab-0').click(); assert.equal(api.posts.length, count); await shot('analysis-zh');
+    await byId('analysis-tab-0').click(); assert.equal(api.posts.length, count);
+    const analysisContent=byId('analysis-content');
+    await analysisContent.evaluate(el=>{el.scrollTop=el.scrollHeight;});const bottom=await analysisContent.evaluate(el=>el.scrollTop);const sheetBefore=await byId('analysis-sheet').boundingBox();
+    await analysisContent.hover();await page.mouse.wheel(0,1400);await sleep(120);assert.equal(await analysisContent.evaluate(el=>el.scrollTop),bottom);assert.deepEqual(await byId('analysis-sheet').boundingBox(),sheetBefore);
+    await shot('analysis-zh');
   });
   await check('coordinated draft renders actual before/after PDFs; download is original PDF bytes', async () => {
     await byId('apply-cv-plan').click(); await shown('pdf-preview'); await page.locator('.jp-pdf-page[data-rendered="true"]').first().waitFor({ timeout: 30000 });
@@ -136,11 +161,22 @@ try {
     await page.getByLabel('我的回答', { exact: true }).fill('A documented example of research with a clear method.'); await buttons('获取逐项反馈').click(); await shown('result-sheet');
     assert.equal(api.posts.findLast(p => p.body?.input?.kind === 'practice').body.input.jobId, 'qa-role-1'); await close();
     await page.getByLabel('关于我的职业路径……', { exact: true }).fill('How should I prioritize my research experience?'); await buttons('一起思考').click(); await shown('result-sheet'); assert.ok(api.posts.some(p => p.body?.input?.kind === 'coach')); await close();
-    await buttons('查看／更新训练计划').click(); await shown('job-detail-qa-role-1'); assert.equal(await byId('job-tab-2').getAttribute('aria-selected'), 'true');
+    await eventually(async()=>await buttons('更新训练计划').count()===1,6000);await buttons('更新训练计划').click(); await shown('job-detail-qa-role-1'); assert.equal(await byId('job-tab-2').getAttribute('aria-selected'), 'true');
+    await shown('interview-plan-body');assert.equal(await byId('toggle-interview-plan').getAttribute('aria-expanded'),'true');await byId('toggle-interview-plan').click();await eventually(async()=>await byId('interview-plan-body').count()===0);assert.equal(await byId('toggle-interview-plan').getAttribute('aria-expanded'),'false');await byId('toggle-interview-plan').click();await shown('interview-plan-body');
     const jobContent=byId('job-content');await jobContent.evaluate(el=>{el.scrollTop=0;});const beforeScroll=await jobContent.evaluate(el=>el.scrollTop);
     await byId('practice-this-question').click();await eventually(async()=>await jobContent.evaluate(el=>el.scrollTop)>beforeScroll);
     const targeted=byId('targeted-practice');await targeted.waitFor({state:'visible'});await eventually(async()=>await targeted.getByLabel('面试问题',{exact:true}).inputValue()==='Describe your research process.');
     await shot('interview-plan-zh'); await close();
+  });
+  await check('AI buttons expose asymptotic inline progress, snap to complete, and surface failures', async () => {
+    await nav('prepare');await eventually(async()=>await buttons('一起思考').count()===1,6000);
+    const coachInput=page.getByLabel('关于我的职业路径……',{exact:true});const coachCard=coachInput.locator('xpath=ancestor::section[contains(@class,"jp-card")][1]');await coachInput.fill('__QA_ASYNC__ success');await buttons('一起思考').click();await shown('background-task-launch');await byId('confirm-background-task').click();await byId('background-task-launch').waitFor({state:'hidden'});
+    const coachButton=coachCard.locator('.jp-ai-button');await eventually(async()=>await coachButton.getAttribute('aria-busy')==='true');assert.match(await coachButton.getAttribute('style'),/--jp-ai-progress:/);assert.match(await coachButton.innerText(),/≈\d+%/);
+    const successTask=api.fixtures[ids[0]].tasks.find(t=>t.kind==='coach'&&t.input?.question==='__QA_ASYNC__ success');successTask.status='completed';successTask.updatedAt=new Date().toISOString();
+    await eventually(async()=>/已完成/.test(await coachButton.innerText()),8000);assert.match(await coachButton.getAttribute('style'),/--jp-ai-progress:\s*100%/);
+    await eventually(async()=>await buttons('获取逐项反馈').count()===1,6000);const q=page.getByLabel('面试问题',{exact:true}),a=page.getByLabel('我的回答',{exact:true});await q.fill('__QA_ASYNC__ failure');await a.fill('Synthetic answer');await buttons('获取逐项反馈').click();await shown('background-task-launch');await byId('confirm-background-task').click();await byId('background-task-launch').waitFor({state:'hidden'});
+    const failureTask=api.fixtures[ids[0]].tasks.find(t=>t.kind==='practice'&&t.input?.question==='__QA_ASYNC__ failure');await eventually(()=>failureTask?.status==='queued');failureTask.status='failed';failureTask.error='Synthetic AI failure';failureTask.updatedAt=new Date().toISOString();
+    await eventually(async()=>/Synthetic AI failure/.test(await byId('jobpilot-phone').innerText()),8000);assert.match(await byId('jobpilot-phone').innerText(),/Synthetic AI failure/);const dismiss=page.locator('.jp-error .jp-icon-button');if(await dismiss.count())await dismiss.click();
   });
   await check('search stays in background, repeated click submits once, completion routes to offers', async () => {
     await nav('offers'); const before = api.posts.filter(p => p.body?.input?.kind === 'search').length;
@@ -153,14 +189,14 @@ try {
   await check('pending offers select-all supports batch evaluation/save and AI launch flies into task center', async () => {
     await nav('offers');await byId('select-all-pending').click();await byId('bulk-evaluate-offers').waitFor();
     await byId('bulk-evaluate-offers').click();await shown('background-task-launch');
-    const launchText=await byId('background-task-launch').innerText();assert.match(launchText,/正在后台处理/);assert.match(launchText,/预计剩余|预计耗时/);assert.equal(await byId('background-task-launch').locator('.jp-estimated-ring').count(),1);const batch=api.posts.findLast(p=>p.body?.action==='batchTasks');assert.ok(batch.body.inputs.every(input=>input.kind==='evaluate'));
+    const launchText=await byId('background-task-launch').innerText();assert.match(launchText,/正在后台处理/);assert.match(launchText,/预计剩余|预计耗时/);assert.equal(await byId('background-task-launch').locator('.jp-estimated-ring').count(),1);const batch=api.posts.findLast(p=>p.body?.action==='batchTasks');assert.ok(batch.body.inputs.every(input=>input.kind==='evaluate'&&input.offer?.url===input.url));assert.ok(api.fixtures[ids[0]].jobs.some(job=>job.url==='https://example.test/jobs/new'));
     await byId('confirm-background-task').click();await byId('background-task-launch').waitFor({state:'hidden'});batch.body.inputs.forEach((_,index)=>{const task=api.fixtures[ids[0]].tasks[index];if(task)task.status='completed';});
     await byId('select-all-pending').click();await byId('bulk-save-offers').click();await eventually(()=>api.posts.some(p=>p.body?.action==='saveOffers'));
     const saved=api.fixtures[ids[0]].jobs.find(j=>j.url==='https://example.test/jobs/new');assert.ok(saved);assert.equal(saved.score,null);
   });
   await check('applications can evaluate every unrated role with one background batch', async () => {
     await nav('applications');const before=api.posts.filter(p=>p.body?.action==='batchTasks').length;await byId('evaluate-all-unrated').click();await shown('background-task-launch');
-    const post=api.posts.findLast(p=>p.body?.action==='batchTasks');assert.ok(post.body.inputs.length>=1);assert.ok(post.body.inputs.every(input=>input.kind==='evaluate'));assert.equal(api.posts.filter(p=>p.body?.action==='batchTasks').length,before+1);
+    const post=api.posts.findLast(p=>p.body?.action==='batchTasks');assert.ok(post.body.inputs.length>=1);assert.ok(post.body.inputs.every(input=>input.kind==='evaluate'&&input.retry===true));assert.equal(api.posts.filter(p=>p.body?.action==='batchTasks').length,before+1);
     await byId('confirm-background-task').click();await byId('background-task-launch').waitFor({state:'hidden'});for(const task of api.fixtures[ids[0]].tasks.filter(t=>t.status==='queued'&&t.kind==='evaluate'))task.status='completed';
   });
   await check('profile switch isolates all state and requests despite a shared browser cookie', async () => {

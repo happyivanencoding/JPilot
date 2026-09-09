@@ -4,10 +4,11 @@ import path from 'node:path';
 import net from 'node:net';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { chromium } from 'playwright-core';
+import { chromium, webkit } from 'playwright-core';
 import { prepareCase, benchmarkRoot } from './jobpilot-benchmark-fixture.mjs';
 
-const id = 'browser-backend-' + Date.now();
+const engineName = process.env.JOBPILOT_QA_ENGINE === 'webkit' ? 'webkit' : 'chromium';
+const id = `browser-backend-${engineName}-${Date.now()}`;
 const root = prepareCase(id, 'ai');
 const output = path.join(benchmarkRoot, id);
 fs.mkdirSync(output, { recursive: true });
@@ -38,12 +39,14 @@ try {
     await new Promise(r => setTimeout(r, 500));
   }
   assert.ok(ready, 'Staged server did not become ready');
-  browser = await chromium.launch({ executablePath: process.env.JOBPILOT_QA_BROWSER || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe', headless: true });
+  browser = engineName === 'webkit' ? await webkit.launch({ headless: true })
+    : await chromium.launch({ executablePath: process.env.JOBPILOT_QA_BROWSER || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe', headless: true });
   const context = await browser.newContext({ viewport: { width: 1280, height: 960 } });
   await context.addInitScript(() => { localStorage.setItem('jobpilot:language', 'fr'); localStorage.setItem('jobpilot:theme', 'light'); });
   const page = await context.newPage();
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(base, { waitUntil: 'networkidle' });
+  await page.locator('[data-testid="onboarding-welcome"] .jp-onboarding-skip').click();
   await page.locator('[data-testid="nav-applications"]').waitFor();
   const request = (url, body) => page.evaluate(async ({ url, body }) => {
     const response = await fetch(url, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -74,10 +77,10 @@ try {
   for (const tab of ['home', 'offers', 'applications', 'prepare', 'profile']) await page.locator(`[data-testid="nav-${tab}"]`).click();
   await page.locator('[data-testid="nav-applications"]').click();
   await page.getByText('Refactor smoke employer', { exact: true }).first().waitFor();
-  await page.screenshot({ path: path.join(output, 'applications-real-backend.png'), fullPage: true });
+  await page.screenshot({ path: path.join(output, 'applications-real-backend.png'), fullPage: true, animations: 'disabled' });
   checks.push('all five real browser screens work and reloaded applications display the persisted card');
   assert.deepEqual(errors, []);
-  fs.writeFileSync(path.join(output, 'summary.json'), JSON.stringify({ passed: true, syntheticOnly: true, apiMocks: false, internalHttpUnavailable: true, checks, errors }, null, 2));
+  fs.writeFileSync(path.join(output, 'summary.json'), JSON.stringify({ passed: true, engine: engineName, syntheticOnly: true, apiMocks: false, internalHttpUnavailable: true, checks, errors }, null, 2));
   for (const check of checks) console.log('PASS ' + check);
   console.log('REAL BACKEND BROWSER PASS: ' + output);
 } finally {

@@ -49,3 +49,9 @@ Current architecture/acceptance evidence is documented in [`../docs/WEB_ANDROID_
 ## License
 
 JPilot-authored Web material is AGPL-3.0-only. Inherited Career-Ops code retains its original MIT notice in `../LICENSES/career-ops-MIT.txt`; dependency notices remain in `../THIRD_PARTY_NOTICES.md`.
+
+## Backend service boundaries on the refactor branch
+
+`src/lib/candidatures.ts` owns shared candidature persistence and report reconciliation. Mobile task orchestration calls model-backed evaluation and CV services directly; it does not send internal requests to another localhost server. The root `lib/pipeline-store.mjs` supplies the canonical inbox/history writers without loading the full scanner.
+
+After `npm run build`, `npm run qa:backend` launches a disposable built server and tests real browser requests/file persistence against fictional data. Set `JOBPILOT_QA_ENGINE=webkit` to use WebKit; Chromium/Edge is the default. It never starts the production service or runs business AI. See `../docs/REFACTOR_2026-09-09.md` for exact results and the explicit feature-branch-only delivery boundary.

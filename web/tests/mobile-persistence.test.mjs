@@ -8,12 +8,19 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { candidateVersion, withProfileLock, writeJson, readJson, operationKey, discoveryProjection, normalizeAnalysis, resolvedIssues, applyEvidenceEdits, contractMatches } from '../src/lib/mobile-state.mjs';
+import { candidateVersion, withProfileLock, writeJson, readJson, operationKey, discoveryProjection, evaluationProjection, normalizeAnalysis, resolvedIssues, applyEvidenceEdits, contractMatches } from '../src/lib/mobile-state.mjs';
 import { usageFromRollout, apiEquivalent, historicalEstimate, flowEstimate, FLOW_DEFAULTS } from '../src/lib/ai-metrics.mjs';
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'jobpilot-persistence-'));
-const priorRoot=process.env.CAREER_OPS_ROOT;
+const priorEnv=Object.fromEntries(['CAREER_OPS_ROOT','CAREER_OPS_PIPELINE','CAREER_OPS_SCAN_HISTORY'].map(key=>[key,process.env[key]]));
 process.env.CAREER_OPS_ROOT=root;
-after(()=>{if(priorRoot === undefined)delete process.env.CAREER_OPS_ROOT;else process.env.CAREER_OPS_ROOT=priorRoot;fs.rmSync(root,{recursive:true,force:true});});
+process.env.CAREER_OPS_PIPELINE=path.join(root,'data/pipeline.md');
+process.env.CAREER_OPS_SCAN_HISTORY=path.join(root,'data/scan-history.tsv');
+after(()=>{for(const [key,value] of Object.entries(priorEnv)){if(value===undefined)delete process.env[key];else process.env[key]=value;}fs.rmSync(root,{recursive:true,force:true});});
+// The auto-save evaluation test uses the real canonical writer, not a data-only checkout.
+for(const file of ['lib/pipeline-store.mjs','lib/local-today.mjs','lib/cli-flags.mjs','lib/is-main-module.mjs','pipeline-lock.mjs','path-resolver.mjs','fingerprint-core.mjs','tracker-parse.mjs','tracker-aliases.json','invite-match.mjs']){
+ const target=path.join(root,file);fs.mkdirSync(path.dirname(target),{recursive:true});
+ fs.copyFileSync(path.resolve(import.meta.dirname,'../..',file),target);
+}
 const profiles=['fixture-a','fixture-b'].map(id=>({id,name:id,shortName:id,cvMarkdown:`data/${id}/cv.md`,config:`data/${id}/profile.yml`,notes:`data/${id}/notes.md`,candidatures:`data/${id}/candidatures.json`}));
 writeJson(path.join(root,'data/profiles.json'),{version:1,defaultProfileId:'fixture-a',profiles});
 const original='# Candidat fictif\n\n## Expérience\n- Nettoyage de données financières avec Python.\n';
@@ -29,7 +36,9 @@ fs.mkdirSync(path.join(root,'reports'));
 const history=await import('../src/lib/mobile-history.ts');
 const engine=await import('../src/lib/mobile-engine.ts');
 const {evaluationCandidateFiles}=await import('../src/lib/evaluation-transport.ts');
+const {decideTailoredCvDraft,floorTailoredPresentationScore}=await import('../src/lib/tailored-cv.ts');
 const {taskView}=await import('../src/lib/mobile-view.ts');
+const {findExistingCandidature}=await import('../src/lib/candidatures.ts');
 const p='fixture-a',q='fixture-b';
 function task(profile,kind,input,version,extra={}){
  const id=randomUUID(),createdAt=new Date(Date.now()+1000).toISOString();
@@ -186,4 +195,56 @@ test('AI ETA uses a conservative verified baseline until profile history is suff
  const base={kind:'analysis',status:'completed',metrics:{model:'gpt-5.6-luna',reasoning:'low',wallMs:30000}};
  const learned=flowEstimate([base,base,base],'analysis','gpt-5.6-luna','low');
  assert.equal(learned.source,'production-history');assert.equal(learned.samples,3);assert.equal(learned.targetSeconds,learned.maxSeconds);
+});
+
+test('exact completed evaluation task repairs a stale candidature projection and outranks a same-title tracker score',()=>{
+ const job={id:'saved-a',company:'Same Co',role:'Same Role',url:'https://example.org/jobs/222',score:4.8,priority:'Priorité 1',summary:'stale score from another posting'};
+ const tasks=[
+  {id:'old-other',kind:'evaluate',status:'completed',createdAt:'2026-09-09T08:00:00Z',input:{url:'https://example.org/jobs/111'},result:{done:true,score:4.8}},
+  {id:'exact',kind:'evaluate',status:'completed',createdAt:'2026-09-09T09:00:00Z',input:{url:'https://example.org/jobs/222'},result:{done:true,score:0}},
+ ];
+ const projected=evaluationProjection(job,tasks);
+ assert.equal(projected.evaluationState,'evaluated');assert.equal(projected.score,0);assert.equal(projected.evaluationTaskId,'exact');
+});
+
+test('candidature report sync never collapses two URL-keyed postings merely because company and role are identical',()=>{
+ const jobs=[
+  {id:'one',company:'Same Co',role:'CRM Analyst',url:'https://example.org/jobs/111'},
+  {id:'two',company:'Same Co',role:'CRM Analyst',url:'https://example.org/jobs/222'},
+ ];
+ assert.equal(findExistingCandidature(jobs,'https://example.org/jobs/222','Same Co','CRM Analyst').id,'two');
+ assert.equal(findExistingCandidature(jobs,'https://example.org/jobs/333','Same Co','CRM Analyst'),undefined);
+ assert.equal(findExistingCandidature(jobs,'','Same Co','CRM Analyst').id,'one');
+});
+
+test('evaluating a discovery offer saves it first even when the exact completed evaluation is reused',async()=>{
+ const url='https://example.org/jobs/auto-save-evaluate';
+ writeJson(path.join(root,profiles[1].candidatures),{candidate:q,jobs:[],updatedAt:new Date().toISOString()});
+ const version=history.currentCandidateVersion(q);
+ task(q,'evaluate',{url},version,{result:{done:true,score:3.2,summary:'Existing exact evaluation'}});
+ const before=engine.listMobileTasks(q).length;
+ const reused=await engine.startMobileTask(q,{kind:'evaluate',url,offer:{url,company:'Fixture Employer',title:'Fixture Analyst',location:'Paris',contractType:'CDI',why:'Synthetic offer',source:'fixture'}});
+ assert.equal(reused.status,'completed');assert.equal(reused.reused,true);assert.equal(engine.listMobileTasks(q).length,before);
+ const saved=readCandidatureStore(q).jobs.find(job=>job.url===url);
+ assert.ok(saved);assert.equal(saved.company,'Fixture Employer');assert.equal(saved.score,null);
+ assert.ok(fs.readFileSync(path.join(root,'data/pipeline.md'),'utf8').includes(url));
+ assert.ok(fs.readFileSync(path.join(root,'data/scan-history.tsv'),'utf8').includes(url));
+});
+
+
+test('tailored CV remains a draft until explicit keep; reject never replaces the saved tailored CV',async()=>{
+ const file=path.join(root,profiles[0].candidatures);
+ const baseJob={id:'draft-job',company:'Fixture',role:'Analyst',url:'https://example.org/draft-job',status:'À candidater',score:3,cv:{file:'output/original.pdf',presentationScore:55},prepTasks:[],followup:{nextAction:'',dueDate:'',note:''}};
+ const draft={id:'draft-keep',status:'pending',baseVersionId:'fixture-version',language:'en',notesLocale:'zh',revision:1,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),payload:{summary:'draft',experience:[],projects:[],education:[],skills:[]},file:'output/draft.pdf',htmlFile:'output/draft.html',pages:1,atsScore:82,atsPass:true,atsIssues:[],keywordCoverage:75,changes:['Focused evidence'],baselinePresentationScore:55,assessment:{baselineScore:55,draftScore:74,delta:19,summary:'better presentation',improvements:[],remainingGaps:[],assessedAt:new Date().toISOString(),revision:1}};
+ writeJson(file,{candidate:p,jobs:[{...structuredClone(baseJob),cvDraft:structuredClone(draft)},{...structuredClone(baseJob),id:'draft-reject',url:'https://example.org/draft-reject',cvDraft:{...structuredClone(draft),id:'draft-no'}}],updatedAt:new Date().toISOString()});
+ const before=JSON.stringify(readCandidatureStore(p).jobs[0].cv);
+ const kept=await decideTailoredCvDraft(p,'draft-keep','accept');assert.equal(kept.job.cv.file,'output/draft.pdf');assert.equal(kept.job.cv.presentationScore,74);assert.equal(kept.job.status,'CV prêt');
+ const rejectedBefore=JSON.stringify(readCandidatureStore(p).jobs.find(j=>j.id==='draft-reject').cv);
+ await decideTailoredCvDraft(p,'draft-no','reject');const rejected=readCandidatureStore(p).jobs.find(j=>j.id==='draft-reject');assert.equal(JSON.stringify(rejected.cv),rejectedBefore);assert.equal(rejected.cvDraft.status,'rejected');
+ assert.notEqual(before,JSON.stringify(kept.job.cv));
+});
+
+test('tailored CV presentation score never displays below the original baseline',()=>{
+ const down=floorTailoredPresentationScore(60,49);assert.deepEqual(down,{baselineScore:60,rawDraftScore:49,draftScore:60,delta:0,needsSubstantiveImprovement:true});
+ const up=floorTailoredPresentationScore(60,73);assert.deepEqual(up,{baselineScore:60,rawDraftScore:73,draftScore:73,delta:13,needsSubstantiveImprovement:false});
 });

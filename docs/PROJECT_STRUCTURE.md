@@ -115,7 +115,7 @@ Validation after cleanup:
 - Web Next production build: passed and contains only the retained API surface plus redirect-only historical pages;
 - Android `testDebugUnitTest assembleDebug`: passed (unit source currently reports `NO-SOURCE`, APK compilation/package succeeded).
 
-The cleanup stops at the live compatibility-engine boundary. In particular, `scan.mjs` is still dynamically loaded by `/api/explore/add` as the canonical pipeline/scan-history writer, and `scan.mjs` still imports `providers/` plus `plugins/_engine.mjs`. Those root engine directories therefore remain until JPilot replaces that dependency with an explicit backend module.
+At that cleanup checkpoint, `scan.mjs` was still dynamically loaded by `/api/explore/add` as the canonical pipeline/scan-history writer. The 2026-09-09 isolated refactor described below replaces that dependency with `lib/pipeline-store.mjs`. Provider/scanner directories remain where search and retained engine paths still use them; extracting the writer is not permission to delete those live consumers.
 
 ## 9. 2026-09-08 direct-model task reliability fix
 
@@ -125,3 +125,11 @@ Two concrete task failures were fixed after Android/Web manual testing:
 - after a service restart, a task whose model run had never received a `runId` could remain `reconciling` indefinitely. Such a task is now marked `interrupted` with an explicit retry requirement instead of pretending recovery is still in progress.
 
 The production model transport was then switched from ACP to direct OpenAI using the existing local private key-file configuration. A real production formal-evaluation retry reached `completed` in about **16.5 s** end-to-end (model ~14.4 s), using `gpt-5.6-luna / low`, 7,305 total tokens and about `$0.002652` API-equivalent cost. The new report and candidature state persisted normally after the model response; no Candidate identity or private evidence is recorded in this public document.
+
+## 10. 2026-09-09 isolated backend simplification
+
+On `refactor/jobpilot-simplify-20260909`, candidature storage/update/report reconciliation is shared through `web/src/lib/candidatures.ts`; mobile tasks call evaluation/CV services directly rather than self-HTTP. `lib/pipeline-store.mjs` supplies the canonical inbox/history writers without loading search providers. `scan.mjs` retains its existing public writer exports.
+
+The obsolete generic dispatcher, detached evaluation worker and retired CLI/PDF-envelope path are removed, together with their exclusive tests and four unused direct Web dependencies. The current model adapter, Candidate versions, profile isolation, task reuse, report/PDF verification and user-confirmed CV draft workflow remain in place.
+
+Published main changes through `1c3ebb3` were incorporated into this feature branch, retaining Android 0.3.8 / Web 0.4.6 behavior. The owner explicitly requested **no merge into main and no production deployment**. See `REFACTOR_2026-09-09.md` for current branch evidence and device/model-test limitations; earlier release results above remain historical.

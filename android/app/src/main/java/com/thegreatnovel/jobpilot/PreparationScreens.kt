@@ -56,7 +56,8 @@ import java.time.ZoneOffset
             Text(tr("每天 ${minutes.toInt()} 分钟","${minutes.toInt()} minutes par jour","${minutes.toInt()} minutes per day"),fontSize = 14.sp)
             Slider(value = minutes,onValueChange = { minutes = it },valueRange = 15f..60f,steps = 2)
             DateField(deadline,{ deadline = it },tr("面试日期（可选）","Date d’entretien (facultative)","Interview date (optional)"))
-            PrimaryButton(if(selected?.child("mobilePlan")?.text("markdown")?.isNotBlank() == true) tr("查看／更新训练计划","Consulter / actualiser le plan","Review / update plan") else tr("生成针对性训练计划","Créer mon plan ciblé","Create a targeted plan"),selected != null && !state.working) { vm.startTask(json("kind" to "plan","jobId" to selected?.text("id"),"minutesPerDay" to minutes.toInt(),"interviewDate" to deadline)) }
+            val existingPlan=selected?.child("mobilePlan")?.text("markdown")?.isNotBlank() == true
+            AiProgressButton(state,"plan",selected?.text("id"),if(existingPlan)tr("更新训练计划","Actualiser le plan","Update plan")else tr("生成针对性训练计划","Créer mon plan ciblé","Create a targeted plan"),selected != null && !state.working) { vm.startTask(json("kind" to "plan","jobId" to selected?.text("id"),"minutesPerDay" to minutes.toInt(),"interviewDate" to deadline,"retry" to existingPlan)) }
         } }
         val tasks = selected?.objects("prepTasks") ?: emptyList()
         if(tasks.isNotEmpty()) item { GlassCard {
@@ -74,12 +75,12 @@ import java.time.ZoneOffset
             if(suggestions.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement = Arrangement.spacedBy(8.dp)) { suggestions.distinct().take(8).forEachIndexed { i,q -> AssistChip(onClick = { question = q },label = { Text(tr("问题 ${i+1}","Question ${i+1}","Question ${i+1}")) }) } }
             OutlinedTextField(question,{ question = it },label = { Text(tr("面试问题","Question","Question")) },modifier = Modifier.fillMaxWidth(),minLines = 2,shape = RoundedCornerShape(18.dp))
             OutlinedTextField(answer,{ answer = it },label = { Text(tr("我的回答","Ma réponse","My answer")) },modifier = Modifier.fillMaxWidth(),minLines = 5,maxLines = 10,shape = RoundedCornerShape(18.dp))
-            PrimaryButton(tr("获取逐项反馈","Recevoir un retour précis","Get detailed feedback"),!state.working && answer.isNotBlank() && question.isNotBlank()) { vm.startTask(json("kind" to "practice","jobId" to selected?.text("id"),"question" to question,"answer" to answer)) }
+            AiProgressButton(state,"practice",selected?.text("id"),tr("获取逐项反馈","Recevoir un retour précis","Get detailed feedback"),!state.working && answer.isNotBlank() && question.isNotBlank()) { vm.startTask(json("kind" to "practice","jobId" to selected?.text("id"),"question" to question,"answer" to answer)) }
         } }
         item { GlassCard {
             Text(tr("职业教练","Coach carrière","Career coach"),fontSize = 18.sp,fontWeight = FontWeight.SemiBold)
             OutlinedTextField(coach,{ coach = it },modifier = Modifier.fillMaxWidth(),minLines = 2,label = { Text(tr("关于我的职业路径……","À propos de mon parcours…","About my career…")) },shape = RoundedCornerShape(18.dp))
-            OutlinedButton({ vm.startTask(json("kind" to "coach","jobId" to selected?.text("id"),"question" to coach)) },Modifier.fillMaxWidth(),enabled = !state.working && coach.isNotBlank()) { Text(tr("一起思考","Réfléchir avec mon coach","Think with my coach")) }
+            AiProgressButton(state,"coach",selected?.text("id"),tr("一起思考","Réfléchir avec mon coach","Think with my coach"),!state.working && coach.isNotBlank(),outlined=true) { vm.startTask(json("kind" to "coach","jobId" to selected?.text("id"),"question" to coach)) }
         } }
     }
 }
@@ -161,7 +162,7 @@ import java.time.ZoneOffset
         } }
     }
     if(editCv) ModalBottomSheet(onDismissRequest = { editCv = false },sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),modifier = Modifier.imePadding()) {
-        Column(Modifier.fillMaxWidth().fillMaxHeight(.88f).padding(22.dp),verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.fillMaxWidth().fillMaxHeight(.88f).blockSheetEdgeMotion().padding(22.dp),verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionTitle(tr("我的主简历","Mon CV de référence","My master CV"))
             OutlinedTextField(cvDraft,{ cvDraft = it },Modifier.fillMaxWidth().weight(1f),shape = RoundedCornerShape(20.dp))
             PrimaryButton(tr("保存修改","Enregistrer les modifications","Save changes"),!state.working && cvDraft.isNotBlank()) { confirmSave = true }

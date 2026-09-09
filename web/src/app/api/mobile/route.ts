@@ -3,15 +3,16 @@ import { headers } from "next/headers";
 import * as yaml from "js-yaml";
 import { activeProfileId } from "@/lib/profile-request";
 import { getProfile, listProfiles, profileFile } from "@/lib/profile-context";
-import { mobileDirectory, prepareTaskHistory, readMobileTask, startMobileTask, type MobileTask } from "@/lib/mobile-engine";
+import { mobileDirectory, prepareTaskHistory, readMobileTask, listMobileTasks, reconcileCompletedEvaluationCards, startMobileTask, type MobileTask } from "@/lib/mobile-engine";
 import { readCandidatureStore, saveMobileOffer, updateMobileJob, reconcileCandidatures } from "@/lib/candidatures";
 import { dashboardFor, APPLICATION_STATUSES, DISCOVERY_OFFER_LIMIT, stageOf, topDiscoveryOffers } from "@/lib/mobile-domain.mjs";
 import { readReport, readApplications, careerOpsRoot } from "@/lib/career-ops";
 import { currentCandidateVersion, currentAnalysis, decideCvDraft, saveCanonicalCv } from "@/lib/mobile-history";
-import { discoveryProjection, withProfileLock, persistedJobEvaluation, contractMatches } from "@/lib/mobile-state.mjs";
+import { discoveryProjection, withProfileLock, evaluationProjection, contractMatches } from "@/lib/mobile-state.mjs";
 import { taskView,estimateView } from "@/lib/mobile-view";
 import {localizeDisplay} from "@/lib/display-localization";
 import {requestUiLocale,applicationLanguage,documentLanguage,publicError} from "@/lib/language-contract.mjs";
+import {updateTailoredCvDraft,decideTailoredCvDraft} from "@/lib/tailored-cv";
 import {reportForDisplay} from "@/lib/localization-core.mjs";
 import { FLOW_DEFAULTS, flowEstimate } from "@/lib/ai-metrics.mjs";
 import { reconcileMobileTasks } from "@/lib/mobile-recovery";
@@ -40,7 +41,8 @@ export async function GET(req: Request) {
     if(url.searchParams.has("jobId")) {
       const job=readCandidatureStore(profileId).jobs.find(j=>j.id===url.searchParams.get("jobId"));
       if(!job)throw new Error("Candidature introuvable.");
-      return Response.json(await localizeDisplay(profileId,locale,{...job,stage:stageOf(job.status),evaluationState:persistedJobEvaluation(job)?"evaluated":"discovered"},"job",{...localizationOptions,identity:job.id}),{headers:{"Cache-Control":"no-store"}});
+      const projected={...evaluationProjection(job,listMobileTasks(profileId)),stage:stageOf(job.status)};
+      return Response.json(await localizeDisplay(profileId,locale,projected,"job",{...localizationOptions,identity:job.id}),{headers:{"Cache-Control":"no-store"}});
     }
     if(url.searchParams.has("reportJobId")) {
       const job=readCandidatureStore(profileId).jobs.find(j=>j.id===url.searchParams.get("reportJobId"));
@@ -49,24 +51,26 @@ export async function GET(req: Request) {
       if(!report) return Response.json({error:publicError("Rapport introuvable.",locale)},{status:404});
       return Response.json(await localizeDisplay(profileId,locale,{markdown:reportForDisplay(report.content)},"report",{...localizationOptions,identity:`report:${job.reportNum}`}),{headers:{"Cache-Control":"no-store"}});
     }
-    const store = reconcileCandidatures(profileId);
+    let store = reconcileCandidatures(profileId);
     const read = (kind: "cv" | "config") => { try { return fs.readFileSync(profileFile(profileId, kind), "utf8"); } catch { return ""; } };
     const config = yaml.load(read("config")) as Record<string, unknown> | null;
     const {version,tasks} = await withProfileLock(mobileDirectory(profileId),()=>{
       const version=currentCandidateVersion(profileId);
       return {version,tasks:prepareTaskHistory(profileId,version)};
     });
+    store=reconcileCompletedEvaluationCards(profileId,tasks,store);
     const restricted = (await headers()).get("x-jobpilot-profiles")?.split(",");
     const profiles = listProfiles().filter(p => !restricted || restricted.includes(p.id)).map(({ id, name, shortName }) => ({ id, name, shortName }));
     const latest = (kind: string) => tasks.find((t:MobileTask) => t.kind === kind && t.status === "completed");
+    const projectedJobs=store.jobs.map(j=>({...evaluationProjection(j,tasks),stage:stageOf(j.status)}));
     const snapshot={
-      version: "0.3.4", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
+      version: "0.3.8", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
       cv: read("cv"), cvState:{versionId:version.id,cvVersion:version.cvVersion,revision:version.revision,changedAt:version.createdAt},
       languageSettings:{uiLocale:locale,applicationLanguage:applicationLanguage(config || {},read("cv")),documentLanguage:documentLanguage(version)},
-      config: config || {}, jobs: store.jobs.map(j=>({...j,stage:stageOf(j.status),evaluationState:persistedJobEvaluation(j)?"evaluated":"discovered"})), dashboard: dashboardFor(store.jobs), statuses: APPLICATION_STATUSES,
-      tasks: tasks.slice(0,60).map((t:MobileTask)=>taskView(t,store.jobs,false,locale)),
+      config: config || {}, jobs: projectedJobs, dashboard: dashboardFor(projectedJobs), statuses: APPLICATION_STATUSES,
+      tasks: tasks.slice(0,60).map((t:MobileTask)=>taskView(t,projectedJobs,false,locale)),
       analysis: currentAnalysis(profileId,version,tasks),
-      discovery: (()=>{const result=discoveryProjection(tasks.find((t:MobileTask)=>t.kind==="search" && t.result?.offers)?.result || null,store.jobs,tasks);const eligible=result.offers.filter((o:any)=>contractMatches(o,(config as any)?.target_roles?.contract_types || []).matches);return {...result,offers:topDiscoveryOffers(eligible),displayLimit:DISCOVERY_OFFER_LIMIT,availableCount:eligible.length};})(),
+      discovery: (()=>{const result=discoveryProjection(tasks.find((t:MobileTask)=>t.kind==="search" && t.result?.offers)?.result || null,projectedJobs,tasks);const eligible=result.offers.filter((o:any)=>contractMatches(o,(config as any)?.target_roles?.contract_types || []).matches);return {...result,offers:topDiscoveryOffers(eligible),displayLimit:DISCOVERY_OFFER_LIMIT,availableCount:eligible.length};})(),
       flowEstimates:Object.fromEntries(Object.entries(FLOW_DEFAULTS).map(([kind,choice])=>[kind,estimateView(flowEstimate(tasks,kind,choice.model,choice.reasoning),locale)])),
       updatedAt: store.updatedAt,
     };
@@ -120,6 +124,8 @@ export async function POST(req: Request) {
       return Response.json(result);
     }
     if (body.action === "decideCvDraft") return Response.json(await decideCvDraft(profileId,String(body.draftId),String(body.decision)));
+    if (body.action === "updateTailoredCvDraft") return Response.json({ok:true,draft:await updateTailoredCvDraft(profileId,String(body.draftId),body.payload)});
+    if (body.action === "decideTailoredCvDraft") return Response.json(await decideTailoredCvDraft(profileId,String(body.draftId),String(body.decision)));
     return Response.json({ error: publicError("Action inconnue.",locale) }, { status: 400 });
   } catch (e) { console.error("mobile action failed",e);return Response.json({ error: publicError(e,requestUiLocale(req)) }, { status: 400 }); }
 }

@@ -6,12 +6,13 @@ import {readJson,writeJson,withProfileLock,processAlive} from '@/lib/mobile-stat
 import {runTranslationTransport} from '@/lib/model-transport';
 import {extractJsonObject} from '@/lib/extract-json-object.mjs';
 import {uiLocale,choose} from '@/lib/language-contract.mjs';
-import {displaySlots,translationKey,alreadyLocalized,productText,pendingText,setDisplaySlot,protectTranslation,restoreTranslation,translationPrompt} from '@/lib/localization-core.mjs';
+import {displaySlots,translationKey,alreadyLocalized,translationLooksLikeTarget,productText,pendingText,setDisplaySlot,protectTranslation,restoreTranslation,translationPrompt} from '@/lib/localization-core.mjs';
 
 type Entry={key:string;text:string;id:string;packed:ReturnType<typeof protectTranslation>};
 const host=globalThis as typeof globalThis & {jobPilotLocalizations?:Map<string,Promise<void>>};
 const running=host.jobPilotLocalizations ??= new Map<string,Promise<void>>();
-const TRANSLATION_ENGINE_ID='deepseek-v4-flash-nonthinking-v1';
+const TRANSLATION_ENGINE_ID='deepseek-v4-flash-nonthinking-v2-language-validated';
+const validCached=(saved:any,source:string,locale:string)=>saved?.source===source && saved?.locale===locale && typeof saved.translation==='string' && translationLooksLikeTarget(saved.translation,locale);
 
 /** Translation operations use the existing cross-process profile lock, but NOT
  * business tasks/results. Locale switches cannot create evaluation/CV task rows.
@@ -31,7 +32,7 @@ export async function localizeDisplay(profileId:string,target:unknown,value:any,
     if(fixed!==slot.text || alreadyLocalized(slot.text,locale,slot.hint)) {setDisplaySlot(result,slot.path,fixed);continue;}
     const key=translationKey(slot.text);sourceKeys.push(key);
     const saved=readJson(path.join(cacheDir,key+'.json'));
-    if(saved?.source===slot.text && saved?.locale===locale && typeof saved.translation==='string') setDisplaySlot(result,slot.path,saved.translation);
+    if(validCached(saved,slot.text,locale)) setDisplaySlot(result,slot.path,saved.translation);
     else {missing.set(key,slot.text);setDisplaySlot(result,slot.path,pendingText(locale));}
   }
   let active:any=readJson(path.join(directory,'active.json'));
@@ -46,7 +47,8 @@ export async function localizeDisplay(profileId:string,target:unknown,value:any,
       }
       const entries:Entry[]=[];let characters=0;
       for(const [key,text] of missing) {
-        if(fs.existsSync(path.join(cacheDir,key+'.json')))continue;
+        const cached=readJson(path.join(cacheDir,key+'.json'));
+        if(validCached(cached,text,locale))continue;
         if(entries.length && (characters+text.length>20000 || entries.length>=70))break;
         entries.push({key,text,id:String(entries.length),packed:protectTranslation(text)});characters+=text.length;
       }
@@ -91,6 +93,8 @@ async function executeLocalization(directory:string,operation:any,entries:Entry[
     const rows=(parsed.obj as any)?.translations;
     if(parsed.truncated || !Array.isArray(rows) || rows.length!==entries.length || new Set(rows.map((r:any)=>r.id)).size!==entries.length) throw new Error('Localization response has missing or duplicate segments');
     const translations=entries.map(entry=>({entry,text:restoreTranslation(rows.find((r:any)=>r.id===entry.id)?.text,entry.packed.protectedValues)}));
+    const invalid=translations.filter(({text})=>!translationLooksLikeTarget(text,operation.locale));
+    if(invalid.length)throw new Error(`Localization output is not in target locale ${operation.locale}: ${invalid.length} segment(s)`);
     for(const {entry,text} of translations)writeJson(path.join(directory,'segments',entry.key+'.json'),{locale:operation.locale,source:entry.text,translation:text,operationId:operation.key,createdAt:new Date().toISOString()});
     operation.status='completed';operation.completedAt=new Date().toISOString();
   } catch(error) {operation.status='failed';operation.error=error instanceof Error?error.message:String(error);}

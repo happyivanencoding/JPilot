@@ -56,7 +56,13 @@ if(caseIndex<0){
     const evaluation=(await import('../src/lib/evaluation-state.ts')).findPersistedEvaluation('benchmark',fixtureJob.url);
     if(!evaluation || evaluation.source!=='official-report')throw new Error('Formal evaluation did not persist a profile-scoped official report.');
     record.quality.persistedReport=true;record.evaluation=evaluation;
-   }else{const job=readJson(path.join(directory,'data/candidatures.json')).jobs[0];record.quality={...record.quality,pdfExists:fs.existsSync(path.join(directory,job.cv?.file||'missing')),pages:job.cv?.pages,atsScore:job.cv?.atsScore};}
+   }else{
+    const draft=readJson(path.join(directory,'data/candidatures.json')).jobs[0].cvDraft;
+    const pdf=path.join(directory,draft?.file||'missing');
+    const pdfExists=fs.existsSync(pdf)&&fs.readFileSync(pdf).subarray(0,5).toString()==='%PDF-';
+    record.quality={...record.quality,pdfExists,pendingConfirmation:draft?.status==='pending',pages:draft?.pages,atsScore:draft?.atsScore,assessment:draft?.assessment};
+    if(!pdfExists||draft?.status!=='pending')throw new Error('Tailored CV did not persist a pending PDF draft.');
+   }
   }else{
    const {openAgentDockCodex,runAgentDockCodex}=await import('../src/lib/agentdock-acp.ts');
    const {extractJsonObject}=await import('../src/lib/extract-json-object.mjs');

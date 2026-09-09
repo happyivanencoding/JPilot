@@ -74,6 +74,13 @@ function roleKey(value: string) {
     .join("-");
 }
 
+export function findExistingCandidature(jobs: Job[], url: string, company: string, role: string) {
+  const urlKey=normalizeUrl(url);
+  if(urlKey) return jobs.find(job=>normalizeUrl(String(job.url ?? ""))===urlKey);
+  const key=`${slug(company)}|${roleKey(role)}`;
+  return jobs.find(job=>`${slug(String(job.company ?? ""))}|${roleKey(String(job.role ?? ""))}`===key);
+}
+
 function machineSummary(markdown: string): Record<string, unknown> {
   const match = markdown.match(/##\s+Machine Summary\s*\r?\n+```ya?ml\s*\r?\n([\s\S]*?)\r?\n```/i);
   if (!match) return {};
@@ -104,10 +111,7 @@ export function reconcileCandidatures(profileId: string): Store {
     const key = `${slug(app.company)}|${roleKey(app.role)}`;
     const machine = machineSummary(report.content);
     const score = Number(machine.score ?? parseFloat(app.score)) || 0;
-    const existing = store.jobs.find((job) =>
-      (url && String(job.url ?? "") === url) ||
-      `${slug(String(job.company ?? ""))}|${roleKey(String(job.role ?? ""))}` === key,
-    );
+    const existing = findExistingCandidature(store.jobs, url, app.company, app.role);
     if (existing) {
       const actionPatch=retirePendingEvaluation(existing,machine);
       if(Object.keys(actionPatch).length){Object.assign(existing,actionPatch);changed=true;}
@@ -138,7 +142,7 @@ export function reconcileCandidatures(profileId: string): Store {
       }
       const priority = score >= 4.4 ? "Priorité 1" : score >= 4 ? "Priorité 2" : "Priorité 3";
       if (existing.reportNum !== app.n) { existing.reportNum = app.n; changed = true; }
-      if (score > 0 && existing.score !== score) { existing.score = score; changed = true; }
+      if (Number.isFinite(score) && existing.score !== score) { existing.score = score; changed = true; }
       if (existing.priority !== priority) { existing.priority = priority; changed = true; }
       if (existing.lastChecked !== app.date) { existing.lastChecked = app.date; changed = true; }
       if (!existing.url && url) { existing.url = url; changed = true; }

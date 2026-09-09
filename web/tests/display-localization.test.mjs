@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {registerHooks} from 'node:module';
 import {blockBMatches,reportTableValue} from '../src/lib/report-job-fields.mjs';
-import {alreadyLocalized} from '../src/lib/localization-core.mjs';
+import {alreadyLocalized,translationKey,translationLooksLikeTarget} from '../src/lib/localization-core.mjs';
 const previousRoot=process.env.CAREER_OPS_ROOT;
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'jobpilot-display-'));
 process.env.CAREER_OPS_ROOT=root;
@@ -17,7 +17,8 @@ globalThis.__testLocalize=async options=>{
   calls++;options.onRun?.({runId:`fixture-${calls}`,sessionId:'',transport:'deepseek-direct'});
   await new Promise(r=>setTimeout(r,20));
   const rows=JSON.parse(options.prompt.slice(options.prompt.lastIndexOf('\n')+1));
-  options.onFinalText(JSON.stringify({translations:rows.map(row=>({id:row.id,text:broken?'错误输出':`中文说明 ${row.text}`}))}));
+  const french=options.prompt.includes('into French');
+  options.onFinalText(JSON.stringify({translations:rows.map(row=>{const tokens=row.text.match(/⟦P\d+⟧/g)||[];let skeleton=row.text;tokens.forEach((token,i)=>{skeleton=skeleton.replace(token,`¤${i}¤`)});skeleton=skeleton.replace(/[\p{L}]+/gu,' ');tokens.forEach((token,i)=>{skeleton=skeleton.replace(`¤${i}¤`,token)});skeleton=skeleton.replace(/\s+/g,' ').trim();return {id:row.id,text:broken?'错误输出':french?`Explication française complète ${skeleton}`:`中文说明 这是完整翻译内容 ${skeleton}`};})}));
 };
 const stub='data:text/javascript,'+encodeURIComponent('export async function runTranslationTransport(options){return globalThis.__testLocalize(options)}');
 const hooks=registerHooks({resolve(specifier,context,next){return specifier==='@/lib/model-transport'?{url:stub,shortCircuit:true}:next(specifier,context)}});
@@ -33,6 +34,14 @@ async function finished(profile,value,options={}) {
   return view;
 }
 const source={markdown:'Le profil présente un écart : 2.8/5, français B1. Source https://example.org/job/42',score:2.8,status:'completed',before:'English source CV',after:'English proposed CV',cv:{text:'Source CV'},jd:'Description du poste originale'};
+
+async function finishedScope(profile,locale,value,scope,options={}) {
+  let view=await localizeDisplay(profile,locale,value,scope,options);
+  for(let n=0;n<200 && view.localization?.pending && !view.localization?.failed;n++) {
+    await new Promise(r=>setTimeout(r,10));view=await localizeDisplay(profile,locale,value,scope,{...options,schedule:false});
+  }
+  return view;
+}
 test('concurrent display reads share one translation and never mutate authoritative values',async()=>{
   const original=structuredClone(source);
   const views=await Promise.all(Array.from({length:12},()=>localizeDisplay('fixture-a','zh',source,'result',{identity:'result-1'})));
@@ -79,4 +88,35 @@ test('French and English report headings retain their existing structured projec
     const report=`## B) Match\n| ${label} | Evidence | Fit |\n| --- | --- | --- |\n| Python | CV | Partial |\n| Excel | CV | Fort |\n| French | B1 | No match |\n## C) Suite`;
     assert.deepEqual(blockBMatches(report).map(r=>r.fit),['Partiel','Fort','Écart']);
   }
+});
+
+
+test('tailored CV improvement analysis follows UI language while the CV draft body stays in material language',async()=>{
+  const job={id:'job-draft-localization',company:'Fixture',role:'Analyst',score:3.2,summary:'Analyse enregistrée.',cvDraft:{
+    id:'draft-loc',status:'pending',notesLocale:'fr',atsScore:72,atsPass:false,
+    payload:{summary:'English application summary',experience:[{company:'Fixture',role:'Intern',bullets:['English evidence bullet']}],skills:[{category:'IT',items:['SQL']}]},
+    changes:['Mettre en avant les preuves les plus pertinentes.'],
+    atsIssues:[{severity:'critical',message:'No email address found.'}],
+    assessment:{baselineScore:60,draftScore:74,delta:14,summary:'Le brouillon met mieux en avant les preuves existantes.',improvements:['Les preuves pertinentes apparaissent plus tôt.'],remainingGaps:['Le budget reste non documenté.'],revision:1}
+  }};
+  const original=structuredClone(job),count=calls;
+  const view=await finishedScope('fixture-a','zh',job,'job',{identity:'job-draft-localization'});
+  assert.equal(view.localization.pending,false);assert.ok(calls>count);
+  assert.match(view.cvDraft.assessment.summary,/^中文说明 /);assert.match(view.cvDraft.assessment.improvements[0],/^中文说明 /);assert.match(view.cvDraft.assessment.remainingGaps[0],/^中文说明 /);
+  assert.match(view.cvDraft.changes[0],/^中文说明 /);assert.match(view.cvDraft.atsIssues[0].message,/^中文说明 /);
+  assert.equal(view.cvDraft.payload.summary,'English application summary');assert.deepEqual(view.cvDraft.payload,job.cvDraft.payload);
+  assert.equal(view.cvDraft.assessment.baselineScore,60);assert.equal(view.cvDraft.assessment.draftScore,74);assert.equal(view.cvDraft.assessment.delta,14);
+  assert.deepEqual(job,original);
+});
+
+
+test('a dirty French cache containing Chinese is invalidated and translated again',async()=>{
+  const sourceText='这是一段应该被翻译成法语的简历改进分析。';
+  assert.equal(translationLooksLikeTarget(sourceText,'fr'),false);
+  const key=translationKey(sourceText),cache=path.join(historyDirectory('fixture-a'),'localizations/fr/segments',key+'.json');
+  fs.mkdirSync(path.dirname(cache),{recursive:true});fs.writeFileSync(cache,JSON.stringify({locale:'fr',source:sourceText,translation:sourceText,operationId:'dirty'}));
+  const job={id:'dirty-fr-job',cvDraft:{notesLocale:'zh',assessment:{baselineScore:60,draftScore:70,delta:10,summary:sourceText,improvements:[],remainingGaps:[]}}};
+  const count=calls;let view=await localizeDisplay('fixture-a','fr',job,'job',{identity:'dirty-fr-job'});assert.equal(view.localization.pending,true);
+  for(let n=0;n<200 && view.localization.pending && !view.localization.failed;n++){await new Promise(r=>setTimeout(r,10));view=await localizeDisplay('fixture-a','fr',job,'job',{schedule:false,identity:'dirty-fr-job'});}
+  assert.equal(view.localization.pending,false);assert.equal(view.localization.failed,false);assert.ok(calls>count);assert.notEqual(view.cvDraft.assessment.summary,sourceText);assert.equal(translationLooksLikeTarget(view.cvDraft.assessment.summary,'fr'),true);
 });

@@ -32,20 +32,29 @@ import java.io.File
 
 @Composable fun CvPreviewDialog(state: PilotState,vm: JobPilotViewModel) {
     val preview = state.cvPreview
-    var tab by remember(preview?.draftId,preview?.files) { mutableIntStateOf(if(preview?.draftId != null) 1 else 0) }
+    val tailored=preview?.tailoredJobId!=null
+    var tab by remember(preview?.draftId,preview?.files,tailored) { mutableIntStateOf(if(preview?.draftId != null && !tailored) 1 else 0) }
     Dialog(onDismissRequest = vm::closePreview,properties = DialogProperties(usePlatformDefaultWidth = false,decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize(),color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize().safeDrawingPadding()) {
                 Row(Modifier.padding(horizontal = 16.dp,vertical = 6.dp),verticalAlignment = Alignment.CenterVertically) {
-                    Text(if(preview?.draftId != null) tr("检查简历草稿","Vérifier le brouillon","Review draft") else tr("简历 PDF","Votre CV · PDF","Your CV · PDF"),Modifier.weight(1f),fontSize = 20.sp,fontWeight = FontWeight.SemiBold)
+                    Text(if(tailored) tr("检查岗位专属简历草稿","Vérifier le brouillon adapté au poste","Review tailored CV draft") else if(preview?.draftId != null) tr("检查简历草稿","Vérifier le brouillon","Review draft") else tr("简历 PDF","Votre CV · PDF","Your CV · PDF"),Modifier.weight(1f),fontSize = 20.sp,fontWeight = FontWeight.SemiBold)
                     IconButton(vm::closePreview,Modifier.testTag("close-cv-preview")) { Icon(Icons.Rounded.Close,tr("关闭","Fermer","Close")) }
                 }
-                if(preview?.draftId != null) TabRow(tab) { Tab(tab == 0,{ tab = 0 },modifier=Modifier.testTag("cv-before"),text = { Text(tr("当前版本","Version actuelle","Current version")) }); Tab(tab == 1,{ tab = 1 },modifier=Modifier.testTag("cv-after"),text = { Text(tr("修改后的草稿","Brouillon proposé","Proposed draft")) }) }
+                if(preview?.draftId != null && !tailored) TabRow(tab) { Tab(tab == 0,{ tab = 0 },modifier=Modifier.testTag("cv-before"),text = { Text(tr("当前版本","Version actuelle","Current version")) }); Tab(tab == 1,{ tab = 1 },modifier=Modifier.testTag("cv-after"),text = { Text(tr("修改后的草稿","Brouillon proposé","Proposed draft")) }) }
                 preview?.meta?.let { LocalizationNotice(it.child("localization"),vm::retryLocalization) }
                 preview?.meta?.strings("warnings")?.forEach { Text(product(it),Modifier.padding(horizontal = 16.dp,vertical = 6.dp),fontSize = 12.sp,color = MaterialTheme.colorScheme.error) }
                 if(state.previewLoading) Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally,verticalArrangement = Arrangement.spacedBy(12.dp)) { CircularProgressIndicator(Modifier.size(28.dp)); Hint(tr("正在读取实际 PDF","Chargement du PDF réel","Loading the actual PDF")) } }
                 else preview?.files?.getOrNull(tab)?.let { file -> NativePdf(file,Modifier.weight(1f).fillMaxWidth()) }
-                if(preview?.draftId != null) {
+                if(tailored && preview?.draftId != null) {
+                    val assessment=preview.meta.child("assessment")
+                    Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                        if(assessment.has("draftScore")) Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) { Column(Modifier.weight(1f)) { Hint(tr("当前主简历","CV actuel","Current master CV"));Text(assessment.text("baselineScore"),fontSize=28.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary) };Text("→",fontSize=20.sp);Column(Modifier.weight(1f)){Hint(tr("这个草稿","Ce brouillon","This draft"));Text(assessment.text("draftScore"),fontSize=28.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)};Pill((if(assessment.optInt("delta")>=0)"+" else "")+assessment.optInt("delta"),warm=assessment.optInt("delta")<0) }
+                        Hint("ATS ${preview.meta.optInt("atsScore")}/100 · "+if(preview.meta.optBoolean("atsPass"))tr("通过","validé","pass")else tr("有风险待检查","alertes à vérifier","risks to review"))
+                        Hint(tr("呈现匹配度不是录用概率，也不会改变正式岗位评分。","Le score de présentation n’est pas une probabilité d’embauche et ne modifie pas le score officiel du poste.","Presentation score is not hiring probability and does not change the formal job score."))
+                        if(preview.meta.text("status")=="pending") { Button({vm.decideTailoredDraft(preview.draftId,"accept")},Modifier.fillMaxWidth().testTag("accept-tailored-draft-preview"),enabled=!state.working){Text(tr("保留这个版本","Conserver cette version","Keep this version"))};OutlinedButton({vm.decideTailoredDraft(preview.draftId,"reject")},Modifier.fillMaxWidth(),enabled=!state.working){Text(tr("不要这个版本","Refuser cette version","Reject this version"))} }
+                    }
+                } else if(preview?.draftId != null) {
                     val pending = preview.meta.child("draft").text("status") == "pending"
                     val layout=preview.meta.child("layout")
                     val layoutAllowed=!preview.meta.child("draft").optBoolean("globalPlan")||layout.optBoolean("acceptable")
@@ -66,7 +75,7 @@ import java.io.File
 
 @Composable private fun NativePdf(file: File,modifier: Modifier) {
     val count by produceState(initialValue = 0,file) { value = withContext(Dispatchers.IO) { runCatching { PdfRenderer(ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY)).use { it.pageCount } }.getOrDefault(-1) } }
-    LazyColumn(modifier,contentPadding = PaddingValues(12.dp),verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(modifier,contentPadding = PaddingValues(12.dp),verticalArrangement = Arrangement.spacedBy(12.dp),overscrollEffect=null) {
         item { Hint(if(count < 0) tr("无法读取 PDF","Impossible de lire ce PDF","Unable to read this PDF") else tr("共 $count 页 · 双指缩放","$count pages · pincez pour zoomer","$count pages · pinch to zoom")) }
         items(maxOf(0,count),key = { "${file.absolutePath}:$it" }) { index ->
             val image by produceState<Bitmap?>(initialValue = null,file,index) {
