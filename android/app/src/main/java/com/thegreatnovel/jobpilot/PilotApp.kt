@@ -126,7 +126,7 @@ import java.time.Instant
     }
     if(taskCenter) ModalBottomSheet(containerColor=MaterialTheme.colorScheme.surface.copy(alpha=.97f),contentColor=MaterialTheme.colorScheme.onSurface,onDismissRequest = { taskCenter = false },sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         val recent = tasks.filter { it.text("status") !in setOf("queued","running","reconciling") }.distinctBy { it.text("kind") + ":" + it.text("inputVersionId") + ":" + it.text("jobId") }.take(3)
-        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 570.dp),contentPadding = PaddingValues(horizontal = 20.dp,vertical = 10.dp),verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 570.dp).blockSheetEdgeMotion(),contentPadding = PaddingValues(horizontal = 20.dp,vertical = 10.dp),verticalArrangement = Arrangement.spacedBy(12.dp),overscrollEffect=null) {
             item { SectionTitle(tr("后台任务","Vos traitements","Background tasks"),tr("已完成的结果，直接回到对应页面。","Vos résultats, au bon endroit.","Your results, where they belong.")) }
             item { LocalizationNotice(state.snapshot.child("localization"),vm::retryLocalization) }
             if(active.isEmpty() && recent.isEmpty()) item { Hint(tr("当前没有任务。","Aucun traitement pour ce profil.","No tasks for this profile.")) }
@@ -225,6 +225,7 @@ import java.time.Instant
     "search" -> tr("岗位搜索","Recherche d’offres","Offer search")
     "evaluate" -> tr("岗位评估","Évaluation du poste","Job evaluation")
     "cv" -> tr("定制简历","CV adapté","Tailored CV")
+    "cv_review" -> tr("重新评估简历草稿","Réévaluation du CV adapté","Reassess tailored CV")
     "rewrite" -> tr("简历草稿","Brouillon du CV","CV draft")
     "report" -> tr("岗位评估报告","Rapport d’évaluation","Evaluation report")
     "analysis" -> tr("简历与能力","CV et compétences","CV and skills")

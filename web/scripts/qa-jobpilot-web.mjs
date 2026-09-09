@@ -54,6 +54,10 @@ try {
     assert.equal(await byId('applications-page').getAttribute('data-count'), '1');
     assert.equal(await byId('applications-page').getAttribute('data-filter'), 'high');
     await byId('filter-all').click(); assert.equal(await byId('applications-page').getAttribute('data-count'), '3');
+    const applications=byId('applications-page');assert.deepEqual(await applications.locator('.jp-chips').first().getByRole('button').allTextContents(),['全部','准备投递','已投递','收到回复','面试','Offer / 入职','已结束']);
+    assert.equal(await applications.locator('.jp-list-item').first().getAttribute('data-testid'),'job-qa-role-1');
+    await byId('application-refine').click();await buttons('评分低→高').click();assert.equal(await applications.locator('.jp-list-item').first().getAttribute('data-testid'),'job-qa-role-2');
+    await buttons('仅已评估').click();assert.equal(await byId('applications-page').getAttribute('data-count'),'2');await buttons('全部').last().click();await buttons('评分高→低').click();
     assert.match(await byId('job-qa-role-3').innerText(), /待评估/); await shot('applications-zh');
   });
   await check('saved formal evaluation opens without a second business call; report is a GET', async () => {
@@ -61,6 +65,15 @@ try {
     assert.equal(await byId('evaluate-job').count(), 0); await shot('job-fit-zh');
     await byId('view-report').click(); await shown('result-sheet'); await page.getByText('这是测试报告，不会重新评估。').waitFor();
     assert.equal(api.posts.length, count); await byId('close-sheet').click(); await shown('job-detail-qa-role-1');
+  });
+  await check('tailored CV draft shows score lift, supports manual edits, reassessment, PDF preview and explicit rejection', async () => {
+    await shown('job-detail-qa-role-1');await byId('job-tab-1').click();await byId('tailored-cv-draft').waitFor();
+    const acceptedFile=api.fixtures[ids[0]].jobs[0].cv.file;assert.match(await byId('tailored-cv-draft').innerText(),/58[\s\S]*76[\s\S]*\+18/);
+    await buttons('手动修改这个版本').click();const summary=page.getByLabel('职业摘要',{exact:true});await summary.fill('Edited synthetic tailored summary');await byId('save-tailored-draft-edit').click();
+    await eventually(()=>api.fixtures[ids[0]].jobs[0].cvDraft.revision===2);assert.equal(api.fixtures[ids[0]].jobs[0].cvDraft.assessment,null);assert.equal(api.fixtures[ids[0]].jobs[0].cv.file,acceptedFile);
+    await byId('review-tailored-draft').click();await eventually(()=>api.fixtures[ids[0]].jobs[0].cvDraft.assessment?.revision===2);await shown('job-detail-qa-role-1');assert.equal(await byId('job-tab-1').getAttribute('aria-selected'),'true');await eventually(async()=>/58[\s\S]*80[\s\S]*\+22/.test(await byId('tailored-cv-draft').innerText()));
+    await byId('preview-tailored-draft').click();await shown('pdf-preview');await page.locator('.jp-pdf-page[data-rendered="true"]').first().waitFor({timeout:30000});assert.match(await byId('pdf-preview').innerText(),/58[\s\S]*80[\s\S]*\+22/);await buttons('不要这个版本').click();
+    await shown('job-detail-qa-role-1');assert.equal(await byId('job-tab-1').getAttribute('aria-selected'),'true');assert.equal(api.fixtures[ids[0]].jobs[0].cv.file,acceptedFile);assert.equal(api.fixtures[ids[0]].jobs[0].cvDraft.status,'rejected');
   });
   await check('tracking preserves untouched automatic next action and saves selected-profile notes/status/date', async () => {
     await byId('job-tab-3').click(); await page.getByLabel('当前阶段').selectOption('Candidature envoyée');
@@ -70,7 +83,7 @@ try {
     assert.equal(post.profile, ids[0]); assert.equal(post.body.change.dueDate, '2026-09-15'); assert.ok(!Object.hasOwn(post.body.change, 'nextAction'));
     await page.getByLabel('粘贴或概括收到的回复', { exact: true }).fill('Fictional interview invitation'); await buttons('保存回复').click();
     await eventually(() => api.fixtures[ids[0]].jobs[0].replies.length === 1); assert.equal(api.fixtures[ids[1]].jobs.length, 0);
-    await shot('job-tracking-zh'); await close();
+    await shot('job-tracking-zh'); await goto('/?tab=applications');
   });
   await check('multi-role comparison uses saved roles and explicit analyze action', async () => {
     await buttons('对比').click(); await byId('job-qa-role-1').click(); await byId('job-qa-role-2').click();
@@ -93,7 +106,11 @@ try {
     const count = api.posts.length; await byId('view-analysis').click(); await shown('analysis-sheet');
     await byId('analysis-tab-1').click(); await page.getByText('Clarify research evidence', { exact: true }).waitFor();
     await byId('analysis-tab-2').click(); await page.getByText('Practice an interview', { exact: true }).waitFor();
-    await byId('analysis-tab-0').click(); assert.equal(api.posts.length, count); await shot('analysis-zh');
+    await byId('analysis-tab-0').click(); assert.equal(api.posts.length, count);
+    const analysisContent=byId('analysis-content');
+    await analysisContent.evaluate(el=>{el.scrollTop=el.scrollHeight;});const bottom=await analysisContent.evaluate(el=>el.scrollTop);const sheetBefore=await byId('analysis-sheet').boundingBox();
+    await analysisContent.hover();await page.mouse.wheel(0,1400);await sleep(120);assert.equal(await analysisContent.evaluate(el=>el.scrollTop),bottom);assert.deepEqual(await byId('analysis-sheet').boundingBox(),sheetBefore);
+    await shot('analysis-zh');
   });
   await check('coordinated draft renders actual before/after PDFs; download is original PDF bytes', async () => {
     await byId('apply-cv-plan').click(); await shown('pdf-preview'); await page.locator('.jp-pdf-page[data-rendered="true"]').first().waitFor({ timeout: 30000 });
@@ -153,14 +170,14 @@ try {
   await check('pending offers select-all supports batch evaluation/save and AI launch flies into task center', async () => {
     await nav('offers');await byId('select-all-pending').click();await byId('bulk-evaluate-offers').waitFor();
     await byId('bulk-evaluate-offers').click();await shown('background-task-launch');
-    const launchText=await byId('background-task-launch').innerText();assert.match(launchText,/正在后台处理/);assert.match(launchText,/预计剩余|预计耗时/);assert.equal(await byId('background-task-launch').locator('.jp-estimated-ring').count(),1);const batch=api.posts.findLast(p=>p.body?.action==='batchTasks');assert.ok(batch.body.inputs.every(input=>input.kind==='evaluate'));
+    const launchText=await byId('background-task-launch').innerText();assert.match(launchText,/正在后台处理/);assert.match(launchText,/预计剩余|预计耗时/);assert.equal(await byId('background-task-launch').locator('.jp-estimated-ring').count(),1);const batch=api.posts.findLast(p=>p.body?.action==='batchTasks');assert.ok(batch.body.inputs.every(input=>input.kind==='evaluate'&&input.offer?.url===input.url));assert.ok(api.fixtures[ids[0]].jobs.some(job=>job.url==='https://example.test/jobs/new'));
     await byId('confirm-background-task').click();await byId('background-task-launch').waitFor({state:'hidden'});batch.body.inputs.forEach((_,index)=>{const task=api.fixtures[ids[0]].tasks[index];if(task)task.status='completed';});
     await byId('select-all-pending').click();await byId('bulk-save-offers').click();await eventually(()=>api.posts.some(p=>p.body?.action==='saveOffers'));
     const saved=api.fixtures[ids[0]].jobs.find(j=>j.url==='https://example.test/jobs/new');assert.ok(saved);assert.equal(saved.score,null);
   });
   await check('applications can evaluate every unrated role with one background batch', async () => {
     await nav('applications');const before=api.posts.filter(p=>p.body?.action==='batchTasks').length;await byId('evaluate-all-unrated').click();await shown('background-task-launch');
-    const post=api.posts.findLast(p=>p.body?.action==='batchTasks');assert.ok(post.body.inputs.length>=1);assert.ok(post.body.inputs.every(input=>input.kind==='evaluate'));assert.equal(api.posts.filter(p=>p.body?.action==='batchTasks').length,before+1);
+    const post=api.posts.findLast(p=>p.body?.action==='batchTasks');assert.ok(post.body.inputs.length>=1);assert.ok(post.body.inputs.every(input=>input.kind==='evaluate'&&input.retry===true));assert.equal(api.posts.filter(p=>p.body?.action==='batchTasks').length,before+1);
     await byId('confirm-background-task').click();await byId('background-task-launch').waitFor({state:'hidden'});for(const task of api.fixtures[ids[0]].tasks.filter(t=>t.status==='queued'&&t.kind==='evaluate'))task.status='completed';
   });
   await check('profile switch isolates all state and requests despite a shared browser cookie', async () => {

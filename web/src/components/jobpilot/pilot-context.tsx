@@ -14,7 +14,7 @@ const empty = (): Json => ({ jobs: [], tasks: [], profiles: [], profile: {}, con
 const translations = dictionary as Record<string, Partial<Record<Locale, string>>>;
 type Notice = { text: string; taskId?: string } | null;
 export type TaskLaunch = { ids: string[]; title: string; estimate: Json; createdAt: string } | null;
-const AI_TASK_KINDS = new Set(["evaluate", "cv", "analysis", "plan", "practice", "compare", "coach"]);
+const AI_TASK_KINDS = new Set(["evaluate", "cv", "cv_review", "analysis", "plan", "practice", "compare", "coach"]);
 
 function useController(profileId: string) {
   const [locale, setLocale] = useState<Locale>("zh");

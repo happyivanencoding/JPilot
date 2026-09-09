@@ -4,7 +4,7 @@ import { Download, Minus, Plus, Share2 } from "lucide-react";
 import type { PDFDocumentProxy, PDFDocumentLoadingTask, RenderTask } from "pdfjs-dist";
 import { texts, usePilot, type Json } from "./pilot-context";
 import { pendingDisplay } from "./model.mjs";
-import { Button, Hint, IconButton, Loading, Localization, Sheet, Tabs } from "./ui";
+import { Button, Hint, IconButton, Loading, Localization, Pill, Sheet, Tabs } from "./ui";
 
 function PdfPage({ pdf, index, width }: { pdf: PDFDocumentProxy; index: number; width: number }) {
   const { tr } = usePilot();
@@ -45,18 +45,20 @@ export function PdfPreview() {
   const { data, route, tr, product, request, documentBytes, fail, act, close, busy } = usePilot();
   const job = data.jobs?.find((j: Json) => j.id === route.job);
   const draft = route.draft || "";
+  const tailoredDraft = Boolean(job && draft && job.cvDraft?.id === draft);
+  const masterDraft = Boolean(draft && !route.job);
   const [meta, setMeta] = useState<Json | null>(null), [pdf, setPdf] = useState<PDFDocumentProxy | null>(null), [bytes, setBytes] = useState<Uint8Array | null>(null);
-  const [tab, setTab] = useState(draft ? 1 : 0), [zoom, setZoom] = useState(1), [width, setWidth] = useState(340), [failed, setFailed] = useState(false);
+  const [tab, setTab] = useState(masterDraft ? 1 : 0), [zoom, setZoom] = useState(1), [width, setWidth] = useState(340), [failed, setFailed] = useState(false);
   const scroll = useRef<HTMLDivElement>(null), zoomRef = useRef(zoom); zoomRef.current = zoom;
-  const basePath = draft ? `/api/mobile/cv?draftId=${encodeURIComponent(draft)}` : "/api/mobile/cv";
+  const basePath = masterDraft ? `/api/mobile/cv?draftId=${encodeURIComponent(draft)}` : "/api/mobile/cv";
   const loadMeta = useCallback(async (retry = false) => {
-    if (route.job) { setMeta({ title: job?.company, pages: job?.cv?.pages }); return; }
+    if (route.job) { setMeta(tailoredDraft ? { title: job?.company, pages: job?.cvDraft?.pages, tailoredDraft: job?.cvDraft } : { title: job?.company, pages: job?.cv?.pages }); return; }
     try { setMeta(await request(`${basePath}${basePath.includes("?") ? "&" : "?"}format=meta${retry ? "&retryLocalization=1" : ""}`)); }
     catch (e) { if ((e as Error)?.name !== "AbortError") { setFailed(true); fail(e); } }
-  }, [request, basePath, route.job, job?.company, job?.cv?.pages, fail]);
+  }, [request, basePath, route.job, tailoredDraft, job?.company, job?.cv?.pages, job?.cvDraft, fail]);
   useEffect(() => { setFailed(false); void loadMeta(); }, [loadMeta]);
   useEffect(() => { if (!pendingDisplay(meta)) return; const timer = setTimeout(() => void loadMeta(), 2500); return () => clearTimeout(timer); }, [meta, loadMeta]);
-  const source = route.job ? `/api/candidatures/cv?id=${encodeURIComponent(route.job)}` : !meta ? "" : draft && tab === 0 ? `/api/mobile/cv?versionId=${encodeURIComponent(meta.draft?.baseVersionId || "")}` : basePath;
+  const source = route.job ? `/api/candidatures/cv?id=${encodeURIComponent(route.job)}${tailoredDraft ? `&draftId=${encodeURIComponent(draft)}` : ""}` : !meta ? "" : masterDraft && tab === 0 ? `/api/mobile/cv?versionId=${encodeURIComponent(meta.draft?.baseVersionId || "")}` : basePath;
   useEffect(() => {
     if (!source) return;
     let disposed = false, loadingTask: PDFDocumentLoadingTask | undefined;
@@ -92,12 +94,15 @@ export function PdfPreview() {
   const download = () => { if (!file) return; const url = URL.createObjectURL(file); const a = document.createElement("a"); a.href = url; a.download = file.name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 30000); };
   const canShare = Boolean(file && typeof navigator !== "undefined" && navigator.canShare?.({ files: [file] }));
   const pending = meta?.draft?.status === "pending", allowed = !meta?.draft?.globalPlan || meta?.layout?.acceptable;
-  return <Sheet full title={draft ? tr("检查简历草稿", "Vérifier le brouillon", "Review draft") : tr("简历 PDF", "Votre CV · PDF", "Your CV · PDF")} testId="pdf-preview" footer={draft ? <>
+  const tailored = tailoredDraft ? job?.cvDraft : null;
+  const tailoredAssessment=tailored?.assessment || {};
+  const tailoredFooter=tailoredDraft ? <><div className="jp-cv-score-delta"><div><span>{tr("当前主简历", "CV actuel", "Current master CV")}</span><strong>{tailoredAssessment.baselineScore ?? "—"}</strong></div><span className="jp-cv-score-arrow">→</span><div><span>{tr("这个草稿", "Ce brouillon", "This draft")}</span><strong>{tailoredAssessment.draftScore ?? "—"}</strong></div>{tailoredAssessment.delta != null && <Pill warm={tailoredAssessment.delta < 0}>{tailoredAssessment.delta >= 0 ? "+" : ""}{tailoredAssessment.delta}</Pill>}</div><Hint>ATS {tailored?.atsScore ?? "—"}/100 · {tailored?.atsPass ? tr("通过", "validé", "pass") : tr("有风险待检查", "alertes à vérifier", "risks to review")}</Hint>{tailored?.status === "pending" ? <><Button data-testid="accept-tailored-draft-preview" disabled={busy || !pdf} onClick={async()=>{if(await act({action:"decideTailoredCvDraft",draftId:draft,decision:"accept"}))close();}}>{tr("保留这个版本", "Conserver cette version", "Keep this version")}</Button><Button kind="outline" onClick={async()=>{if(await act({action:"decideTailoredCvDraft",draftId:draft,decision:"reject"}))close();}}>{tr("不要这个版本", "Refuser cette version", "Reject this version")}</Button></> : <Hint>{tr("这份草稿已经处理。", "Ce brouillon a déjà été traité.", "This draft has already been reviewed.")}</Hint>}</> : undefined;
+  return <Sheet full title={tailoredDraft ? tr("检查岗位专属简历草稿", "Vérifier le brouillon adapté au poste", "Review tailored CV draft") : masterDraft ? tr("检查简历草稿", "Vérifier le brouillon", "Review draft") : tr("简历 PDF", "Votre CV · PDF", "Your CV · PDF")} testId="pdf-preview" footer={tailoredFooter || (masterDraft ? <>
     {meta?.layout && <Hint>{tr(`${meta.pages} 页 · ${meta.layout.lines} 行 · ${meta.layout.bullets} 条描述 · ${meta.layout.fontPt} 磅`, `${meta.pages} page(s) · ${meta.layout.lines} lignes · ${meta.layout.bullets} puces · ${meta.layout.fontPt} pt`, `${meta.pages} page(s) · ${meta.layout.lines} lines · ${meta.layout.bullets} bullets · ${meta.layout.fontPt} pt`)}</Hint>}
     {!allowed && <Hint>{texts(meta?.layout?.issues).join(" ")}</Hint>}<Hint>{tr("请检查真实经历、页数、换行和内容。", "Vérifiez les faits, les sauts de page et la lisibilité.", "Check facts, page breaks and readability.")}</Hint>
     {pending ? <><Button data-testid="accept-draft" disabled={!allowed || busy || !pdf} onClick={async () => { if (await act({ action: "decideCvDraft", draftId: draft, decision: "accept" })) close(); }}>{tr("接受并保存", "Accepter et enregistrer", "Accept and save")}</Button><Button kind="outline" data-testid="reject-draft" onClick={async () => { if (await act({ action: "decideCvDraft", draftId: draft, decision: "reject" })) close(); }}>{tr("拒绝，保留原版", "Refuser · garder l’original", "Reject · keep original")}</Button></> : meta && <Hint>{tr("已处理的历史草稿", "Brouillon historique déjà traité", "Historical draft already reviewed")}</Hint>}
-  </> : meta?.layoutNote ? <Hint>{product(meta.layoutNote)}</Hint> : undefined}>
-    {draft && <Tabs labels={[tr("当前版本", "Version actuelle", "Current version"), tr("修改后的草稿", "Brouillon proposé", "Proposed draft")]} selected={tab} onChange={i => { setTab(i); setZoom(1); if (scroll.current) scroll.current.scrollTop = 0; }} prefix="cv-preview-tab" />}
+  </> : meta?.layoutNote ? <Hint>{product(meta.layoutNote)}</Hint> : undefined)}>
+    {masterDraft && <Tabs labels={[tr("当前版本", "Version actuelle", "Current version"), tr("修改后的草稿", "Brouillon proposé", "Proposed draft")]} selected={tab} onChange={i => { setTab(i); setZoom(1); if (scroll.current) scroll.current.scrollTop = 0; }} prefix="cv-preview-tab" />}
     <Localization value={meta?.localization} onRetry={() => void loadMeta(true)} />{texts(meta?.warnings).map((warning, i) => <div key={i} style={{ padding: "4px 16px", color: "var(--jp-error)", fontSize: 12 }}>{product(warning)}</div>)}
     <div className="jp-pdf-controls"><IconButton label={tr("缩小", "Réduire", "Zoom out")} disabled={zoom <= 1} onClick={() => setZoom(Math.max(1, zoom - .25))}><Minus size={18} /></IconButton><span>{Math.round(zoom * 100)}% · {pdf?.numPages ?? "—"} {tr("页", "pages", "pages")}</span><IconButton label={tr("放大", "Agrandir", "Zoom in")} disabled={zoom >= 3} onClick={() => setZoom(Math.min(3, zoom + .25))}><Plus size={18} /></IconButton><IconButton label={tr("下载 PDF", "Télécharger le PDF", "Download PDF")} disabled={!file} onClick={download}><Download size={20} /></IconButton>{canShare && <IconButton label={tr("分享 PDF", "Partager le PDF", "Share PDF")} onClick={() => { if (file) void navigator.share({ files: [file] }).catch(e => { if (e.name !== "AbortError") fail(e); }); }}><Share2 size={20} /></IconButton>}</div>
     <div className="jp-pdf-scroll" ref={scroll} style={{ touchAction: "pan-x pan-y" }}>

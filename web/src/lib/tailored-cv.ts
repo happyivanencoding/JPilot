@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { randomUUID } from "node:crypto";
 import * as yaml from "js-yaml";
 import { careerOpsRoot } from "@/lib/career-ops";
 import { activeProfileId } from "@/lib/profile-request";
@@ -12,7 +13,7 @@ import { atomicWrite } from "@/lib/core/safe-write";
 import { currentCandidateVersion, historyDirectory } from "@/lib/mobile-history";
 import { withProfileLock, loadCandidateVersion, operationKey, readJson, writeJson } from "@/lib/mobile-state.mjs";
 import { FLOW_DEFAULTS } from "@/lib/ai-metrics.mjs";
-import {applicationLanguage,requestUiLocale,explanationDirective,contradictsDocumentLanguage} from "@/lib/language-contract.mjs";
+import {applicationLanguage,requestUiLocale,explanationDirective,contradictsDocumentLanguage,choose} from "@/lib/language-contract.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +34,10 @@ type CvInfo = {
   changes?: string[];
   keywords?: string[];
   inputVersionId?: string;
+  presentationScore?: number | null;
+  baselinePresentationScore?: number | null;
+  presentationDelta?: number | null;
+  draftId?: string;
 };
 
 type Job = {
@@ -54,13 +59,24 @@ type Job = {
 
 type Store = { candidate: string; updatedAt: string; jobs: Job[] };
 
-type TailoredPayload = {
+export type TailoredPayload = {
   summary?: string;
-  experience?: unknown[];
-  projects?: unknown[];
-  education?: unknown[];
-  skills?: unknown[];
+  experience?: Array<{company?:string;role?:string;location?:string;dates?:string;bullets?:string[]}>;
+  projects?: Array<{name?:string;description?:string;tech?:string}>;
+  education?: Array<{title?:string;org?:string;year?:string;description?:string}>;
+  skills?: Array<{category?:string;items?:string[]}>;
   change_notes?: unknown[];
+};
+
+export type TailoredAssessment = {
+  baselineScore:number; draftScore:number; delta:number; summary:string;
+  improvements:string[]; remainingGaps:string[]; assessedAt:string; revision:number; needsSubstantiveImprovement:boolean;
+};
+
+export type TailoredDraft = {
+  id:string; status:"pending"|"accepted"|"rejected"; baseVersionId:string; language:string; notesLocale:string; revision:number;
+  createdAt:string; updatedAt:string; payload:TailoredPayload; file:string; htmlFile:string; pages:number; atsScore:number; atsPass:boolean;
+  atsGrade?:string; atsIssues:Array<{severity?:string;message?:string}>; keywordCoverage:number|null; changes:string[]; baselinePresentationScore?:number|null; assessment?:TailoredAssessment|null;
 };
 
 function slug(value: string, fallback = "cv") {
@@ -137,7 +153,7 @@ ${version.sources.config.text}
 CANDIDATE POSITIONING / CV SELECTION RULES:
 ${version.sources.notes.text}
 
-The Master CV is deliberately comprehensive. It is NOT a request to put every historical experience on the sent CV. Follow the candidate-specific selection and positioning rules in the notes file. Prefer recent, direct evidence; use older or adjacent evidence only when it materially strengthens this job. Never turn an adjacent experience into direct experience, and never invent a missing skill, metric, employer, responsibility or credential.
+The Master CV is deliberately comprehensive. It is NOT a request to put every historical experience on the sent CV. Follow the candidate-specific selection and positioning rules in the notes file. Prefer recent, direct evidence; use older or adjacent evidence only when it materially strengthens this job. Never turn an adjacent experience into direct experience, and never invent a missing skill, metric, employer, responsibility or credential. Never add or imply willingness to relocate, a different availability/start date, work authorization, contact details, a higher language level, or a changed location preference unless that fact is explicitly documented in the candidate evidence. If the job location differs from the documented preference, do not invent a relocation claim.
 
 TARGET JOB ANALYSIS (this is the authoritative job-specific context already prepared by career-ops):
 ${JSON.stringify(target, null, 2)}
@@ -183,14 +199,140 @@ async function runNode(script: string, args: string[], cwd: string) {
   return { stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }
 
+async function runNodeResult(script: string, args: string[], cwd: string) {
+  try { return {ok:true,...await runNode(script,args,cwd)}; }
+  catch(error) {
+    const e=error as Error & {stdout?:string;stderr?:string};
+    return {ok:false,stdout:String(e.stdout || ""),stderr:String(e.stderr || e.message || "")};
+  }
+}
+
+export function floorTailoredPresentationScore(baseline: unknown, rawDraft: unknown) {
+  const clamp=(value:unknown)=>Math.max(0,Math.min(100,Math.round(Number(value))));
+  const baselineScore=clamp(baseline),rawDraftScore=clamp(rawDraft),draftScore=Math.max(baselineScore,rawDraftScore);
+  return {baselineScore,rawDraftScore,draftScore,delta:draftScore-baselineScore,needsSubstantiveImprovement:rawDraftScore<=baselineScore};
+}
+
+function boundedText(value: unknown, max = 12_000) { return typeof value === "string" ? value.slice(0,max) : ""; }
+function sanitizePayload(value: unknown, fallback?: TailoredPayload): TailoredPayload {
+  const input=value && typeof value === "object" && !Array.isArray(value) ? value as Record<string,unknown> : {};
+  const base=fallback || {};
+  const str=(v:unknown,d="")=>typeof v==="string"?v.slice(0,12_000):d;
+  const list=(v:unknown,max=20)=>Array.isArray(v)?v.filter(x=>typeof x==="string").map(x=>String(x).slice(0,3000)).slice(0,max):[];
+  const experience=Array.isArray(input.experience)?input.experience.slice(0,8).map((raw:any,i)=>({
+    company:str(raw?.company,base.experience?.[i]?.company||""),role:str(raw?.role,base.experience?.[i]?.role||""),location:str(raw?.location,base.experience?.[i]?.location||""),dates:str(raw?.dates,base.experience?.[i]?.dates||""),bullets:list(raw?.bullets,12),
+  })):base.experience || [];
+  const projects=Array.isArray(input.projects)?input.projects.slice(0,6).map((raw:any,i)=>({name:str(raw?.name,base.projects?.[i]?.name||""),description:str(raw?.description,base.projects?.[i]?.description||""),tech:str(raw?.tech,base.projects?.[i]?.tech||"")})):base.projects || [];
+  const education=Array.isArray(input.education)?input.education.slice(0,8).map((raw:any,i)=>({title:str(raw?.title,base.education?.[i]?.title||""),org:str(raw?.org,base.education?.[i]?.org||""),year:str(raw?.year,base.education?.[i]?.year||""),description:str(raw?.description,base.education?.[i]?.description||"")})):base.education || [];
+  const skills=Array.isArray(input.skills)?input.skills.slice(0,12).map((raw:any,i)=>({category:str(raw?.category,base.skills?.[i]?.category||""),items:list(raw?.items,30)})):base.skills || [];
+  return {summary:str(input.summary,base.summary||""),experience,projects,education,skills,change_notes:Array.isArray(input.change_notes)?input.change_notes:base.change_notes||[]};
+}
+
+function payloadText(payload: TailoredPayload) {
+  const out=[`SUMMARY\n${payload.summary || ""}`];
+  if(payload.experience?.length) out.push("EXPERIENCE\n"+payload.experience.map(x=>`${x.company||""} | ${x.role||""} | ${x.location||""} | ${x.dates||""}\n${(x.bullets||[]).map(b=>`- ${b}`).join("\n")}`).join("\n\n"));
+  if(payload.projects?.length) out.push("PROJECTS\n"+payload.projects.map(x=>`${x.name||""}\n${x.description||""}\n${x.tech||""}`).join("\n\n"));
+  if(payload.education?.length) out.push("EDUCATION\n"+payload.education.map(x=>`${x.title||""} | ${x.org||""} | ${x.year||""}\n${x.description||""}`).join("\n\n"));
+  if(payload.skills?.length) out.push("SKILLS\n"+payload.skills.map(x=>`${x.category||"Skills"}: ${(x.items||[]).join(", ")}`).join("\n"));
+  return out.join("\n\n").slice(0,45_000);
+}
+
+function candidateRenderContext(profileId:string, version:Record<string,any>, material:string) {
+  const cvOptions={...profileCvOptions(profileId,version.sources.config.text),language:material};
+  const profile=getProfile(profileId),config=readProfileConfig(profileId,version.sources.config.text);
+  const candidateConfig=config.candidate && typeof config.candidate === "object" && !Array.isArray(config.candidate) ? config.candidate as Record<string,unknown> : {};
+  const linkedinUrl=typeof candidateConfig.linkedin === "string" ? candidateConfig.linkedin.trim() : typeof candidateConfig.linkedin_url === "string" ? candidateConfig.linkedin_url.trim() : "";
+  return {cvOptions,candidate:{
+    name:typeof candidateConfig.full_name === "string" ? candidateConfig.full_name : profile.name,
+    phone:typeof candidateConfig.phone === "string" ? candidateConfig.phone : "",email:typeof candidateConfig.email === "string" ? candidateConfig.email : "",
+    linkedin:{url:linkedinUrl,display:linkedinUrl.replace(/^https?:\/\/(?:www\.)?/i,"").replace(/\/$/,"")},location:typeof candidateConfig.location === "string" ? candidateConfig.location : "",photo:"",
+  }};
+}
+
+async function renderDraftFiles(profileId:string,job:Job,version:Record<string,any>,payload:TailoredPayload,material:string,draftId:string) {
+  const root=careerOpsRoot(),{cvOptions,candidate}=candidateRenderContext(profileId,version,material);
+  const renderPayload={lang:cvOptions.language,page_format:"a4",candidate,sections:{summary:"Professional Summary",competencies:"Core Competencies",experience:"Professional Experience",projects:"Selected Projects",education:"Education",certifications:"Certifications",awards:"Awards & Honors",interests:"Interests",skills:"Skills"},summary:payload.summary,competencies:[],experience:payload.experience||[],projects:payload.projects||[],education:payload.education||[],certifications:[],awards:[],interests:[],skills:payload.skills||[]};
+  const dir=path.join(root,".career-ops-web","candidature-cv"),outputDir=path.join(root,"output");fs.mkdirSync(dir,{recursive:true});fs.mkdirSync(outputDir,{recursive:true});
+  const stem=`cv-draft-${slug(candidate.name,"candidate")}-${slug(job.company,"company")}-${draftId.slice(0,8)}`;
+  const jsonPath=path.join(dir,`${stem}.json`),htmlPath=path.join(outputDir,`${stem}.html`),pdfPath=path.join(outputDir,`${stem}.pdf`);
+  fs.writeFileSync(jsonPath,`${JSON.stringify(renderPayload,null,2)}\n`,"utf8");
+  const customTemplatePath=path.join(root,"templates",cvOptions.template,"cv-template.html");
+  const templatePath=cvOptions.template!=="standard"&&fs.existsSync(customTemplatePath)?customTemplatePath:path.join(root,"templates","cv-template.html");
+  await runNode(path.join(root,"build-cv-html.mjs"),[jsonPath,htmlPath,templatePath],root);
+  await runNode(path.join(root,"generate-pdf.mjs"),[htmlPath,pdfPath,"--format=a4","--allow-reorder",`--max-pages=${cvOptions.preferredPages}`,"--strict-pages"],root);
+  const keywords=cleanArray(job.cv?.keywords).join(","),auditArgs=[htmlPath];if(keywords)auditArgs.push("--keywords",keywords);auditArgs.push("--json");
+  const audit=await runNodeResult(path.join(root,"verify-ats.mjs"),auditArgs,root);
+  let ats:any;try{ats=JSON.parse(audit.stdout);}catch{throw new Error(audit.stderr || "ATS audit did not return JSON.");}
+  return {file:path.relative(root,pdfPath).replace(/\\/g,"/"),htmlFile:path.relative(root,htmlPath).replace(/\\/g,"/"),pages:cvOptions.preferredPages,atsScore:Number.isFinite(ats.score)?ats.score:0,atsPass:ats.pass===true,atsGrade:String(ats.grade||""),atsIssues:Array.isArray(ats.issues)?ats.issues.slice(0,12):[],keywordCoverage:keywords&&typeof ats.keywordCoverage?.percent==="number"?ats.keywordCoverage.percent:null};
+}
+
+async function compareCvPresentation(profileId:string,job:Job,version:Record<string,any>,payload:TailoredPayload,locale:string,revision:number,hooks?:{onRun?:(run:any)=>void;onMetrics?:(metrics:any)=>void}) {
+  const prompt=`You are comparing how well TWO CV versions PRESENT the same candidate for ONE job. This is not hiring probability and not a new candidate-fit evaluation. The candidate's real capability is unchanged. Score only how clearly each CV surfaces documented, job-relevant evidence without exaggeration.\n\nUse the exact same 0-100 rubric for both versions: relevance/selection 35, specificity of evidence 30, recruiter scan clarity 20, honest keyword/requirement alignment 15. Do not reward keyword stuffing. Penalize invented or unsupported claims.\n\nReturn ONE JSON object only: {"baseline_score":0,"draft_score":0,"summary":"...","improvements":["..."],"remaining_gaps":["..."]}. Scores are integers 0-100.\n\nJOB DATA:\n${JSON.stringify({company:job.company,role:job.role,location:job.location,summary:job.summary,angle:job.angle,strengths:job.strengths,gaps:job.gaps,match:job.match,description:boundedText(job.sourceDescription||job.description,18000)},null,2)}\n\nMASTER CV:\n${boundedText(version.sources.cv.text,35000)}\n\nTAILORED DRAFT:\n${payloadText(payload)}\n\nOUTPUT LANGUAGE: ${locale}. ${explanationDirective(locale)}`;
+  let output="",metrics:any={};
+  await runModelTransport({cwd:careerOpsRoot(),prompt,model:FLOW_DEFAULTS.cv.model as any,reasoning:FLOW_DEFAULTS.cv.reasoning as any,timeoutMs:180_000,onRun:run=>hooks?.onRun?.(run),onMetrics:m=>{metrics=m;hooks?.onMetrics?.(m);},onText:text=>{output+=text;},onFinalText:complete=>{output=complete;}});
+  const parsed=extractJsonObject(output).obj as any;if(!parsed)throw new Error("La comparaison du CV n'a pas renvoyé de résultat structuré.");
+  if(!Number.isFinite(Number(parsed.baseline_score))||!Number.isFinite(Number(parsed.draft_score)))throw new Error("Score de présentation du CV invalide.");
+  const floored=floorTailoredPresentationScore(parsed.baseline_score,parsed.draft_score);
+  const {baselineScore,rawDraftScore,draftScore:effectiveDraftScore,needsSubstantiveImprovement}=floored;
+  const summary=needsSubstantiveImprovement
+    ? choose(locale,"仅靠调整表达没有进一步提升当前岗位的简历呈现分。当前最佳呈现水平保持不变；下一步需要通过真实经历、技能、语言能力、地点/入职时间适配或其他实质证据来提升，而不是继续润色措辞。","Une reformulation seule n’améliore pas davantage la présentation du CV pour ce poste. Le meilleur niveau actuel reste inchangé ; la prochaine progression doit venir de preuves réelles — expérience, compétences, langue, mobilité/disponibilité ou autres éléments substantiels — plutôt que d’un nouveau polissage du texte.","Wording changes alone do not improve this CV further for the role. The best current presentation score stays unchanged; further gains need real evidence such as experience, skills, language ability, location/start-date fit, or other substantive improvements rather than more rewriting.")
+    : String(parsed.summary||"").slice(0,4000);
+  const assessment:TailoredAssessment & {rawDraftScore:number}={baselineScore,rawDraftScore,draftScore:effectiveDraftScore,delta:effectiveDraftScore-baselineScore,summary,improvements:needsSubstantiveImprovement?[]:cleanArray(parsed.improvements).slice(0,8),remainingGaps:cleanArray(parsed.remaining_gaps).slice(0,8),assessedAt:new Date().toISOString(),revision,needsSubstantiveImprovement};
+  return {assessment,metrics};
+}
+
+function findDraft(store:Store,draftId:string) {
+  const job=store.jobs.find(item=>(item as any).cvDraft?.id===draftId);if(!job)throw new Error("Brouillon de CV introuvable.");
+  return {job,draft:(job as any).cvDraft as TailoredDraft};
+}
+
+function writeStore(profileId:string,store:Store) { store.updatedAt=new Date().toISOString();atomicWrite(profileFile(profileId,"candidatures"),`${JSON.stringify(store,null,2)}\n`); }
+
+export async function updateTailoredCvDraft(profileId:string,draftId:string,payload:unknown) {
+  const store=readStore(profileId),{job,draft}=findDraft(store,draftId);if(draft.status!=="pending")throw new Error("Ce brouillon a déjà été traité.");
+  const version=loadCandidateVersion(historyDirectory(profileId),draft.baseVersionId),next=sanitizePayload(payload,draft.payload);const revision=draft.revision+1;
+  const files=await renderDraftFiles(profileId,job,version,next,draft.language,draft.id);
+  if(!Number.isFinite(Number(draft.baselinePresentationScore)) && Number.isFinite(Number(draft.assessment?.baselineScore))) draft.baselinePresentationScore=Number(draft.assessment?.baselineScore);
+  Object.assign(draft,{...files,payload:next,revision,updatedAt:new Date().toISOString(),assessment:null});writeStore(profileId,store);return draft;
+}
+
+export async function reviewTailoredCvDraft(profileId:string,draftId:string,locale:string,hooks?:{onRun?:(run:any)=>void;onMetrics?:(metrics:any)=>void}) {
+  const store=readStore(profileId),{job,draft}=findDraft(store,draftId);if(draft.status!=="pending")throw new Error("Ce brouillon a déjà été traité.");
+  const version=loadCandidateVersion(historyDirectory(profileId),draft.baseVersionId);const result=await compareCvPresentation(profileId,job,version,draft.payload,locale,draft.revision,hooks);
+  const fixedBaseline=Number(draft.baselinePresentationScore);
+  if(Number.isFinite(fixedBaseline)){
+    const floored=floorTailoredPresentationScore(fixedBaseline,(result.assessment as any).rawDraftScore ?? result.assessment.draftScore);
+    result.assessment.baselineScore=floored.baselineScore;result.assessment.draftScore=floored.draftScore;result.assessment.delta=floored.delta;
+    result.assessment.needsSubstantiveImprovement=floored.needsSubstantiveImprovement;
+    if(result.assessment.needsSubstantiveImprovement){result.assessment.improvements=[];result.assessment.summary=choose(locale,"仅靠调整表达没有进一步提升当前岗位的简历呈现分。当前最佳呈现水平保持不变；下一步需要通过真实经历、技能、语言能力、地点/入职时间适配或其他实质证据来提升，而不是继续润色措辞。","Une reformulation seule n’améliore pas davantage la présentation du CV pour ce poste. Le meilleur niveau actuel reste inchangé ; la prochaine progression doit venir de preuves réelles — expérience, compétences, langue, mobilité/disponibilité ou autres éléments substantiels — plutôt que d’un nouveau polissage du texte.","Wording changes alone do not improve this CV further for the role. The best current presentation score stays unchanged; further gains need real evidence such as experience, skills, language ability, location/start-date fit, or other substantive improvements rather than more rewriting.");}
+  } else draft.baselinePresentationScore=result.assessment.baselineScore;
+  draft.assessment=result.assessment;draft.updatedAt=new Date().toISOString();writeStore(profileId,store);return result;
+}
+
+export async function decideTailoredCvDraft(profileId:string,draftId:string,decision:string) {
+  if(!["accept","reject"].includes(decision))throw new Error("Décision invalide.");
+  const store=readStore(profileId),{job,draft}=findDraft(store,draftId);if(draft.status!=="pending")throw new Error("Ce brouillon a déjà été traité.");
+  draft.status=decision==="accept"?"accepted":"rejected";draft.updatedAt=new Date().toISOString();
+  if(decision==="accept") {
+    job.cv={...(job.cv||{}),language:draft.language,notesLocale:draft.notesLocale,label:`CV adapté — ${job.company}`,pdfCompany:job.company,file:draft.file,pages:draft.pages,atsScore:draft.atsScore,keywordCoverage:draft.keywordCoverage,generatedAt:draft.updatedAt,inputVersionId:draft.baseVersionId,changes:draft.changes,presentationScore:draft.assessment?.draftScore??null,baselinePresentationScore:draft.assessment?.baselineScore??null,presentationDelta:draft.assessment?.delta??null,draftId:draft.id};
+    if(job.status==="À candidater")job.status="CV prêt";
+    const cvTask=job.prepTasks?.find(task=>/adapter le cv|cv anglais|version ciblée du cv|cv quant/i.test(task.label));if(cvTask)cvTask.done=true;
+  }
+  writeStore(profileId,store);return {ok:true,job,draft};
+}
+
 export async function downloadTailoredCv(req: Request) {
   const url = new URL(req.url);
   const id = url.searchParams.get("id")?.trim();
   if (!id) return new Response("id required", { status: 400 });
   const profileId = await activeProfileId(url.searchParams.get("profileId"));
   try {
-    const job = readStore(profileId).jobs.find((item) => item.id === id);
-    const rel = job?.cv?.file;
+    const store=readStore(profileId);
+    const job = store.jobs.find((item) => item.id === id);
+    const draftId=url.searchParams.get("draftId")?.trim();
+    const draft=draftId ? (job as any)?.cvDraft as TailoredDraft | undefined : undefined;
+    if(draftId && (!draft || draft.id!==draftId)) return new Response("tailored CV draft not found",{status:404});
+    const rel = draft?.file || job?.cv?.file;
     if (!rel) return new Response("no tailored CV for this candidature", { status: 404 });
     const abs = path.resolve(careerOpsRoot(), rel);
     const outputRoot = path.resolve(careerOpsRoot(), "output") + path.sep;
@@ -232,7 +374,7 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
   if (!job) return Response.json({ error: "Candidature introuvable" }, { status: 404 });
   const locale=requestUiLocale(req,body.uiLocale);
   const material=["fr","en"].includes(String(body.applicationLanguage)) ? String(body.applicationLanguage) : profileCvOptions(profileId).language;
-  const generationKey=operationKey("cv",{jobId:job.id,applicationLanguage:material},inputVersion,[job]);
+  const generationKey=JSON.stringify(["tailored-cv-v2-draft-review",operationKey("cv",{jobId:job.id,applicationLanguage:material},inputVersion,[job])]);
   const generationFile=path.join(historyDirectory(profileId),"cv-generations",inputVersion.id,encodeURIComponent(job.id)+"-"+material+".json");
 
   const encoder = new TextEncoder();
@@ -272,121 +414,27 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
         }
         if(cached?.operationKey!==generationKey || !cached.output) writeJson(generationFile,{operationKey:generationKey,profileId,jobId:job.id,inputVersionId:inputVersion.id,output,metrics:generationMetrics,createdAt:new Date().toISOString()});
 
-        const cvOptions = {...profileCvOptions(profileId),language:material};
-        const documentText=JSON.stringify({...parsed,change_notes:undefined});
+        const payload=sanitizePayload(parsed);
+        const documentText=JSON.stringify({...payload,change_notes:undefined});
         if(contradictsDocumentLanguage(documentText,material,inputVersion.sources.cv.text)) return fail("CV language mismatch; the previous PDF is preserved.");
-        emit({ t: "progress", label: `Mise en page du CV · ${cvOptions.preferredPages} page${cvOptions.preferredPages > 1 ? "s" : ""}` });
-        const profile = getProfile(profileId);
-        const config = readProfileConfig(profileId,inputVersion.sources.config.text);
-        const candidateConfig = config.candidate && typeof config.candidate === "object" && !Array.isArray(config.candidate)
-          ? (config.candidate as Record<string, unknown>)
-          : {};
-        const linkedinUrl = typeof candidateConfig.linkedin === "string"
-          ? candidateConfig.linkedin.trim()
-          : typeof candidateConfig.linkedin_url === "string"
-            ? candidateConfig.linkedin_url.trim()
-            : "";
-        const candidate = {
-          name: typeof candidateConfig.full_name === "string" ? candidateConfig.full_name : profile.name,
-          phone: typeof candidateConfig.phone === "string" ? candidateConfig.phone : "",
-          email: typeof candidateConfig.email === "string" ? candidateConfig.email : "",
-          linkedin: { url: linkedinUrl, display: linkedinUrl.replace(/^https?:\/\/(?:www\.)?/i, "").replace(/\/$/, "") },
-          location: typeof candidateConfig.location === "string" ? candidateConfig.location : "",
-          photo: "",
-        };
-        const renderPayload = {
-          lang: cvOptions.language,
-          page_format: "a4",
-          candidate,
-          sections: {
-            summary: "Professional Summary",
-            competencies: "Core Competencies",
-            experience: "Professional Experience",
-            projects: "Selected Projects",
-            education: "Education",
-            certifications: "Certifications",
-            awards: "Awards & Honors",
-            interests: "Interests",
-            skills: "Skills",
-          },
-          summary: parsed.summary,
-          competencies: [],
-          experience: Array.isArray(parsed.experience) ? parsed.experience : [],
-          projects: Array.isArray(parsed.projects) ? parsed.projects : [],
-          education: Array.isArray(parsed.education) ? parsed.education : [],
-          certifications: [],
-          awards: [],
-          interests: [],
-          skills: Array.isArray(parsed.skills) ? parsed.skills : [],
-        };
-
-        const dir = path.join(root, ".career-ops-web", "candidature-cv");
-        const outputDir = path.join(root, "output");
-        fs.mkdirSync(dir, { recursive: true });
-        fs.mkdirSync(outputDir, { recursive: true });
-        const stem = `cv-${slug(candidate.name, "candidate")}-${slug(job!.company, "company")}-${slug(job!.role, "role")}-${todayLocal()}`;
-        const jsonPath = path.join(dir, `${stem}.json`);
-        const htmlPath = path.join(outputDir, `${stem}.html`);
-        const pdfPath = path.join(outputDir, `${stem}.pdf`);
-        fs.writeFileSync(jsonPath, `${JSON.stringify(renderPayload, null, 2)}\n`, "utf8");
-
-        const customTemplatePath = path.join(root, "templates", cvOptions.template, "cv-template.html");
-        const templatePath = cvOptions.template !== "standard" && fs.existsSync(customTemplatePath)
-          ? customTemplatePath
-          : path.join(root, "templates", "cv-template.html");
-        await runNode(path.join(root, "build-cv-html.mjs"), [jsonPath, htmlPath, templatePath], root);
-        await runNode(path.join(root, "generate-pdf.mjs"), [
-          htmlPath,
-          pdfPath,
-          "--format=a4",
-          "--allow-reorder",
-          `--max-pages=${cvOptions.preferredPages}`,
-          "--strict-pages",
-        ], root);
-
-        emit({ t: "progress", label: "Contrôle ATS et mots-clés" });
-        const keywords = cleanArray(job!.cv?.keywords).join(",");
-        const auditArgs=[htmlPath];
-        if(keywords) auditArgs.push("--keywords",keywords);
-        auditArgs.push("--json");
-        const audit = await runNode(path.join(root, "verify-ats.mjs"), auditArgs, root);
-        const ats = JSON.parse(audit.stdout) as { score?: number; keywordCoverage?: { percent?: number } | null };
-        const atsScore = typeof ats.score === "number" ? ats.score : 0;
-        const keywordCoverage = keywords && typeof ats.keywordCoverage?.percent === "number" ? ats.keywordCoverage.percent : null;
-
-        const relPdf = path.relative(root, pdfPath).replace(/\\/g, "/");
-        const changes = cleanArray(parsed.change_notes);
-        job!.cv = {
-          ...(job!.cv ?? {}),
-          language: cvOptions.language,
-          notesLocale: locale,
-          label: `CV adapté — ${job!.company}`,
-          pdfCompany: job!.company,
-          file: relPdf,
-          pages: cvOptions.preferredPages,
-          atsScore,
-          keywordCoverage,
-          generatedAt: new Date().toISOString(),
-          inputVersionId: inputVersion.id,
-          changes: changes.length ? changes : job!.cv?.changes ?? [],
-        };
-        if (job!.status === "À candidater") job!.status = "CV prêt";
-        if (Array.isArray(job!.prepTasks)) {
-          const cvTask = job!.prepTasks.find((task) => /adapter le cv|cv anglais|version ciblée du cv|cv quant/i.test(task.label));
-          if (cvTask) cvTask.done = true;
-        }
-        // A CV turn can take several minutes. Merge into a fresh snapshot so a
-        // status/reply/plan saved meanwhile on the phone is never overwritten.
-        const latestStore = readStore(profileId);
-        const latestJob = latestStore.jobs.find((item) => item.id === body.id);
-        if (!latestJob) return fail("La candidature a été supprimée pendant la génération ; le PDF est conservé dans output.");
-        latestJob.cv = job!.cv;
-        const latestCvTask = latestJob.prepTasks?.find((task) => /adapter le cv|cv anglais|version ciblée du cv|cv quant/i.test(task.label));
-        if (latestCvTask) latestCvTask.done = true;
-        if (latestJob.status === "À candidater") latestJob.status = "CV prêt";
-        latestStore.updatedAt = new Date().toISOString();
-        atomicWrite(profileFile(profileId, "candidatures"), `${JSON.stringify(latestStore, null, 2)}\n`);
-        emit({ t: "done", job: latestJob, atsScore, keywordCoverage });
+        const draftId=randomUUID(),revision=1;
+        emit({t:"progress",label:"Mise en page du brouillon et contrôle ATS"});
+        const rendered=await renderDraftFiles(profileId,job!,inputVersion,payload,material,draftId);
+        emit({t:"progress",label:"Comparaison avec le CV actuel pour ce poste"});
+        let assessmentMetrics:Record<string,any>={};
+        const comparison=await compareCvPresentation(profileId,job!,inputVersion,payload,locale,revision,{
+          onRun:run=>emit({t:"execution",transport:run.transport,sessionId:run.sessionId,runId:run.runId,remoteSessionId:run.remoteSessionId}),
+          onMetrics:m=>{assessmentMetrics=m;},
+        });
+        const changes=cleanArray(payload.change_notes),now=new Date().toISOString();
+        const draft:TailoredDraft={id:draftId,status:"pending",baseVersionId:inputVersion.id,language:material,notesLocale:locale,revision,createdAt:now,updatedAt:now,payload,...rendered,changes:changes.length?changes:job!.cv?.changes??[],baselinePresentationScore:comparison.assessment.baselineScore,assessment:comparison.assessment};
+        const latestStore=readStore(profileId),latestJob=latestStore.jobs.find(item=>item.id===body.id);
+        if(!latestJob)return fail("La candidature a été supprimée pendant la génération ; le PDF de brouillon est conservé dans output.");
+        (latestJob as any).cvDraft=draft;writeStore(profileId,latestStore);
+        const sum=(key:string)=>[generationMetrics?.[key],assessmentMetrics?.[key]].reduce((total,value)=>total+(Number.isFinite(Number(value))?Number(value):0),0);
+        const estimated=sum("estimatedCostUsd");
+        emit({t:"metrics",metrics:{...assessmentMetrics,model:assessmentMetrics.model||generationMetrics.model||FLOW_DEFAULTS.cv.model,reasoning:assessmentMetrics.reasoning||generationMetrics.reasoning||FLOW_DEFAULTS.cv.reasoning,inputTokens:sum("inputTokens"),outputTokens:sum("outputTokens"),cachedInputTokens:sum("cachedInputTokens"),totalTokens:sum("totalTokens"),estimatedCostUsd:estimated||null,actualCostUsd:null,costKind:"api-equivalent-estimate",generationMetrics,assessmentMetrics}});
+        emit({t:"done",jobId:latestJob.id,draftId,cvDraft:draft,atsScore:draft.atsScore,keywordCoverage:draft.keywordCoverage,assessment:draft.assessment});
         controller.close();
       } catch (error) {
         fail(error instanceof Error ? error.message : "La génération du CV a échoué.");

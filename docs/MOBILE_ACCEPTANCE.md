@@ -1,6 +1,37 @@
 # JobPilot mobile — acceptance record
 
-Date: 2026-09-09, Europe/Paris. Current installation: **Android 0.3.4/code8 on the Samsung USB device, with production backend build 0.3.4 and Web 0.4.2**. Language-specific acceptance and historical limits remain in `ANDROID_LANGUAGE_SEPARATION.md`; earlier release evidence below is retained. Private evidence remains in ignored `.career-ops-web/mobile-qa/` directories.
+Date: 2026-09-09, Europe/Paris. Current installation: **Android 0.3.6/code10 on the Samsung USB device, with production backend build 0.3.6 and Web 0.4.4**. Language-specific acceptance and historical limits remain in `ANDROID_LANGUAGE_SEPARATION.md`; earlier release evidence below is retained. Private evidence remains in ignored `.career-ops-web/mobile-qa/` directories.
+
+## 0.3.6 tailored-CV proposal / comparison acceptance
+
+| Verification | Observed result |
+| --- | --- |
+| Install | `adb install -r` succeeded; package reports **versionName 0.3.6 / versionCode 10**. |
+| Former generation failure | The Yueyue synthetic tailored CV that previously died after ATS audit now completes with a valid one-page draft. ATS remains **72/100** with explicit warnings; those warnings no longer erase/lose the generated PDF. |
+| Fresh generation | A fresh v2 synthetic run (not old generation cache) completed in about **28.6s**, `gpt-5.6-luna/low`, and produced an initial presentation comparison **68 → 82 (+14)**. The new generation prompt did not invent willingness to relocate to Angoulême. |
+| Draft boundary | Generated PDF/score stays under `job.cvDraft`. The accepted `job.cv` is unchanged until explicit Keep. Regression confirms Reject leaves the prior accepted CV unchanged; Keep copies the draft into the accepted job-specific CV. |
+| Manual edit / reassessment | A synthetic draft was edited without asking the model to rewrite the CV, locally re-rendered, then `cv_review` reassessed it successfully. New-version/reassessment buttons explicitly rerun completed work while double-clicks still share active tasks. |
+| Score floor | User-facing tailored-CV presentation score can only stay equal or rise. Unit regression locks raw `60 → 49` to visible `60 → 60 (+0)` and marks the result as needing substantive improvement instead of more wording. |
+| Native score UI | Physical Samsung CV tab shows the pending draft with **ATS 72/100**, **CV actuel / 当前主简历 68 → Ce brouillon / 这个草稿 82 (+14)** and the explanation that this is presentation fit, not hiring probability or the formal 0–5 job score. |
+| UI-language translation | After reproducing a dirty French localization cache that stored Chinese as `locale=fr`, cache/output language validation was added. A real French backend read now returns French summary/improvements/gaps while the English draft payload remains English. The physical Samsung in French displays French tailored-CV analysis, not just French headings. |
+| Business-task safety | Display-language switching creates no `cv`/`cv_review` business task and does not regenerate/reassess the CV. Earlier real English switch kept the synthetic profile task count **61 → 61**; French recovery used display-localization only. |
+| Web parity | Chromium/Edge **23/23** and WebKit **23/23** synthetic browser checks pass, including draft score lift, manual edit, reassessment, actual PDF preview and explicit rejection while preserving the accepted version. |
+
+## 0.3.5 drawer stability / Applications workflow acceptance
+
+| Verification | Observed result |
+| --- | --- |
+| Install | `adb install -r` succeeded; package reports versionName **0.3.5**, versionCode **9**. |
+| CV analysis drawer | On the physical Samsung, the analysis drawer was scrolled to its bottom and then swiped upward again. Before/after semantic trees had **0 visible-element bounds changes**. The previous build reproduced ~34px whole-sheet movement under the same edge gesture. |
+| Other drawers | Task center and a long job-detail drawer were tested the same way and each produced **0 bounds changes** after the extra edge swipe. Source audit confirms all six current `ModalBottomSheet` content roots use the shared edge nested-scroll blocker. |
+| Lifecycle categories | Native Applications displays chronological primary categories: `全部 / 准备投递 / 已投递 / 收到回复 / 面试 / Offer / 入职 / 已结束` (horizontal viewport may show the later chips after scrolling). `待决定` is no longer a lifecycle category. |
+| Filter & sort | Physical device shows `筛选与排序`, then `全部 / 仅已评估 / 仅未评估` and `评分高→低 / 评分低→高 / 最近更新`. Default order is score high→low with unrated roles last. |
+| Stuck evaluate-all count | The two remaining Yueyue synthetic rows already had completed exact-URL evaluations. They were deterministically reconciled without a model call; public backend **0.3.5 reports 0 unrated roles** for that profile. Exact scores are now kept per URL, including 1.5 vs 1.0 for two same-title Salesforce postings and 0.3 vs 0.5 for two same-title Siebel postings. |
+| Evaluation identity | A normalized posting URL is authoritative whenever present. Legacy company+role fallback cannot merge a different URL. Valid score `0.0` is treated as evaluated. A mismatched report link and report-derived details are removed rather than shown for the wrong posting. |
+| Evaluate means saved | Discovery single/bulk evaluation carries the full offer into the backend and saves the exact URL before creating/reusing the evaluation task. An isolated regression confirms an already-completed evaluation can be reused **without a new model task while still saving the discovery card first**. |
+| Retry semantics | Applications `Evaluate all unrated` explicitly retries failed/interrupted prior evaluations; completed results remain idempotently reused. |
+| Web parity | Web 0.4.3 Chromium/Edge **22/22** and WebKit **22/22** pass, including chronological stages, score sorting/evaluation filtering, evaluate→save and analysis drawer bottom stability. |
+| Regression/build | Targeted persistence/evaluation **19/19**; full Node **321/321**; Web TypeScript + production build pass; Android `assembleDebug` pass; `git diff --check` pass. No AI was invoked for the 0.3.5 acceptance. |
 
 ## 0.3.4 AI ETA / circular progress acceptance
 

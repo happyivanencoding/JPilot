@@ -3,9 +3,11 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { careerOpsRoot } from "@/lib/career-ops";
+import { careerOpsRoot, readReport } from "@/lib/career-ops";
+import { parseReport } from "@/lib/format";
 import { getProfile, profileFile, PROFILE_COOKIE } from "@/lib/profile-context";
 import { atomicWrite } from "@/lib/core/safe-write";
+import { addOffersToPipeline } from "@/lib/core/pipeline";
 import { runModelTransport } from "@/lib/model-transport";
 import { extractJsonObject } from "@/lib/extract-json-object.mjs";
 import { searchStructuredOffers, rankSearchResults } from "@/lib/job-search/index.mjs";
@@ -17,7 +19,7 @@ import { withProfileLock, processAlive, canAdoptLegacy, operationKey, reusableTa
 import { currentCandidateVersion, currentAnalysis, analysisContinuity, createCvDraft, renderCvPreview } from "@/lib/mobile-history";
 import { findPersistedEvaluation } from "@/lib/evaluation-state";
 import { executeCoreRun } from "@/lib/core-run";
-import { generateTailoredCv } from "@/lib/tailored-cv";
+import { generateTailoredCv, reviewTailoredCvDraft } from "@/lib/tailored-cv";
 import { cvAnalysisPrompt } from "@/lib/cv-analysis-prompt.mjs";
 import { parseAnalysisResult } from "@/lib/analysis-result.mjs";
 import {preservePresentationLanguage} from "@/lib/cv-global-plan.mjs";
@@ -40,7 +42,7 @@ type Store = { candidate: string; updatedAt: string; jobs: Job[] };
 const host = globalThis as typeof globalThis & { jobPilotRunning?: Map<string, Promise<void>> };
 const running = host.jobPilotRunning ??= new Map();
 const exec = promisify(execFile);
-const TASK_KINDS = new Set(["ingest", "search", "evaluate", "cv", "analysis", "plan", "practice", "compare", "coach", "rewrite"]);
+const TASK_KINDS = new Set(["ingest", "search", "evaluate", "cv", "cv_review", "analysis", "plan", "practice", "compare", "coach", "rewrite"]);
 
 export function mobileDirectory(profileId: string) {
   const profile=getProfile(profileId);
@@ -94,6 +96,38 @@ export function writeCandidatureStore(profileId: string, store: Store) {
   store.updatedAt = new Date().toISOString();
   atomicWrite(file, JSON.stringify(store, null, 2) + "\n");
 }
+
+export function reconcileCompletedEvaluationCards(profileId: string, tasks: MobileTask[], baseStore?: Store) {
+  const store=baseStore || readCandidatureStore(profileId);
+  let changed=false;
+  const reportUrl=(reportNum:unknown)=>{
+    if(!reportNum)return "";
+    const report=readReport(String(reportNum));
+    if(!report)return "";
+    return normalizeUrl(parseReport(report.content).fields.find(field=>field.label==="URL")?.value || "");
+  };
+  for(const job of store.jobs) {
+    const key=normalizeUrl(job.url);if(!key)continue;
+    const task=tasks.find(t=>t.kind==="evaluate"&&t.status==="completed"&&t.result?.done&&normalizeUrl(String(t.input?.url || ""))===key);
+    if(!task)continue;
+    const score=Number(task.result?.score);
+    if(Number.isFinite(score)&&job.score!==score){job.score=score;changed=true;}
+    if(job.evaluationTaskId!==task.id){job.evaluationTaskId=task.id;changed=true;}
+    const priority=Number.isFinite(score)?score>=4.4?"Priorité 1":score>=4?"Priorité 2":"Priorité 3":job.priority;
+    if(priority&&job.priority!==priority){job.priority=priority;changed=true;}
+    const summary=typeof task.result?.summary==="string"?task.result.summary.trim():"";
+    if(summary&&job.summary!==summary){job.summary=summary;changed=true;}
+    if(job.recommendation==="Évaluation officielle nécessaire"){job.recommendation="Évaluation enregistrée";changed=true;}
+    const candidateReport=task.result?.reportNum;
+    if(candidateReport&&reportUrl(candidateReport)===key&&String(job.reportNum||"")!==String(candidateReport)){job.reportNum=String(candidateReport);changed=true;}
+    else if(job.reportNum&&reportUrl(job.reportNum)&&reportUrl(job.reportNum)!==key){
+      delete job.reportNum;delete job.analysisSource;delete job.angle;
+      job.strengths=[];job.gaps=[];job.match=[];changed=true;
+    }
+  }
+  if(changed)writeCandidatureStore(profileId,store);
+  return store;
+}
 export function updateMobileJob(profileId: string, id: string, change: Record<string, unknown>) {
   const store = readCandidatureStore(profileId);
   const index = store.jobs.findIndex(j => j.id === id);
@@ -121,11 +155,12 @@ export async function coreRequest(profileId: string, route: string, body?: unkno
 }
 export async function saveMobileOffer(profileId: string, raw: unknown) {
   const offer = normalizeOffer(raw);
-  // Reuse the canonical inbox writer before adding a rich, explicitly UNRATED card.
-  await coreRequest(profileId, "/api/explore/add", { offers: [offer] });
   const store = readCandidatureStore(profileId);
   const existing = store.jobs.find(j => normalizeUrl(j.url) === normalizeUrl(offer.url));
   if (existing) return existing;
+  // Reuse the canonical pipeline writer in-process. This keeps evaluation→save
+  // inside the same Candidate root instead of loopback HTTP to localhost.
+  await addOffersToPipeline([{url:offer.url,company:offer.company,title:offer.title,location:offer.location,postedAt:offer.postedAt || "",ats:offer.source,source:offer.source,note:`profile: ${profileId}`}]);
   const job: Job = {
     id: "saved-" + randomUUID(), company: offer.company, role: offer.title, url: offer.url,
     location: offer.location, contract: (offer as any).contractType || "À confirmer", score: null, priority: "À évaluer", recommendation: "Évaluation officielle nécessaire",
@@ -331,11 +366,16 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
       task.result={draftId:draft.id,baseVersionId:draft.baseVersionId,pages:rendered.pages,warnings:rendered.warnings};
       task.metrics={model:"local",reasoning:"none",queueMs:0,agentMs:0,inputTokens:0,outputTokens:0,totalTokens:0,costKind:"no-ai"};
     } else if (task.kind === "cv") {
-      task.phase = "Adaptation du CV, rendu PDF et vérification ATS"; saveTask(task);
+      task.phase = "Adaptation du CV, brouillon PDF, contrôle ATS et comparaison"; saveTask(task);
       await consume(task, "/api/candidatures/cv", { id: task.input.jobId, profileId: task.profileId, inputVersionId: task.inputVersionId, uiLocale:task.input.uiLocale, applicationLanguage:task.input.applicationLanguage }, "events");
       const job = readCandidatureStore(task.profileId).jobs.find(j => j.id === task.input.jobId);
-      if (!job?.cv?.file || !fs.existsSync(path.join(careerOpsRoot(), job.cv.file))) throw new Error("PDF absent après la génération.");
-      task.result = { jobId: job.id, cv: job.cv };
+      const draft=job?.cvDraft;
+      if (!draft?.id || !draft?.file || !fs.existsSync(path.join(careerOpsRoot(), draft.file))) throw new Error("Brouillon PDF absent après la génération.");
+      task.result = { jobId: job!.id, draftId:draft.id, cvDraft:draft };
+    } else if(task.kind === "cv_review") {
+      task.phase="Nouvelle évaluation du brouillon par rapport au poste";saveTask(task);
+      const reviewed=await reviewTailoredCvDraft(task.profileId,String(task.input.draftId || ""),uiLocale(task.input.uiLocale || task.input.language),{onRun,onMetrics:metrics});
+      task.result={jobId:task.input.jobId,draftId:task.input.draftId,assessment:reviewed.assessment};
     } else {
       const prompt = coachingPrompt(task);
       task.phase = "Connexion au modèle JobPilot"; saveTask(task);
@@ -391,6 +431,11 @@ export async function startMobileTask(profileId: string, input: Record<string, u
   if (kind === "ingest" && !uploadPath) throw new Error("Utiliser le sélecteur de document.");
   if (kind === "search" && (typeof input.query !== "string" || !input.query.trim())) throw new Error("Précisez votre recherche.");
   if (kind === "evaluate" && !normalizeUrl(String(input.url || ""))) throw new Error("URL du poste requise.");
+  if(kind === "evaluate" && input.offer && typeof input.offer === "object") {
+    const saved=await saveMobileOffer(profileId,input.offer);
+    input={...input,url:saved.url};
+    delete input.offer;
+  }
   if (kind === "rewrite" && (!Array.isArray(input.suggestionIds) || !input.suggestionIds.length)) throw new Error("Choisissez une reformulation applicable.");
   if (JSON.stringify(input).length > 40_000) throw new Error("Demande trop longue.");
   let created=false;
@@ -399,7 +444,7 @@ export async function startMobileTask(profileId: string, input: Record<string, u
     input={...input,uiLocale:uiLocale(input.uiLocale || input.language)};
     if(kind==='cv') input.applicationLanguage=applicationLanguage(yaml.load(readText(profileFile(profileId,'config'))) || {},version.sources.cv.text);
     const jobs=readCandidatureStore(profileId).jobs;
-    if (["cv","plan"].includes(kind) && !jobs.some(j=>j.id===input.jobId)) throw new Error("Choisissez un poste de ce profil.");
+    if (["cv","cv_review","plan"].includes(kind) && !jobs.some(j=>j.id===input.jobId)) throw new Error("Choisissez un poste de ce profil.");
     if (input.jobId && !jobs.some(j=>j.id===input.jobId)) throw new Error("Poste introuvable pour ce profil.");
     if (Array.isArray(input.jobIds) && input.jobIds.some(id=>!jobs.some(j=>j.id===id))) throw new Error("Comparaison contenant un poste d’un autre profil.");
     const tasks=prepareTaskHistory(profileId,version);
@@ -410,14 +455,16 @@ export async function startMobileTask(profileId: string, input: Record<string, u
       if(previous)return {...previous,reused:true};
     }
     const key=kind === "ingest" ? randomUUID() : operationKey(kind,input,version,jobs);
-    const reusable=kind === "rewrite" ? tasks.filter(t=>!t.result?.draftId || JSON.parse(fs.readFileSync(path.join(mobileDirectory(profileId),"cv-drafts",t.result.draftId+".json"),"utf8")).status !== "rejected") : tasks;
-    const existing=reusableTask(reusable,key) as MobileTask | null;
+    const reusable=kind === "rewrite" ? tasks.filter(t=>!t.result?.draftId || JSON.parse(fs.readFileSync(path.join(mobileDirectory(profileId),"cv-drafts",t.result.draftId+".json"),"utf8")).status !== "rejected")
+      : kind === "cv" ? tasks.filter(t=>!t.result?.draftId || jobs.some(j=>j.cvDraft?.id===t.result?.draftId && j.cvDraft?.status!=="rejected")) : tasks;
+    const explicitRerun=input.retry===true && ["cv","cv_review"].includes(kind);
+    const existing=(explicitRerun ? reusable.find(t=>t.operationKey===key && ["queued","running","reconciling"].includes(t.status)) : reusableTask(reusable,key)) as MobileTask | null;
     if (existing) return {...existing,reused:true};
     const persisted=kind === "evaluate" ? findPersistedEvaluation(profileId,String(input.url)) : null;
     const job=jobs.find(j=>j.id===input.jobId);
     const cvReady=kind === "cv" && job?.cv?.file && fs.existsSync(path.join(careerOpsRoot(),job.cv.file)) && (!job.cv.language || job.cv.language===input.applicationLanguage)
       && (job.cv.inputVersionId === version.id || (!job.cv.inputVersionId && Date.parse(job.cv.generatedAt || "") >= Math.max(...["cv","config","notes"].map(k=>version.sources[k].modifiedMs))));
-    if (persisted || cvReady) return {id:"",profileId,kind,status:"completed",phase:"Résultat déjà disponible",createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),ownerPid:process.pid,input,text:"",reused:true,reusedResult:true,result:persisted || {jobId:job!.id,cv:job!.cv}} as MobileTask;
+    if (persisted || (cvReady && input.retry !== true)) return {id:"",profileId,kind,status:"completed",phase:"Résultat déjà disponible",createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),ownerPid:process.pid,input,text:"",reused:true,reusedResult:true,result:persisted || {jobId:job!.id,cv:job!.cv}} as MobileTask;
     const failed=tasks.find(t=>t.operationKey===key && ["failed","interrupted"].includes(t.status));
     if (failed && input.retry !== true) return {...failed,reused:true};
     const defaults=FLOW_DEFAULTS[kind as keyof typeof FLOW_DEFAULTS];

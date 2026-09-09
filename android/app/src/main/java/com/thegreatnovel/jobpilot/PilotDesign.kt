@@ -9,8 +9,12 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
@@ -22,12 +26,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.Velocity
 import androidx.core.view.WindowCompat
 
 val Indigo = Color(0xFF166568)
 val Apricot = Color(0xFF64748B)
 val LocalPilotLanguage = staticCompositionLocalOf { "fr" }
 @Composable fun tr(zh: String, fr: String, en: String = fr): String = when(LocalPilotLanguage.current) { "zh" -> zh; "en" -> en; else -> fr }
+
+private object SheetContentEdgeBlocker : NestedScrollConnection {
+    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset =
+        if(available.y != 0f) Offset(0f,available.y) else Offset.Zero
+    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
+        if(available.y != 0f) Velocity(0f,available.y) else Velocity.Zero
+}
+
+/** Keep an inner sheet scroller's unconsumed edge motion out of ModalBottomSheet.
+ * Direct dragging on the sheet/handle still dismisses normally. */
+fun Modifier.blockSheetEdgeMotion(): Modifier = nestedScroll(SheetContentEdgeBlocker)
 
 @Composable fun PilotTheme(state: PilotState, content: @Composable () -> Unit) {
     val dark = state.theme == "dark" || (state.theme == "system" && isSystemInDarkTheme())

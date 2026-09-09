@@ -18,8 +18,8 @@ import org.json.JSONArray
 import java.io.File
 
 private val activeStates = setOf("queued", "running", "reconciling")
-private val aiTaskKinds = setOf("evaluate", "cv", "analysis", "plan", "practice", "compare", "coach")
-data class CvPreview(val files: List<File>, val meta: JSONObject = JSONObject(), val draftId: String? = null)
+private val aiTaskKinds = setOf("evaluate", "cv", "cv_review", "analysis", "plan", "practice", "compare", "coach")
+data class CvPreview(val files: List<File>, val meta: JSONObject = JSONObject(), val draftId: String? = null, val tailoredJobId: String? = null)
 data class TaskLaunchFeedback(val ids: List<String>, val title: String, val estimate: JSONObject, val createdAt: String)
 data class PilotState(
     val loggedIn: Boolean = false, val loading: Boolean = false, val working: Boolean = false,
@@ -295,9 +295,10 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
                 mutable.update { it.copy(destination = json("tab" to 2), task = null) }
                 selectJob(destination.text("jobId").takeIf(String::isNotBlank))
             }
-            "cv" -> {
+            "cv","cv_review" -> {
                 val id = destination.text("jobId", task.child("result").text("jobId"))
-                mutable.value.snapshot.objects("jobs").find { it.text("id") == id }?.let { openCvPreview(job = it) }
+                mutable.update { it.copy(destination = json("tab" to 2), task = null) }
+                selectJob(id.takeIf(String::isNotBlank),1)
             }
             "plan" -> {
                 mutable.update { it.copy(destination = json("tab" to 3), task = null) }
@@ -316,14 +317,17 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
             } catch(e: Exception) { if(epoch == generation) failure(e) }
         }
     }
-    fun openCvPreview(draftId: String? = null, job: JSONObject? = null) {
+    fun openCvPreview(draftId: String? = null, job: JSONObject? = null, tailoredDraftId: String? = null) {
         val profile = mutable.value.profileId; val epoch = generation
         val previewEpoch = ++previewGeneration
         viewModelScope.launch {
             mutable.update { it.copy(previewLoading = true, cvPreview = null, task = null, error = null) }
             try {
                 val preview = withContext(Dispatchers.IO) {
-                    if (job != null) CvPreview(listOf(api.downloadCv(job, profile)), json("title" to job.text("company"), "pages" to job.child("cv").optInt("pages")))
+                    if (job != null) {
+                        val draft=tailoredDraftId?.takeIf { it.isNotBlank() }?.let { job.child("cvDraft") }
+                        CvPreview(listOf(api.downloadCv(job, profile, tailoredDraftId)), if(draft!=null) JSONObject(draft.toString()) else json("title" to job.text("company"), "pages" to job.child("cv").optInt("pages")), tailoredDraftId, if(draft!=null)job.text("id") else null)
+                    }
                     else {
                         val suffix = "?profileId=${Uri.encode(profile)}" + (draftId?.takeIf(String::isNotBlank)?.let { "&draftId=${Uri.encode(it)}" } ?: "")
                         val meta = api.request("/api/mobile/cv$suffix&format=meta", profile)
@@ -343,7 +347,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         if(previewMetaJob?.isActive==true)return
         val preview=mutable.value.cvPreview ?: return
         // Tailored job PDFs have no preview-layout metadata endpoint to poll.
-        if(!preview.meta.has("layoutNote") && !preview.meta.has("draft"))return
+        if(preview.tailoredJobId!=null || (!preview.meta.has("layoutNote") && !preview.meta.has("draft")))return
         val epoch=generation;val previewEpoch=previewGeneration;val profile=mutable.value.profileId
         previewMetaJob=viewModelScope.launch {
             try {
@@ -366,6 +370,21 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) { if(epoch == generation) failure(e) }
         }
     }
+    fun updateTailoredDraft(id:String,payload:JSONObject) {
+        val profile=mutable.value.profileId;val epoch=generation
+        viewModelScope.launch { mutable.update { it.copy(working=true,error=null) };try {
+            withContext(Dispatchers.IO) { api.request("/api/mobile",profile,json("action" to "updateTailoredCvDraft","profileId" to profile,"draftId" to id,"payload" to payload)) }
+            if(epoch==generation){mutable.update { it.copy(working=false,notice="Brouillon mis à jour · PDF régénéré",noticeTaskId=null) };refresh(silent=true)}
+        } catch(e:Exception){if(epoch==generation)failure(e)} }
+    }
+    fun decideTailoredDraft(id:String,decision:String) {
+        val profile=mutable.value.profileId;val epoch=generation
+        viewModelScope.launch { mutable.update { it.copy(working=true,error=null) };try {
+            withContext(Dispatchers.IO) { api.request("/api/mobile",profile,json("action" to "decideTailoredCvDraft","profileId" to profile,"draftId" to id,"decision" to decision)) }
+            if(epoch==generation){mutable.update { it.copy(working=false,cvPreview=null,notice=if(decision=="accept")"Version de CV conservée" else "Brouillon refusé",noticeTaskId=null) };refresh(silent=true)}
+        } catch(e:Exception){if(epoch==generation)failure(e)} }
+    }
+
     fun useServer(value: String) {
         try { api.setBase(value); mutable.update { it.copy(server = api.base, error = null) }; refresh() } catch (e: Exception) { failure(e) }
     }

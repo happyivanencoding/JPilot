@@ -48,7 +48,8 @@ export function destinationFor(task) {
     case 'search': return { tab: 'offers' };
     case 'evaluate': return job ? { tab: 'applications', view: 'job', job } : { tab: 'applications' };
     case 'plan': return job ? { tab: 'prepare', view: 'job', job, jobTab: '2' } : { tab: 'prepare' };
-    case 'cv': return { tab: 'applications', view: 'pdf', job };
+    case 'cv': return job ? { tab: 'applications', view: 'job', job, jobTab: '1' } : { tab: 'applications' };
+    case 'cv_review': return job ? { tab: 'applications', view: 'job', job, jobTab: '1' } : { tab: 'applications' };
     case 'rewrite': return { tab: 'profile', view: 'pdf', draft: task.result?.draftId || task.destination?.draftId };
     default: return { view: 'task', task: task.id };
   }

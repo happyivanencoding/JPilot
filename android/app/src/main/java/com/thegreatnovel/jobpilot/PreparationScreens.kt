@@ -161,7 +161,7 @@ import java.time.ZoneOffset
         } }
     }
     if(editCv) ModalBottomSheet(onDismissRequest = { editCv = false },sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),modifier = Modifier.imePadding()) {
-        Column(Modifier.fillMaxWidth().fillMaxHeight(.88f).padding(22.dp),verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.fillMaxWidth().fillMaxHeight(.88f).blockSheetEdgeMotion().padding(22.dp),verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionTitle(tr("我的主简历","Mon CV de référence","My master CV"))
             OutlinedTextField(cvDraft,{ cvDraft = it },Modifier.fillMaxWidth().weight(1f),shape = RoundedCornerShape(20.dp))
             PrimaryButton(tr("保存修改","Enregistrer les modifications","Save changes"),!state.working && cvDraft.isNotBlank()) { confirmSave = true }

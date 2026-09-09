@@ -37,7 +37,7 @@ import org.json.JSONObject
     var historical by remember {mutableStateOf(false)}
     var selected by remember(a.text("taskId")) {mutableStateOf(emptySet<String>())}
     ModalBottomSheet(onDismissRequest={vm.showAnalysis(false)},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
-        Column(Modifier.fillMaxWidth().fillMaxHeight(.94f).testTag("analysis-sheet")) {
+        Column(Modifier.fillMaxWidth().fillMaxHeight(.94f).blockSheetEdgeMotion().testTag("analysis-sheet")) {
             Column(Modifier.padding(horizontal=20.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
                 LocalizationNotice(state.snapshot.child("localization"),vm::retryLocalization)
                 SectionTitle(tr("一页，清楚的主线","Une page. Un fil conducteur.","One page. A clear story."),state.snapshot.child("profile").text("name"))
@@ -45,7 +45,7 @@ import org.json.JSONObject
                 if(a.optInt("resolvedCount")>0) Hint(tr("${a.optInt("resolvedCount")} 项改进已保留","${a.optInt("resolvedCount")} améliorations conservées","${a.optInt("resolvedCount")} improvements retained"))
             }
             TabRow(tab) { listOf(tr("整页重点","Vue d’ensemble","Whole page"),tr("直接改善","Présentation","Presentation"),tr("真实行动","À acquérir","Real actions")).forEachIndexed { i,label -> Tab(tab==i,{tab=i},modifier=Modifier.testTag("analysis-tab-$i"),text={Text(label,fontSize=12.sp)}) } }
-            LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("analysis-content"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+            LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("analysis-content"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp),overscrollEffect=null) {
                 if(a.text("changeSummary").isNotBlank())item {Hint(a.text("changeSummary"))}
                 when(tab) {
                     0 -> {
