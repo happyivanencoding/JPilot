@@ -4,8 +4,12 @@ import {productText} from "@/lib/localization-core.mjs";
 import {choose,publicError} from "@/lib/language-contract.mjs";
 export function estimateView(estimate:any,locale:string) {
   if(!estimate)return estimate;
-  const low=Math.max(1,Math.floor((estimate.minSeconds || 0)/60)),high=Math.max(1,Math.ceil((estimate.maxSeconds || 0)/60));
-  return {...estimate,label:estimate.minSeconds ? choose(locale,`通常 ${low}–${high} 分钟`,`Habituellement ${low}–${high} min`,`Usually ${low}–${high} minutes`) : productText("Habituellement quelques minutes",locale)};
+  const min=Number(estimate.minSeconds || 0),max=Number(estimate.maxSeconds || 0);
+  if(!min || !max)return {...estimate,label:productText("Habituellement quelques minutes",locale)};
+  const label=max < 90
+    ? choose(locale,`预计耗时 ${min}–${max} 秒`,`Durée estimée : ${min}–${max} s`,`Estimated time: ${min}–${max} s`)
+    : choose(locale,`预计耗时 ${Math.max(1,Math.floor(min/60))}–${Math.max(1,Math.ceil(max/60))} 分钟`,`Durée estimée : ${Math.max(1,Math.floor(min/60))}–${Math.max(1,Math.ceil(max/60))} min`,`Estimated time: ${Math.max(1,Math.floor(min/60))}–${Math.max(1,Math.ceil(max/60))} min`);
+  return {...estimate,label};
 }
 
 /** User-facing task projections intentionally exclude raw ACP transcript and internal paths. */

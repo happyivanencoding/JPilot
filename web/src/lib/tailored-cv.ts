@@ -346,7 +346,10 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
 
         emit({ t: "progress", label: "Contrôle ATS et mots-clés" });
         const keywords = cleanArray(job!.cv?.keywords).join(",");
-        const audit = await runNode(path.join(root, "verify-ats.mjs"), [htmlPath, "--keywords", keywords, "--json"], root);
+        const auditArgs=[htmlPath];
+        if(keywords) auditArgs.push("--keywords",keywords);
+        auditArgs.push("--json");
+        const audit = await runNode(path.join(root, "verify-ats.mjs"), auditArgs, root);
         const ats = JSON.parse(audit.stdout) as { score?: number; keywordCoverage?: { percent?: number } | null };
         const atsScore = typeof ats.score === "number" ? ats.score : 0;
         const keywordCoverage = keywords && typeof ats.keywordCoverage?.percent === "number" ? ats.keywordCoverage.percent : null;

@@ -75,6 +75,19 @@ export function fixtureApi(ids) {
       if(body.action==='saveOffer'){
         const job={id:'qa-saved-offer',company:body.offer.company,role:body.offer.title,url:body.offer.url,status:'À candidater',score:null,evaluationState:'saved',followup:{}};f.jobs.push(job);f.discovery.offers[0].jobId=job.id;return send({ok:true,job});
       }
+      if(body.action==='saveOffers'){
+        const saved=[];
+        for(const [index,offer] of (body.offers||[]).entries()){
+          let job=f.jobs.find(j=>j.url===offer.url);
+          if(!job){job={id:`qa-saved-offer-${index+1}`,company:offer.company,role:offer.title,url:offer.url,status:'À candidater',score:null,evaluationState:'saved',followup:{}};f.jobs.push(job);}
+          const discovery=f.discovery.offers.find(o=>o.url===offer.url);if(discovery)discovery.jobId=job.id;saved.push(job);
+        }
+        return send({ok:true,jobs:saved});
+      }
+      if(body.action==='batchTasks'){
+        const tasks=(body.inputs||[]).map(input=>{const task={id:`qa-task-${++serial}`,kind:input.kind,input,status:'queued',title:'Synthetic background task',createdAt:new Date().toISOString(),inputVersionId:f.cvState.versionId,jobId:input.jobId,estimate:{label:'预计耗时 10–30 秒',minSeconds:10,maxSeconds:30,targetSeconds:30,source:'verified-baseline'},metrics:{},result:{},destination:{jobId:input.jobId}};f.tasks.unshift(task);return task;});
+        return send({ok:true,tasks},202);
+      }
       if(body.action==='confirmCv'){
         if(body.expectedVersionId!==f.cvState.versionId)return send({error:'Version conflict'},409);
         f.cv=body.content;f.cvState.versionId=`qa-v${++f.cvState.revision}`;return send({ok:true});
@@ -86,7 +99,7 @@ export function fixtureApi(ids) {
         return send({ok:true});
       }
       if(body.action==='task'){
-        const input=body.input,kind=input.kind,task={id:`qa-task-${++serial}`,kind,input,status:kind==='search'?'queued':'completed',title:'Synthetic test task',inputVersionId:f.cvState.versionId,jobId:input.jobId,estimate:{label:'Synthetic estimate'},metrics:{wallMs:2100,totalTokens:500,estimatedCostUsd:.001},result:{markdown:pick(locale,'# 已保存的测试反馈\n\n清晰的行动建议。','# Retour de test enregistré\n\nProchaine action claire.','# Saved test feedback\n\nA clear next step.')},destination:{jobId:input.jobId}};
+        const input=body.input,kind=input.kind,task={id:`qa-task-${++serial}`,kind,input,status:kind==='search'?'queued':'completed',title:'Synthetic test task',createdAt:new Date().toISOString(),inputVersionId:f.cvState.versionId,jobId:input.jobId,estimate:{label:'预计耗时 10–30 秒',minSeconds:10,maxSeconds:30,targetSeconds:30,source:'verified-baseline'},metrics:{wallMs:2100,totalTokens:500,estimatedCostUsd:.001},result:{markdown:pick(locale,'# 已保存的测试反馈\n\n清晰的行动建议。','# Retour de test enregistré\n\nProchaine action claire.','# Saved test feedback\n\nA clear next step.')},destination:{jobId:input.jobId}};
         if(kind==='rewrite'){const id=`qa-draft-${serial}`;drafts.set(id,{status:'pending',baseVersionId:f.cvState.versionId,globalPlan:true});task.result.draftId=id;task.destination.draftId=id;}
         if(kind==='evaluate'){const job=f.jobs.find(j=>j.url===input.url)||f.jobs[0];job.evaluationState='evaluated';job.score=4.6;job.summary='Saved evaluation';task.jobId=job.id;task.destination.jobId=job.id;task.result.jobId=job.id;}
         if(kind==='plan'){const job=f.jobs.find(j=>j.id===input.jobId);job.mobilePlan={taskId:task.id,markdown:task.result.markdown,questions:['Describe your experience.']};}

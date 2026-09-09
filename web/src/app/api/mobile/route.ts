@@ -12,7 +12,7 @@ import { taskView,estimateView } from "@/lib/mobile-view";
 import {localizeDisplay} from "@/lib/display-localization";
 import {requestUiLocale,applicationLanguage,documentLanguage,publicError} from "@/lib/language-contract.mjs";
 import {reportForDisplay} from "@/lib/localization-core.mjs";
-import { FLOW_DEFAULTS, historicalEstimate } from "@/lib/ai-metrics.mjs";
+import { FLOW_DEFAULTS, flowEstimate } from "@/lib/ai-metrics.mjs";
 import { reconcileMobileTasks } from "@/lib/mobile-recovery";
 import { prewarmAgentDockCodex } from "@/lib/agentdock-acp";
 
@@ -61,14 +61,14 @@ export async function GET(req: Request) {
     const profiles = listProfiles().filter(p => !restricted || restricted.includes(p.id)).map(({ id, name, shortName }) => ({ id, name, shortName }));
     const latest = (kind: string) => tasks.find((t:MobileTask) => t.kind === kind && t.status === "completed");
     const snapshot={
-      version: "0.3.2", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
+      version: "0.3.4", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
       cv: read("cv"), cvState:{versionId:version.id,cvVersion:version.cvVersion,revision:version.revision,changedAt:version.createdAt},
       languageSettings:{uiLocale:locale,applicationLanguage:applicationLanguage(config || {},read("cv")),documentLanguage:documentLanguage(version)},
       config: config || {}, jobs: store.jobs.map(j=>({...j,stage:stageOf(j.status),evaluationState:persistedJobEvaluation(j)?"evaluated":"discovered"})), dashboard: dashboardFor(store.jobs), statuses: APPLICATION_STATUSES,
       tasks: tasks.slice(0,60).map((t:MobileTask)=>taskView(t,store.jobs,false,locale)),
       analysis: currentAnalysis(profileId,version,tasks),
       discovery: (()=>{const result=discoveryProjection(tasks.find((t:MobileTask)=>t.kind==="search" && t.result?.offers)?.result || null,store.jobs,tasks);const eligible=result.offers.filter((o:any)=>contractMatches(o,(config as any)?.target_roles?.contract_types || []).matches);return {...result,offers:topDiscoveryOffers(eligible),displayLimit:DISCOVERY_OFFER_LIMIT,availableCount:eligible.length};})(),
-      flowEstimates:Object.fromEntries(Object.entries(FLOW_DEFAULTS).map(([kind,choice])=>[kind,estimateView(historicalEstimate(tasks,kind,choice.model,choice.reasoning),locale)])),
+      flowEstimates:Object.fromEntries(Object.entries(FLOW_DEFAULTS).map(([kind,choice])=>[kind,estimateView(flowEstimate(tasks,kind,choice.model,choice.reasoning),locale)])),
       updatedAt: store.updatedAt,
     };
     const display=await localizeDisplay(profileId,locale,snapshot,"snapshot",localizationOptions);
@@ -84,12 +84,32 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const profileId = await activeProfileId(body.profileId);
-    const locale=requestUiLocale(req,body.input?.uiLocale || body.input?.language);
+    const locale=requestUiLocale(req,body.input?.uiLocale || body.input?.language || body.uiLocale);
     if (body.action === "task") {
       const task = await startMobileTask(profileId, {...body.input,uiLocale:locale});
       const view=taskView(task,readCandidatureStore(profileId).jobs,true,locale);
       if(view.result && task.kind!=="ingest")view.result=await localizeDisplay(profileId,locale,view.result,"result",{identity:task.id});
       return Response.json(view, { status: task.status === "completed" ? 200 : 202 });
+    }
+    if (body.action === "batchTasks") {
+      const inputs=Array.isArray(body.inputs) ? body.inputs.slice(0,24) : [];
+      if(!inputs.length) throw new Error("Aucune tâche sélectionnée.");
+      const jobs=readCandidatureStore(profileId).jobs;
+      const tasks=[];
+      for(const input of inputs) {
+        if(!input || typeof input!=="object" || Array.isArray(input)) continue;
+        const task=await startMobileTask(profileId,{...input,uiLocale:locale});
+        tasks.push(taskView(task,jobs,false,locale));
+      }
+      if(!tasks.length) throw new Error("Aucune tâche sélectionnée.");
+      return Response.json({ok:true,tasks},{status:tasks.every(task=>["completed","failed"].includes(task.status))?200:202});
+    }
+    if (body.action === "saveOffers") {
+      const offers=Array.isArray(body.offers) ? body.offers.slice(0,24) : [];
+      if(!offers.length) throw new Error("Aucune offre sélectionnée.");
+      const jobs=[];
+      for(const offer of offers) jobs.push(await saveMobileOffer(profileId,offer));
+      return Response.json({ok:true,jobs});
     }
     if (body.action === "saveOffer") return Response.json({ ok: true, job: await saveMobileOffer(profileId, body.offer) });
     if (body.action === "updateJob") return Response.json({ ok: true, job: updateMobileJob(profileId, String(body.id), body.change || {}) });

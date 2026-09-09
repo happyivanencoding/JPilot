@@ -21,7 +21,7 @@ import { generateTailoredCv } from "@/lib/tailored-cv";
 import { cvAnalysisPrompt } from "@/lib/cv-analysis-prompt.mjs";
 import { parseAnalysisResult } from "@/lib/analysis-result.mjs";
 import {preservePresentationLanguage} from "@/lib/cv-global-plan.mjs";
-import { FLOW_DEFAULTS, historicalEstimate } from "@/lib/ai-metrics.mjs";
+import { FLOW_DEFAULTS, flowEstimate } from "@/lib/ai-metrics.mjs";
 import {uiLocale,applicationLanguage,explanationDirective} from "@/lib/language-contract.mjs";
 
 // Operational records only. CV/config/notes/candidatures remain the existing authority.
@@ -306,9 +306,16 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
     } else if (task.kind === "evaluate") {
       task.phase = "Évaluation officielle et enregistrement du rapport"; saveTask(task);
       await consume(task, "/api/run", { kind: "evaluate", input: task.input.url, profileId: task.profileId, inputVersionId: task.inputVersionId, uiLocale:task.input.uiLocale }, "events");
-      const check = await (await coreRequest(task.profileId, `/api/run/status?profileId=${encodeURIComponent(task.profileId)}&input=${encodeURIComponent(String(task.input.url))}`)).json();
-      if (!check.done) throw new Error("Le rapport officiel n’a pas été retrouvé. Évaluation non confirmée.");
-      await coreRequest(task.profileId, `/api/candidatures?profileId=${encodeURIComponent(task.profileId)}`);
+      const check = findPersistedEvaluation(task.profileId,String(task.input.url));
+      if (!check?.done) throw new Error("Le rapport officiel n’a pas été retrouvé. Évaluation non confirmée.");
+      // Do not loop back through the running Web server after an in-process
+      // evaluation. Keeping reconciliation in the same Candidate root makes
+      // isolated acceptance, local development and future deployments behave
+      // identically instead of depending on 127.0.0.1:3000 pointing at the
+      // exact same runtime root.
+      const {GET:syncCandidatures}=await import("@/app/api/candidatures/route");
+      const synced=await syncCandidatures(new Request(localUrl(`/api/candidatures?profileId=${encodeURIComponent(task.profileId)}`)));
+      if(!synced.ok) throw new Error((await synced.text()).slice(0,1500) || `HTTP ${synced.status}`);
       task.result = check;
     } else if (task.kind === "rewrite") {
       task.status="running";task.phase="Application des reformulations déjà proposées";saveTask(task);
@@ -416,7 +423,7 @@ export async function startMobileTask(profileId: string, input: Record<string, u
     const defaults=FLOW_DEFAULTS[kind as keyof typeof FLOW_DEFAULTS];
     const next:MobileTask={id:randomUUID(),profileId,kind,status:"queued",phase:"En attente de traitement",createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),ownerPid:process.pid,input:{...input},text:"",operationKey:key,inputVersionId:version.id,cvVersion:version.cvVersion,
       metrics:defaults?{...defaults,inputTokens:null,outputTokens:null,totalTokens:null,actualCostUsd:null}:undefined,
-      estimate:defaults?historicalEstimate(tasks,kind,defaults.model,defaults.reasoning):undefined};
+      estimate:defaults?flowEstimate(tasks,kind,defaults.model,defaults.reasoning):undefined};
     next.selectedJobs=jobs.filter(j=>j.id===input.jobId || (Array.isArray(input.jobIds) && input.jobIds.includes(j.id)));
     if(uploadPath)next.uploadSource=uploadPath;
     saveTask(next);created=true;return next;

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from "react";
+import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from "react";
 import { ArrowUpRight, ChevronRight, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -27,6 +27,36 @@ export function RowLink({ children, trailing, onClick, testId }: { children: Rea
 export function Tabs({ labels, selected, onChange, prefix = "tab" }: { labels: string[]; selected: number; onChange: (tab: number) => void; prefix?: string }) { return <div className="jp-tabs" role="tablist">{labels.map((label, i) => <button type="button" key={i} role="tab" aria-selected={selected === i} data-testid={`${prefix}-${i}`} onClick={() => onChange(i)}>{label}</button>)}</div>; }
 export function Markdown({ text }: { text?: string }) { return text ? <div className="jp-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ({ href, children }) => <External url={href}>{children}</External>, img: ({ alt }) => <span>{alt}</span>, table: ({ children }) => <div className="jp-table-scroll"><table>{children}</table></div> }}>{text}</ReactMarkdown></div> : null; }
 export function Spinner({ small = false }: { small?: boolean }) { return <span className={`jp-spinner ${small ? "small" : ""}`} aria-hidden="true" />; }
+function remainingText(seconds: number, tr: (z: string, f: string, e?: string) => string) {
+  if (seconds < 60) return tr(`预计剩余 ${seconds} 秒`, `Environ ${seconds} s restantes`, `About ${seconds} s remaining`);
+  const minutes = Math.ceil(seconds / 60);
+  return tr(`预计剩余约 ${minutes} 分钟`, `Environ ${minutes} min restantes`, `About ${minutes} min remaining`);
+}
+export function EstimatedProgress({ createdAt, estimate, large = false }: { createdAt?: string; estimate?: Json; large?: boolean }) {
+  const { tr } = usePilot();
+  const target = Number(estimate?.targetSeconds || estimate?.maxSeconds || 0);
+  const started = Date.parse(createdAt || "");
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!target || !Number.isFinite(started)) return;
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [createdAt, started, target]);
+  if (!target || !Number.isFinite(started)) return <Hint>{estimate?.label || tr("正在估算耗时", "Estimation en cours", "Estimating duration")}</Hint>;
+  const elapsed = Math.max(0, (now - started) / 1000);
+  const overdue = elapsed >= target;
+  const remaining = Math.max(0, target - Math.floor(elapsed));
+  // This ring visualizes elapsed time against an ETA, not model-reported progress.
+  // It deliberately stays below 100% until the task reaches a real terminal state.
+  const progress = Math.min(.96, Math.max(.04, elapsed / target));
+  const center = overdue ? "…" : remaining < 60 ? `${remaining}s` : `${Math.ceil(remaining / 60)}m`;
+  const style = { "--jp-task-progress": `${progress * 360}deg` } as CSSProperties;
+  return <div className={`jp-estimated-progress${large ? " large" : ""}`} role="status" aria-label={overdue ? tr("已超过预计时间，仍在处理中", "Durée estimée dépassée, traitement toujours en cours", "Estimated time exceeded, still processing") : remainingText(remaining, tr)}>
+    <span className="jp-estimated-ring" style={style}><span>{center}</span></span>
+    <span className="jp-estimated-copy"><strong>{overdue ? tr("已超过预计时间，仍在处理中", "Durée estimée dépassée · toujours en cours", "Estimated time exceeded · still processing") : remainingText(remaining, tr)}</strong><small>{estimate?.label}</small></span>
+  </div>;
+}
 export function Loading({ children }: { children?: ReactNode }) { const { tr } = usePilot(); return <div className="jp-loading" role="status"><Spinner /><Hint>{children || tr("正在读取你的档案…", "Chargement de votre profil…", "Loading your profile…")}</Hint></div>; }
 export function Localization({ value, onRetry }: { value?: Json; onRetry?: () => void }) {
   const { tr, retryLocalization } = usePilot();

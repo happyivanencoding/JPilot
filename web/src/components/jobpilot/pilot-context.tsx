@@ -13,6 +13,8 @@ export const texts = (value: unknown): string[] => Array.isArray(value) ? value.
 const empty = (): Json => ({ jobs: [], tasks: [], profiles: [], profile: {}, config: {}, dashboard: { actionSets: {} }, discovery: { offers: [] }, cv: "", cvState: {}, analysis: {} });
 const translations = dictionary as Record<string, Partial<Record<Locale, string>>>;
 type Notice = { text: string; taskId?: string } | null;
+export type TaskLaunch = { ids: string[]; title: string; estimate: Json; createdAt: string } | null;
+const AI_TASK_KINDS = new Set(["evaluate", "cv", "analysis", "plan", "practice", "compare", "coach"]);
 
 function useController(profileId: string) {
   const [locale, setLocale] = useState<Locale>("zh");
@@ -26,6 +28,7 @@ function useController(profileId: string) {
   const [error, setError] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
+  const [taskLaunch, setTaskLaunch] = useState<TaskLaunch>(null);
   const [trainingJob, setTrainingJob] = useState("");
   const dataRef = useRef(data), routeRef = useRef(route), detailRef = useRef(detail);
   dataRef.current = data; routeRef.current = route; detailRef.current = detail;
@@ -190,9 +193,27 @@ function useController(profileId: string) {
     const task = await request("/api/mobile", { method: "POST", body: JSON.stringify({ action: "task", profileId, input: { ...input, uiLocale: locale, language: locale } }) });
     await refresh();
     if (task.status === "completed" || task.status === "failed") navigate(destinationFor(task));
+    else if (AI_TASK_KINDS.has(String(input.kind))) setTaskLaunch({ ids: [task.id], title: task.title || String(input.kind), estimate: task.estimate || dataRef.current.flowEstimates?.[String(input.kind)] || { label: tr("正在估算耗时", "Estimation en cours", "Estimating duration") }, createdAt: task.createdAt || new Date().toISOString() });
     else notify(`${task.title} · ${task.estimate?.label || tr("可继续使用其他页面", "Vous pouvez continuer à naviguer", "You can keep browsing")}`, task.id);
     return task;
   }), [execute, request, profileId, locale, refresh, navigate, notify, tr]);
+  const startTasks = useCallback(async (inputs: Json[], title: string) => execute(async () => {
+    if (!inputs.length) return;
+    const result = await request("/api/mobile", { method: "POST", body: JSON.stringify({ action: "batchTasks", profileId, uiLocale: locale, inputs: inputs.map(input => ({ ...input, uiLocale: locale, language: locale })) }) });
+    await refresh();
+    const active = rows(result.tasks).filter(task => ACTIVE.has(task.status));
+    if (active.length) {
+      const slowest = [...active].sort((a,b) => Number(b.estimate?.targetSeconds || b.estimate?.maxSeconds || 0) - Number(a.estimate?.targetSeconds || a.estimate?.maxSeconds || 0))[0];
+      setTaskLaunch({ ids: active.map(task => String(task.id)), title, estimate: slowest?.estimate || { label: tr("正在估算耗时", "Estimation en cours", "Estimating duration") }, createdAt: slowest?.createdAt || new Date().toISOString() });
+    }
+    else notify(title);
+    return result;
+  }), [execute, request, profileId, locale, refresh, notify, tr]);
+  const saveOffers = useCallback(async (offers: Json[]) => execute(async () => {
+    if (!offers.length) return;
+    const result = await request("/api/mobile", { method: "POST", body: JSON.stringify({ action: "saveOffers", profileId, offers }) });
+    await refresh(); notify(tr(`已收藏 ${offers.length} 个岗位`, `${offers.length} offres enregistrées`, `Saved ${offers.length} roles`)); return result;
+  }), [execute, request, profileId, refresh, notify, tr]);
   const upload = useCallback(async (file: File) => execute(async () => {
     if (!/\.(pdf|docx|txt|md)$/i.test(file.name) || !file.size || file.size > 12 * 1024 * 1024) throw new Error(tr("请选择 PDF、DOCX、TXT 或 MD，最大 12 MB。", "PDF, DOCX, TXT ou MD · 12 Mo maximum.", "Choose PDF, DOCX, TXT or MD, up to 12 MB."));
     const form = new FormData(); form.set("file", file);
@@ -205,9 +226,9 @@ function useController(profileId: string) {
   }), [execute, request]);
   const retryLocalization = useCallback(() => routeRef.current.view === "task" || routeRef.current.view === "report" ? refreshDetail(true) : refresh(true), [refresh, refreshDetail]);
   const openJob = useCallback((job: string, jobTab = 0) => navigate({ tab: routeRef.current.tab, view: "job", job, jobTab: String(jobTab) }), [navigate]);
-  return { profileId, locale, theme, ready, data, detail, route, selectedJob, loading, busy, error, expired, notice,
-    tr, product, setLocale, setTheme, setError, setNotice, setTrainingJob, request, documentBytes, apiUrl, fail, notify,
-    navigate, close, refresh, retryLocalization, act, startTask, openTask, upload, switchProfile, openJob, execute };
+  return { profileId, locale, theme, ready, data, detail, route, selectedJob, loading, busy, error, expired, notice, taskLaunch,
+    tr, product, setLocale, setTheme, setError, setNotice, setTaskLaunch, setTrainingJob, request, documentBytes, apiUrl, fail, notify,
+    navigate, close, refresh, retryLocalization, act, startTask, startTasks, saveOffers, openTask, upload, switchProfile, openJob, execute };
 }
 type PilotController = ReturnType<typeof useController>;
 const Context = createContext<PilotController | null>(null);

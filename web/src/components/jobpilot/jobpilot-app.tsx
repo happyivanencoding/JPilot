@@ -8,7 +8,17 @@ import { ApplicationsPage, HomePage, OffersPage } from "./catalog";
 import { CvEditor, PreparePage, ProfilePage } from "./profile-prepare";
 import { AnalysisSheet, CompareSheet, JobSheet, ResultSheet, TasksSheet } from "./sheets";
 import { PdfPreview } from "./pdf-preview";
-import { Button, Empty, Hint, IconButton, Loading, Localization, Sheet, Spinner } from "./ui";
+import { Button, Empty, EstimatedProgress, Hint, IconButton, Loading, Localization, Sheet, Spinner } from "./ui";
+
+function TaskLaunchOverlay() {
+  const {taskLaunch,setTaskLaunch,tr}=usePilot();
+  const [flying,setFlying]=useState(false);
+  const identity=taskLaunch?.ids.join(",") || "";
+  useEffect(()=>{setFlying(false);},[identity]);
+  useEffect(()=>{if(!flying)return;const timer=setTimeout(()=>setTaskLaunch(null),430);return()=>clearTimeout(timer);},[flying,setTaskLaunch]);
+  if(!taskLaunch)return null;
+  return <div className={`jp-task-launch-backdrop${flying?" flying":""}`} data-testid="background-task-launch"><div className="jp-task-launch-card"><div className="jp-task-launch-icon"><ClipboardClock size={44}/></div><h2>{tr("正在后台处理","Traitement en arrière-plan","Processing in the background")}</h2><strong>{taskLaunch.title}</strong><EstimatedProgress createdAt={taskLaunch.createdAt} estimate={taskLaunch.estimate} large /><Hint>{taskLaunch.ids.length>1?tr(`${taskLaunch.ids.length} 个任务已经加入右上角任务列表。你可以继续使用其他页面。`,`${taskLaunch.ids.length} tâches ont été ajoutées en haut à droite. Vous pouvez continuer à naviguer.`,`${taskLaunch.ids.length} tasks were added to the top-right task center. You can keep browsing.`):tr("任务已经加入右上角任务列表。你可以继续使用其他页面。","La tâche a été ajoutée en haut à droite. Vous pouvez continuer à naviguer.","The task was added to the top-right task center. You can keep browsing.")}</Hint><Button data-testid="confirm-background-task" disabled={flying} onClick={()=>setFlying(true)}>{tr("知道了","Compris","Got it")}</Button></div></div>;
+}
 
 function Phone() {
   const p = usePilot();
@@ -35,7 +45,7 @@ function Phone() {
   const labels = [tr("首页", "Accueil", "Home"), tr("机会", "Offres", "Offers"), tr("投递", "Candidatures", "Applications"), tr("准备", "Préparer", "Prepare"), tr("档案", "Dossier", "Profile")];
   const icons = [House, Search, BriefcaseBusiness, GraduationCap, UserRound];
   const active = rows(data.tasks).filter(t => ACTIVE.has(t.status)).length;
-  const hasOverlay = Boolean(route.view);
+  const hasOverlay = Boolean(route.view || p.taskLaunch);
   const reload = async () => { if (refreshing) return; setRefreshing(true); await refresh(); setRefreshing(false); };
   const pages = [<HomePage key="home" />, <OffersPage key="offers" />, <ApplicationsPage key="applications" />, <PreparePage key="prepare" />, <ProfilePage key="profile" />];
   const canShowData = Boolean(data.profile?.id);
@@ -62,6 +72,7 @@ function Phone() {
       {(route.view === "task" || route.view === "report") && <ResultSheet />}
       {route.view === "edit-cv" && <CvEditor />}
       {route.view === "pdf" && <PdfPreview key={`${route.job || ""}:${route.draft || ""}`} />}
+      <TaskLaunchOverlay />
     </>}
   </div></div></div>;
 }

@@ -18,7 +18,9 @@ import org.json.JSONArray
 import java.io.File
 
 private val activeStates = setOf("queued", "running", "reconciling")
+private val aiTaskKinds = setOf("evaluate", "cv", "analysis", "plan", "practice", "compare", "coach")
 data class CvPreview(val files: List<File>, val meta: JSONObject = JSONObject(), val draftId: String? = null)
+data class TaskLaunchFeedback(val ids: List<String>, val title: String, val estimate: JSONObject, val createdAt: String)
 data class PilotState(
     val loggedIn: Boolean = false, val loading: Boolean = false, val working: Boolean = false,
     val profileId: String = "", val snapshot: JSONObject = JSONObject(),
@@ -29,6 +31,7 @@ data class PilotState(
     val destination: JSONObject? = null, val analysisVisible: Boolean = false,
     val cvPreview: CvPreview? = null, val previewLoading: Boolean = false,
     val noticeTaskId: String? = null, val selectedJobTab: Int = 0,
+    val taskLaunch: TaskLaunchFeedback? = null,
 )
 class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     val api = JobPilotApi(app)
@@ -68,6 +71,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     fun setForeground(value: Boolean) { foreground = value; if (value && mutable.value.loggedIn) refresh(silent = true) }
     fun clearMessage() { mutable.update { it.copy(error = null, notice = null) } }
     fun clearNotice() { mutable.update { it.copy(notice = null, noticeTaskId = null) } }
+    fun clearTaskLaunch() { mutable.update { it.copy(taskLaunch = null) } }
     fun consumeDestination() { mutable.update { it.copy(destination = null) } }
     fun showAnalysis(show: Boolean = true) { mutable.update { it.copy(analysisVisible = show) } }
     fun closePreview() { previewGeneration++; previewMetaJob?.cancel(); previewMetaJob=null; mutable.update { it.copy(cvPreview = null, previewLoading = false) } }
@@ -124,7 +128,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         detailJob?.cancel();detailJob=null;reportJob?.cancel();reportJob=null
         generation++; refreshJob?.cancel(); refreshJob = null
         prefs.edit().putString("profile", id).apply()
-        mutable.update { it.copy(profileId = id, snapshot = JSONObject(), task = null, selectedJob = null, error = null, working = false, notice = null, noticeTaskId = null, destination = null, analysisVisible = false, cvPreview = null, previewLoading = false) }
+        mutable.update { it.copy(profileId = id, snapshot = JSONObject(), task = null, selectedJob = null, error = null, working = false, notice = null, noticeTaskId = null, taskLaunch = null, destination = null, analysisVisible = false, cvPreview = null, previewLoading = false) }
         refresh()
     }
     fun appearance(language: String = mutable.value.language, theme: String = mutable.value.theme) {
@@ -180,17 +184,48 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         input.put("language", mutable.value.language)
         input.put("uiLocale", mutable.value.language)
         viewModelScope.launch {
-            val estimate = mutable.value.snapshot.child("flowEstimates").child(input.text("kind")).text("label", "Habituellement quelques minutes")
-            mutable.update { it.copy(working = true, error = null, notice = "Traitement demandé · $estimate", noticeTaskId = null) }
+            val estimate = mutable.value.snapshot.child("flowEstimates").child(input.text("kind"))
+            val estimateLabel = estimate.text("label", "Habituellement quelques minutes")
+            mutable.update { it.copy(working = true, error = null, notice = "Traitement demandé · $estimateLabel", noticeTaskId = null) }
             try {
                 val task = withContext(Dispatchers.IO) { api.request("/api/mobile",profile,json("action" to "task", "profileId" to profile, "input" to input)) }
                 if (epoch == generation) {
                     mutable.update { it.copy(working = false) }
                     if (task.text("status") == "completed" || task.text("status") == "failed") openTaskResult(task)
-                    else mutable.update { it.copy(notice = task.text("title") + " · " + task.child("estimate").text("label", estimate), noticeTaskId = task.text("id")) }
+                    else if(input.text("kind") in aiTaskKinds) mutable.update { it.copy(notice = null, noticeTaskId = task.text("id"), taskLaunch = TaskLaunchFeedback(listOf(task.text("id")),task.text("title",input.text("kind")),task.child("estimate").takeIf { value -> value.length()>0 } ?: estimate,task.text("createdAt",java.time.Instant.now().toString()))) }
+                    else mutable.update { it.copy(notice = task.text("title") + " · " + task.child("estimate").text("label", estimateLabel), noticeTaskId = task.text("id")) }
                     refresh(silent = true)
                 }
             } catch (e: Exception) { if (epoch == generation) failure(e) }
+        }
+    }
+    fun startTasks(inputs: List<JSONObject>, title: String) {
+        if(inputs.isEmpty()) return
+        val profile=mutable.value.profileId;val epoch=generation;val language=mutable.value.language
+        viewModelScope.launch {
+            mutable.update { it.copy(working=true,error=null,notice=null) }
+            try {
+                val prepared=JSONArray(inputs.map { JSONObject(it.toString()).put("language",language).put("uiLocale",language) })
+                val response=withContext(Dispatchers.IO) { api.request("/api/mobile",profile,json("action" to "batchTasks","profileId" to profile,"uiLocale" to language,"inputs" to prepared)) }
+                if(epoch==generation) {
+                    val tasks=response.objects("tasks")
+                    val active=tasks.filter { it.text("status") in activeStates }
+                    val slowest=active.maxByOrNull { task -> task.child("estimate").optDouble("targetSeconds",task.child("estimate").optDouble("maxSeconds",0.0)) }
+                    mutable.update { state -> state.copy(working=false,taskLaunch=slowest?.let { task -> TaskLaunchFeedback(active.map { it.text("id") },title,task.child("estimate"),task.text("createdAt",java.time.Instant.now().toString())) },notice=if(active.isEmpty()) title else null,noticeTaskId=active.firstOrNull()?.text("id")) }
+                    refresh(silent=true)
+                }
+            } catch(e:Exception) { if(epoch==generation) failure(e) }
+        }
+    }
+    fun saveOffers(offers: List<JSONObject>) {
+        if(offers.isEmpty()) return
+        val profile=mutable.value.profileId;val epoch=generation
+        viewModelScope.launch {
+            mutable.update { it.copy(working=true,error=null) }
+            try {
+                withContext(Dispatchers.IO) { api.request("/api/mobile",profile,json("action" to "saveOffers","profileId" to profile,"offers" to JSONArray(offers))) }
+                if(epoch==generation) { mutable.update { it.copy(working=false,notice=when(it.language){"zh"->"已收藏 ${offers.size} 个岗位";"en"->"Saved ${offers.size} roles";else->"${offers.size} offres enregistrées"},noticeTaskId=null) };refresh(silent=true) }
+            } catch(e:Exception) { if(epoch==generation) failure(e) }
         }
     }
     fun upload(uri: Uri) {

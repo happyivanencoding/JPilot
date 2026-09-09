@@ -14,13 +14,13 @@ fs.mkdirSync(path.join(root,'data'));
 fs.writeFileSync(path.join(root,'data/profiles.json'),JSON.stringify({version:1,defaultProfileId:'fixture-a',profiles:['fixture-a','fixture-b'].map(id=>({id,name:id,shortName:id,cvMarkdown:`data/${id}/cv.md`,config:`data/${id}/profile.yml`,notes:`data/${id}/notes.md`,candidatures:`data/${id}/candidatures.json`}))}));
 let calls=0,broken=false;
 globalThis.__testLocalize=async options=>{
-  calls++;options.onRun?.({runId:`fixture-${calls}`});
+  calls++;options.onRun?.({runId:`fixture-${calls}`,sessionId:'',transport:'deepseek-direct'});
   await new Promise(r=>setTimeout(r,20));
   const rows=JSON.parse(options.prompt.slice(options.prompt.lastIndexOf('\n')+1));
   options.onFinalText(JSON.stringify({translations:rows.map(row=>({id:row.id,text:broken?'错误输出':`中文说明 ${row.text}`}))}));
 };
-const stub='data:text/javascript,'+encodeURIComponent('export async function openAgentDockCodex(){return {client:{}}} export async function runAgentDockCodex(options){return globalThis.__testLocalize(options)}');
-const hooks=registerHooks({resolve(specifier,context,next){return specifier==='@/lib/agentdock-acp'?{url:stub,shortCircuit:true}:next(specifier,context)}});
+const stub='data:text/javascript,'+encodeURIComponent('export async function runTranslationTransport(options){return globalThis.__testLocalize(options)}');
+const hooks=registerHooks({resolve(specifier,context,next){return specifier==='@/lib/model-transport'?{url:stub,shortCircuit:true}:next(specifier,context)}});
 const {localizeDisplay}=await import('../src/lib/display-localization.ts');
 const {historyDirectory}=await import('../src/lib/mobile-history.ts');
 const {readJson}=await import('../src/lib/mobile-state.mjs');

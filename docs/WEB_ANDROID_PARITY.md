@@ -1,4 +1,4 @@
-# JobPilot Web 0.4.0 — Android-aligned product
+# JobPilot Web 0.4.2 — Android-aligned product
 
 ## Product decision — 2026-09-08
 
@@ -6,11 +6,29 @@ The Web client is now JobPilot, not a separate upstream Career-Ops workbench. Th
 
 **Development repository:** `https://github.com/happyivanencoding/JPilot`. Native Android is the frontend product authority; Web parity follows Android rather than evolving independently. Historical Career-Ops upstream/release/update machinery is not part of the JPilot development path. See `PROJECT_STRUCTURE.md`.
 
+**Hard parity release gate:** every Android UI/product behavior change must include and verify its equivalent phone-first Web behavior in the same development change/release. An Android release is not complete while the Web version is intentionally left behind. Backend-only changes are the normal exception.
+
+## 0.4.2 parity delta — Android 0.3.4
+
+- Active AI tasks now receive a concrete ETA range from the shared backend. Three or more comparable successful production runs for the same flow/model/reasoning override the fallback; otherwise the UI uses the latest verified direct-model flow baselines. The same `estimate.minSeconds/maxSeconds/targetSeconds/source` object is consumed by Android and Web.
+- The centered background-task acknowledgement now includes a circular ETA indicator and live “estimated remaining” text. The task center uses the same indicator for each active task. This is not a model progress API: it visualizes elapsed time against the ETA, stops below 100% while the task is active, and switches to an explicit “estimated time exceeded, still processing” message after the target.
+- Batch launches display the longest active task estimate in the centered acknowledgement; each task retains its own individual estimate after it enters the task center.
+- Browser QA was rebuilt against the new code and now asserts the ETA ring/remaining-time contract. Chromium/Edge **22/22** and WebKit **22/22** isolated groups pass with the synthetic API and zero production Candidate writes. Production `next build` and TypeScript also pass.
+
+## 0.4.1 parity delta — Android 0.3.3
+
+- Offers now support select-all for the currently visible pending set, individual selection, bulk save and bulk formal evaluation. Applications exposes one action to evaluate every currently unrated saved role; existing queued/running evaluations are excluded and backend task identity remains idempotent.
+- Every AI action now gives a strong centered acknowledgement. It states that processing continues in the background and that the task is in the top-right task center. Pressing the confirmation button shrinks/fades the card toward that task center; reduced-motion browser settings remain respected.
+- A job-detail interview question's “Practice this question” action now scrolls directly to targeted practice and carries the selected question into the editor rather than changing invisible state above the fold.
+- The main phone scroll surface disables elastic overscroll at its boundary, matching the native Offer-list fix and removing the bottom-edge bounce/jitter feedback.
+- Tailored CV empty-keyword ATS handling and formal-evaluation post-run reconciliation were repaired in the shared backend; see `AI_BENCHMARK_2026-09-08.md`.
+- Isolated browser acceptance now covers **22 groups in Edge/Chromium and 22 in WebKit**, including bulk actions, the background-task animation contract and practice auto-scroll. No production Candidate writes occur in that suite.
+
 ## AI runtime — transport-only ACP
 
 The shared server-side AI runtime now treats AgentDock/ACP strictly as model transport. Product inference receives backend-assembled data and cannot use terminal/filesystem/web/browser/plugins/skills/sub-agents. Formal evaluation returns JSON and the backend owns report/tracker persistence. Structured providers, not ACP web search, are the discovery network layer. CV ingest is extracted locally before inference; tailored CV generation embeds the frozen Candidate version. This changes backend latency/security boundaries, not the phone-frame Web interaction contract. See `AI_BENCHMARK_2026-09-08.md` for the measured transport tax and quality comparison.
 
-The reference is the actual Android 0.3.2 implementation in `android/app/src/main/java/com/thegreatnovel/jobpilot/`, particularly `PilotApp`, `PilotDesign`, `CatalogScreens`, `PreparationScreens`, `DetailSheets`, `CvAnalysisScreens` and `CvPreview`. Do not infer current requirements from old Web screenshots or the historical upstream README.
+The reference is the actual Android 0.3.4 implementation in `android/app/src/main/java/com/thegreatnovel/jobpilot/`, particularly `PilotApp`, `PilotDesign`, `CatalogScreens`, `PreparationScreens`, `DetailSheets`, `CvAnalysisScreens` and `CvPreview`. Do not infer current requirements from old Web screenshots or the historical upstream README.
 
 ## Layout and interaction
 
@@ -80,7 +98,7 @@ Regular deployment uses the existing `JobPilot web` Scheduled Task and `web/scri
 
 ## Acceptance status
 
-**Deployed to the existing product URL on 2026-09-08.** Web package 0.4.0; production BUILD_ID `PZ9nmFnLTKFHtvNIuwks1`. The native APK and backend mobile contract remain 0.3.2/code6; this release does not replace the APK.
+**0.4.2 is built and deployed to the existing product service on 2026-09-09 together with Android 0.3.4/code8 and backend mobile contract 0.3.4.** The earlier 0.4.1/0.4.0 evidence below remains historical evidence for prior releases, not the current running build.
 
 | Verification | Observed result |
 | --- | --- |

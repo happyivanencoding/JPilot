@@ -1,5 +1,5 @@
 import { careerOpsRoot } from "@/lib/career-ops";
-import { prewarmModelTransport, modelTransportInfo } from "@/lib/model-transport";
+import { prewarmModelTransport, prewarmTranslationTransport, modelTransportInfo } from "@/lib/model-transport";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,8 +15,8 @@ export async function GET(req: Request) {
   if (!loopbackOnly(req)) return Response.json({ error: "loopback only" }, { status: 403 });
   const started = Date.now();
   try {
-    await prewarmModelTransport(careerOpsRoot());
-    return Response.json({ ready: true, wallMs: Date.now() - started, ...modelTransportInfo() });
+    await Promise.all([prewarmModelTransport(careerOpsRoot()), prewarmTranslationTransport()]);
+    return Response.json({ ready: true, wallMs: Date.now() - started, ...modelTransportInfo(), translationTransport: "deepseek-direct" });
   } catch (error) {
     return Response.json({ ready: false, wallMs: Date.now() - started, error: error instanceof Error ? error.message : String(error) }, { status: 503 });
   }

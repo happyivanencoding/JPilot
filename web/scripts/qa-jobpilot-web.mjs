@@ -136,7 +136,11 @@ try {
     await page.getByLabel('我的回答', { exact: true }).fill('A documented example of research with a clear method.'); await buttons('获取逐项反馈').click(); await shown('result-sheet');
     assert.equal(api.posts.findLast(p => p.body?.input?.kind === 'practice').body.input.jobId, 'qa-role-1'); await close();
     await page.getByLabel('关于我的职业路径……', { exact: true }).fill('How should I prioritize my research experience?'); await buttons('一起思考').click(); await shown('result-sheet'); assert.ok(api.posts.some(p => p.body?.input?.kind === 'coach')); await close();
-    await buttons('查看／更新训练计划').click(); await shown('job-detail-qa-role-1'); assert.equal(await byId('job-tab-2').getAttribute('aria-selected'), 'true'); await shot('interview-plan-zh'); await close();
+    await buttons('查看／更新训练计划').click(); await shown('job-detail-qa-role-1'); assert.equal(await byId('job-tab-2').getAttribute('aria-selected'), 'true');
+    const jobContent=byId('job-content');await jobContent.evaluate(el=>{el.scrollTop=0;});const beforeScroll=await jobContent.evaluate(el=>el.scrollTop);
+    await byId('practice-this-question').click();await eventually(async()=>await jobContent.evaluate(el=>el.scrollTop)>beforeScroll);
+    const targeted=byId('targeted-practice');await targeted.waitFor({state:'visible'});await eventually(async()=>await targeted.getByLabel('面试问题',{exact:true}).inputValue()==='Describe your research process.');
+    await shot('interview-plan-zh'); await close();
   });
   await check('search stays in background, repeated click submits once, completion routes to offers', async () => {
     await nav('offers'); const before = api.posts.filter(p => p.body?.input?.kind === 'search').length;
@@ -146,9 +150,18 @@ try {
     t.status = 'completed'; await shown('offers-page'); await page.locator('.jp-overlay').waitFor({ state: 'hidden', timeout: 15000 });
     assert.equal(api.posts.filter(p => p.body?.input?.kind === 'search').length, before + 1); await shot('offers-zh');
   });
-  await check('save and evaluate offer send explicit actions; unrated source never gets a fake score', async () => {
-    await buttons('保存').click(); await eventually(() => api.fixtures[ids[0]].jobs.some(j => j.id === 'qa-saved-offer')); assert.equal(api.fixtures[ids[0]].jobs.at(-1).score, null);
-    await buttons('岗位评估').click(); await shown('job-detail-qa-saved-offer'); assert.ok(api.posts.some(p => p.body?.input?.kind === 'evaluate')); await close();
+  await check('pending offers select-all supports batch evaluation/save and AI launch flies into task center', async () => {
+    await nav('offers');await byId('select-all-pending').click();await byId('bulk-evaluate-offers').waitFor();
+    await byId('bulk-evaluate-offers').click();await shown('background-task-launch');
+    const launchText=await byId('background-task-launch').innerText();assert.match(launchText,/正在后台处理/);assert.match(launchText,/预计剩余|预计耗时/);assert.equal(await byId('background-task-launch').locator('.jp-estimated-ring').count(),1);const batch=api.posts.findLast(p=>p.body?.action==='batchTasks');assert.ok(batch.body.inputs.every(input=>input.kind==='evaluate'));
+    await byId('confirm-background-task').click();await byId('background-task-launch').waitFor({state:'hidden'});batch.body.inputs.forEach((_,index)=>{const task=api.fixtures[ids[0]].tasks[index];if(task)task.status='completed';});
+    await byId('select-all-pending').click();await byId('bulk-save-offers').click();await eventually(()=>api.posts.some(p=>p.body?.action==='saveOffers'));
+    const saved=api.fixtures[ids[0]].jobs.find(j=>j.url==='https://example.test/jobs/new');assert.ok(saved);assert.equal(saved.score,null);
+  });
+  await check('applications can evaluate every unrated role with one background batch', async () => {
+    await nav('applications');const before=api.posts.filter(p=>p.body?.action==='batchTasks').length;await byId('evaluate-all-unrated').click();await shown('background-task-launch');
+    const post=api.posts.findLast(p=>p.body?.action==='batchTasks');assert.ok(post.body.inputs.length>=1);assert.ok(post.body.inputs.every(input=>input.kind==='evaluate'));assert.equal(api.posts.filter(p=>p.body?.action==='batchTasks').length,before+1);
+    await byId('confirm-background-task').click();await byId('background-task-launch').waitFor({state:'hidden'});for(const task of api.fixtures[ids[0]].tasks.filter(t=>t.status==='queued'&&t.kind==='evaluate'))task.status='completed';
   });
   await check('profile switch isolates all state and requests despite a shared browser cookie', async () => {
     await byId('profile-switch').selectOption(ids[1]); await page.getByText('Beta QA — SYNTHETIC', { exact: true }).first().waitFor(); await nav('applications');

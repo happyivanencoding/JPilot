@@ -6,6 +6,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -19,6 +20,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import org.json.JSONArray
 
@@ -37,6 +39,8 @@ import org.json.JSONArray
     var replyKind by rememberSaveable(job.text("id")) { mutableStateOf("Recruteur") }
     var practiceQuestion by rememberSaveable(job.text("id")) { mutableStateOf("") }
     var practiceAnswer by rememberSaveable(job.text("id")) { mutableStateOf("") }
+    val contentState=rememberLazyListState()
+    val scope=rememberCoroutineScope()
     val evaluating=state.snapshot.objects("tasks").any { it.text("kind")=="evaluate" && it.text("jobId")==job.text("id") && it.text("status") in setOf("queued","running","reconciling") }
     ModalBottomSheet(onDismissRequest = { vm.selectJob(null) },sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),modifier = Modifier.imePadding()) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(.92f).testTag("job-detail-${job.text("id")}")) {
@@ -46,7 +50,7 @@ import org.json.JSONArray
             }
             val labels = listOf(tr("匹配","Match","Fit"),"CV",tr("面试","Entretien","Interview"),tr("跟踪","Suivi","Tracking"))
             TabRow(selectedTabIndex = tab,containerColor = androidx.compose.ui.graphics.Color.Transparent) { labels.forEachIndexed { i,label -> Tab(tab == i,{ tab = i },modifier=Modifier.testTag("job-tab-$i"),text = { Text(label,fontSize = 13.sp) }) } }
-            LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("job-content"),contentPadding = PaddingValues(22.dp),verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("job-content"),state=contentState,contentPadding = PaddingValues(22.dp),verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 item { LocalizationNotice(job.child("localization"),vm::retryLocalization) }
                 when(tab) {
                     0 -> {
@@ -82,7 +86,7 @@ import org.json.JSONArray
                         val interview = job.child("interview")
                         if(interview.strings("process").isNotEmpty()) item { GlassCard { Text(tr("面试流程","Processus d’entretien","Interview process"),fontWeight = FontWeight.SemiBold); interview.strings("process").forEach { Bullet(it) }; if(!interview.optBoolean("processKnown")) Pill(tr("实际流程待确认","À confirmer avec le recruteur","Confirm with recruiter"),warm = true) } }
                         if(interview.text("caseStudy").isNotBlank()) item { GlassCard { Text(tr("针对性案例","Cas à préparer","Case preparation"),fontWeight = FontWeight.SemiBold); Text(interview.text("caseStudy"),fontSize = 14.sp) } }
-                        items(interview.objects("questions")) { q -> GlassCard { Text(q.text("question"),fontWeight = FontWeight.SemiBold); Text(q.text("answer"),fontSize = 14.sp); Hint(q.text("proof")); TextButton({ practiceQuestion = q.text("question") }) { Text(tr("练习这道题","M’entraîner à cette question","Practice this question")) } } }
+                        items(interview.objects("questions")) { q -> GlassCard { Text(q.text("question"),fontWeight = FontWeight.SemiBold); Text(q.text("answer"),fontSize = 14.sp); Hint(q.text("proof")); TextButton({ practiceQuestion = q.text("question");scope.launch { val target=(contentState.layoutInfo.totalItemsCount-1).coerceAtLeast(0);contentState.animateScrollToItem(target) } },Modifier.testTag("practice-this-question")) { Text(tr("练习这道题","M’entraîner à cette question","Practice this question")) } } }
                         item { GlassCard {
                             Text(tr("针对性模拟","Simulation ciblée","Targeted practice"),fontSize = 18.sp,fontWeight = FontWeight.SemiBold)
                             OutlinedTextField(practiceQuestion,{ practiceQuestion = it },Modifier.fillMaxWidth(),label = { Text(tr("问题","Question","Question")) },minLines = 2,shape = RoundedCornerShape(18.dp))

@@ -90,7 +90,12 @@ import org.json.JSONObject
     val searching = state.snapshot.objects("tasks").any { it.text("kind") == "search" && it.text("status") in setOf("queued","running","reconciling") }
     val discovery = state.snapshot.child("discovery")
     val visibleOffers = discovery.objects("offers").take(discoveryOfferLimit)
-    LazyColumn(Modifier.fillMaxSize(),contentPadding = PaddingValues(18.dp),verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    var selectedUrls by remember(state.profileId) { mutableStateOf(emptySet<String>()) }
+    LaunchedEffect(visibleOffers.map { it.text("url") }) { selectedUrls=selectedUrls.intersect(visibleOffers.map { it.text("url") }.toSet()) }
+    val selectedOffers=visibleOffers.filter { it.text("url") in selectedUrls }
+    val allSelected=visibleOffers.isNotEmpty() && selectedUrls.size==visibleOffers.size
+    val batchEvaluationTitle=tr("批量岗位评估","Évaluations groupées","Batch evaluations")
+    LazyColumn(Modifier.fillMaxSize(),contentPadding = PaddingValues(18.dp),verticalArrangement = Arrangement.spacedBy(16.dp),overscrollEffect = null) {
         item { SectionTitle(tr("值得看的机会","Les bonnes opportunités","Worth a closer look"),tr("已评估的岗位在「投递」中，不会重复出现在这里。","Les postes évalués se retrouvent dans Candidatures.","Evaluated roles move to Applications.")) }
         item { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(query,{ query = it },Modifier.fillMaxWidth(),label = { Text(tr("搜索目标","Ma recherche","My search")) },minLines = 2,maxLines = 5,shape = RoundedCornerShape(10.dp))
@@ -103,15 +108,28 @@ import org.json.JSONObject
             TextButton({ vm.startTask(json("kind" to "evaluate","url" to url.trim())) },enabled = !state.working && url.startsWith("http")) { Text(tr("查看／评估该岗位","Consulter / évaluer cette offre","View / evaluate this role")); Icon(Icons.Rounded.ArrowForward,null,Modifier.padding(start = 6.dp).size(16.dp)) }
             HorizontalDivider()
         } }
-        item { Row { Text(tr("待处理岗位","À examiner","To review"),Modifier.weight(1f),fontWeight = FontWeight.SemiBold); Hint(discovery.text("searchedAt").take(10)) }; if(discovery.optBoolean("partial"))Hint(discovery.text("warning")) }
+        item { Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment=Alignment.CenterVertically) { Text(tr("待处理岗位","À examiner","To review"),Modifier.weight(1f),fontWeight = FontWeight.SemiBold); Hint(discovery.text("searchedAt").take(10)) }
+            if(visibleOffers.isNotEmpty()) TextButton({ selectedUrls=if(allSelected) emptySet() else visibleOffers.map { it.text("url") }.toSet() },Modifier.testTag("select-all-pending")) { Icon(if(allSelected) Icons.Rounded.Deselect else Icons.Rounded.SelectAll,null,Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(if(allSelected)tr("取消全选","Tout désélectionner","Clear selection")else tr("一键选中所有待处理岗位","Tout sélectionner","Select all pending roles")) }
+            if(selectedOffers.isNotEmpty()) Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                OutlinedButton({ val batch=selectedOffers.map { JSONObject(it.toString()) };selectedUrls=emptySet();vm.saveOffers(batch) },Modifier.weight(1f).testTag("bulk-save-offers"),enabled=!state.working) { Text(tr("收藏 ${selectedOffers.size}","Enregistrer ${selectedOffers.size}","Save ${selectedOffers.size}")) }
+                Button({ val batch=selectedOffers.filter { it.text("lifecycle")!="evaluating" }.map { json("kind" to "evaluate","url" to it.text("url")) };selectedUrls=emptySet();vm.startTasks(batch,batchEvaluationTitle) },Modifier.weight(1f).testTag("bulk-evaluate-offers"),enabled=!state.working && selectedOffers.any { it.text("lifecycle")!="evaluating" }) { Text(tr("评估 ${selectedOffers.size}","Évaluer ${selectedOffers.size}","Evaluate ${selectedOffers.size}")) }
+            }
+            if(discovery.optBoolean("partial"))Hint(discovery.text("warning"))
+        } }
         if(discovery.child("searchMetrics").has("returnedCount")) item { SearchMetricsPanel(discovery.child("searchMetrics")) }
         if(visibleOffers.isEmpty()) item { EmptyCard(tr("这里没有待处理的岗位","Aucune offre en attente ici","No pending offers here"),tr("可以发起搜索，或到投递页查看已有评估。","Lancez une recherche ou consultez vos évaluations dans Candidatures.","Search for opportunities or view evaluations in Applications.")) }
         items(visibleOffers,key = { it.text("url") }) { offer ->
             val saved = offer.text("jobId").isNotBlank() || state.snapshot.objects("jobs").any { it.text("url") == offer.text("url") }
             val evaluating = offer.text("lifecycle") == "evaluating"
             Column(Modifier.fillMaxWidth(),verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text(offer.text("company"),fontSize = 13.sp,color = MaterialTheme.colorScheme.primary,fontWeight = FontWeight.SemiBold)
-                Text(offer.text("title"),fontSize = 20.sp,lineHeight = 26.sp,fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Checkbox(offer.text("url") in selectedUrls,{ checked -> selectedUrls=if(checked) selectedUrls+offer.text("url") else selectedUrls-offer.text("url") },Modifier.testTag("select-offer-${offer.text("url").hashCode()}"))
+                    Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                        Text(offer.text("company"),fontSize = 13.sp,color = MaterialTheme.colorScheme.primary,fontWeight = FontWeight.SemiBold)
+                        Text(offer.text("title"),fontSize = 20.sp,lineHeight = 26.sp,fontWeight = FontWeight.SemiBold)
+                    }
+                }
                 Hint(listOf(offer.text("location"),product(offer.text("contractType"))).filter { it.isNotBlank() && it != "unknown" }.joinToString(" · "))
                 val sourceBits = buildList {
                     if(offer.text("sourceLabel").isNotBlank()) add(product(offer.text("sourceLabel"))) else if(offer.text("source").isNotBlank()) add(offer.text("source"))
@@ -183,6 +201,9 @@ import org.json.JSONObject
     var chosen by remember(state.profileId) { mutableStateOf(setOf<String>()) }
     var comparison by remember { mutableStateOf(false) }
     val jobs = state.snapshot.objects("jobs")
+    val activeEvaluations=state.snapshot.objects("tasks").filter { it.text("kind")=="evaluate" && it.text("status") in setOf("queued","running","reconciling") }
+    val unrated=jobs.filter { job -> job.text("evaluationState")!="evaluated" && job.text("url").startsWith("http") && activeEvaluations.none { it.text("jobId")==job.text("id") || it.child("input").text("url")==job.text("url") } }
+    val evaluateUnratedTitle=tr("批量评估 ${unrated.size} 个未评估岗位","Évaluation de ${unrated.size} offres","Evaluate ${unrated.size} unrated roles")
     val sets = state.snapshot.child("dashboard").child("actionSets")
     val ids = sets.strings(filter.ifBlank { "all" }).toSet()
     val filtered = jobs.filter { job ->
@@ -190,7 +211,10 @@ import org.json.JSONObject
         matches && (job.text("company") + " " + job.text("role")).contains(query,true)
     }.sortedByDescending { it.optDouble("score",-1.0) }
     LazyColumn(Modifier.fillMaxSize().testTag("applications-$filter-${filtered.size}"),contentPadding = PaddingValues(18.dp),verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        item { Row(verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { SectionTitle(tr("我的投递","Mes candidatures","My applications")); Hint("${filtered.size} " + tr("个岗位","postes","roles")) }; TextButton({ if(compareMode && chosen.size>=2) comparison=true else compareMode=!compareMode }) { Text(if(compareMode) "${chosen.size}/4" else tr("对比","Comparer","Compare")) } } }
+        item { Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { SectionTitle(tr("我的投递","Mes candidatures","My applications")); Hint("${filtered.size} " + tr("个岗位","postes","roles")) }; TextButton({ if(compareMode && chosen.size>=2) comparison=true else compareMode=!compareMode }) { Text(if(compareMode) "${chosen.size}/4" else tr("对比","Comparer","Compare")) } }
+            if(unrated.isNotEmpty()) OutlinedButton({ vm.startTasks(unrated.map { json("kind" to "evaluate","url" to it.text("url")) },evaluateUnratedTitle) },Modifier.fillMaxWidth().testTag("evaluate-all-unrated"),enabled=!state.working) { Icon(Icons.Rounded.AutoAwesome,null,Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(tr("一键评估所有未评估岗位（${unrated.size}）","Évaluer toutes les offres non évaluées (${unrated.size})","Evaluate all unrated roles (${unrated.size})")) }
+        } }
         item { OutlinedTextField(query,{ query=it },Modifier.fillMaxWidth(),placeholder = { Text(tr("公司或职位","Entreprise ou poste","Company or role")) },leadingIcon = { Icon(Icons.Rounded.Search,null) },singleLine = true,shape = RoundedCornerShape(10.dp)) }
         item { Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val options = listOf("" to tr("全部","Tout","All"),"high" to tr("高匹配","Match ≥85%","Match ≥85%"),"due" to tr("待跟进","À relancer","Follow up"),"decide" to tr("待决定","À décider","Decide"),"interview" to tr("面试","Entretiens","Interviews")) + state.snapshot.strings("statuses").filter { it != "Entretien" }.map { it to product(it) }

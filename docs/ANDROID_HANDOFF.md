@@ -1,10 +1,29 @@
 # JobPilot Android — implementation handoff
 
-Updated: 2026-09-08 (Europe/Paris). Current Android source, APK and actual USB installation: **0.3.2 / versionCode 6**. Current public backend build: **0.3.2**. Read `ANDROID_LANGUAGE_SEPARATION.md` first for the independent UI/material language contracts and the current native acceptance boundary. Earlier 0.3.1 search/runtime evidence below remains historical, not invalidated.
+Updated: 2026-09-09 (Europe/Paris). Current Android source, APK and actual USB installation: **0.3.4 / versionCode 8**. Current public backend build: **0.3.4** and Web counterpart **0.4.2**. Read `ANDROID_LANGUAGE_SEPARATION.md` for the independent UI/material language contracts. Earlier 0.3.3/0.3.2/0.3.1 evidence below remains historical, not invalidated.
 
-**Repository authority:** `https://github.com/happyivanencoding/JPilot`. Android is the canonical frontend for JPilot product decisions. Web follows this native implementation; it is not a second desktop product. `santifer/career-ops` is historical provenance only and its updater is no longer part of the JPilot development workflow. See `PROJECT_STRUCTURE.md`.
+**Repository authority:** `https://github.com/happyivanencoding/JPilot`. Android is the canonical frontend for JPilot product decisions. Web follows this native implementation; it is not a second desktop product. **Every Android UI/product update must ship and verify the equivalent Web behavior in the same development change/release; parity cannot be deferred and still be called complete.** Backend-only changes are the normal exception. `santifer/career-ops` is historical provenance only and its updater is no longer part of the JPilot development workflow. See `PROJECT_STRUCTURE.md`.
 
-## Web counterpart — 0.4.0, 2026-09-08
+## Android 0.3.4 / Web 0.4.2 — AI ETA + circular estimated progress
+
+- Every active AI task now exposes a concrete estimated duration instead of a generic “few minutes” message whenever the current flow is known. With **3+ comparable successful production runs** for the same flow/model/reasoning, the estimate uses that profile’s recent production history. Until then, it falls back to conservative ranges derived from the verified direct-model acceptance: analysis/plan 20–45s, evaluation/practice 10–30s, tailored CV 5–20s, compare/coach 15–35s.
+- The centered AI launch acknowledgement and the task-center row both render an **ETA ring** plus a live “预计剩余 …” label. The ring is explicitly elapsed-time-versus-ETA, not model-reported completion. It is capped below 100% while the task is active; once the estimate is exceeded the UI says the estimated time has been exceeded and that processing is still continuing instead of showing fake completion.
+- Batch AI launches use the slowest active task’s estimate for the centered acknowledgement; every individual task keeps its own estimate in the task center. Android and the phone-first Web use the same backend `targetSeconds` contract.
+- Physical Samsung acceptance on 2026-09-09: Android 0.3.4/code8 installed with `adb install -r`. A synthetic Yueyue plan showed **预计剩余 43 秒 → 21 秒** against **预计耗时 20–45 秒**, then completed in **40.0s / 9,451 tokens / ~$0.0056 API-equivalent**. A second synthetic practice task was deliberately left active while the task center was open; it showed **预计剩余 16 秒 / 预计耗时 10–30 秒** and completed in **12.894s / 12,085 tokens / ~$0.003727**. No real Candidate profile was used for this ETA acceptance.
+- Web 0.4.2 production build passes. Isolated Chromium/Edge and WebKit browser suites each pass **22/22** and now assert that the AI launch overlay contains the ETA ring and estimated remaining time. Web TypeScript and the 16 targeted persistence/ETA checks also pass; Android `assembleDebug` passes.
+- Project delivery rule changed: after any source-code modification, relevant checks → task-scoped commit → push to `origin/main` are now part of the task by default unless the user explicitly says not to push. Do not include unrelated parallel dirty work.
+
+## Android 0.3.3 / Web 0.4.1 synchronized interaction release
+
+- Applications has a one-tap **evaluate all unrated** action. Offers has **select all pending**, per-row selection, then bulk **save** or **evaluate**. Batch evaluation reuses the existing per-operation idempotence instead of creating a second evaluator path.
+- AI actions now produce a centered “processing in the background” acknowledgement; after explicit confirmation it shrinks/fades toward the top-right task center. The task itself remains server-side and survives navigation.
+- Job detail Interview → “Practice this question” fills the selected question and automatically scrolls to Targeted practice, including the answer field and feedback submit button.
+- Offers disables edge overscroll. On the installed Samsung, repeated bottom swipes followed by an additional bottom-edge swipe produced byte-identical UI semantics with unchanged final-card bounds; the previous bottom-edge jitter was not reproduced.
+- Tailored CV generation no longer passes an empty `--keywords` argument to ATS verification. A synthetic empty-keyword regression completed the model → PDF → ATS flow in 8.220s. Formal evaluation also removed a post-run loopback HTTP dependency after the full AI-call acceptance exposed it.
+- Physical Samsung checks confirmed the new select-all control and `收藏 5 / 评估 5` bulk actions, the Applications `一键评估所有未评估岗位` control, practice auto-scroll, and the centered background-task acknowledgement. One synthetic-profile evaluation launched from the installed app completed in 12.602s and persisted its official report.
+- Web 0.4.1 mirrors all of the above. Edge/Chromium and WebKit isolated action suites each pass 22/22 groups. Web TypeScript, the full 317-test Node suite, production build and Android assembleDebug all pass.
+
+## Web counterpart — 0.4.1, 2026-09-08
 
 The Web root now serves the JobPilot phone-first product, following this Android implementation, with a 384×832 desktop portrait frame and the same five core destinations. The old AppShell/sidebar/pages are retired; historical Web routes redirect into the new product. Do not reintroduce the original upstream workbench as an advanced or Classic option. Existing Android browser links therefore open the new Web experience too.
 

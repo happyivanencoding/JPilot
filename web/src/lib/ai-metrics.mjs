@@ -91,6 +91,27 @@ export function historicalEstimate(tasks, kind, model, reasoning) {
   return { samples: samples.length, minSeconds, maxSeconds,
     label: `Habituellement ${Math.max(1,Math.floor(minSeconds/60))}–${Math.max(1,Math.ceil(maxSeconds/60))} min` };
 }
+// Conservative product baselines from the latest verified direct-model flows.
+// They are only used until a profile has >=3 comparable successful production
+// runs. The UI labels them as estimates and never presents them as real model
+// completion percentages.
+export const FLOW_BASELINE_SECONDS = {
+  search: [5,20],
+  analysis: [20,45],
+  evaluate: [10,30],
+  cv: [5,20],
+  plan: [20,45],
+  practice: [10,30],
+  compare: [15,35],
+  coach: [15,35],
+};
+export function flowEstimate(tasks, kind, model, reasoning) {
+  const historical = historicalEstimate(tasks,kind,model,reasoning);
+  if (historical.minSeconds) return {...historical,targetSeconds:historical.maxSeconds,source:'production-history'};
+  const baseline = FLOW_BASELINE_SECONDS[kind];
+  if (!baseline) return {...historical,targetSeconds:null,source:'unavailable'};
+  return {...historical,minSeconds:baseline[0],maxSeconds:baseline[1],targetSeconds:baseline[1],source:'verified-baseline'};
+}
 // Retained baselines until isolated benchmarks justify changing an individual flow.
 export const FLOW_DEFAULTS = {
   search: { model: 'gpt-5.6-luna', reasoning: 'low' },

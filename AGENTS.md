@@ -23,7 +23,8 @@ JPilot is Android-first.
 - `android/` is the canonical frontend for product behavior, information architecture, navigation, interaction and visual decisions.
 - `web/` mirrors the current Android product in a phone-first browser surface and hosts the local backend/API.
 - Do not create an independent desktop Web product, Classic UI, old Career-Ops workbench, TUI product surface, or alternate navigation model.
-- For a cross-client feature, implement/define the Android behavior first, then keep Web parity unless the change is backend-only.
+- **Hard release gate:** every Android UI/product behavior update must ship its equivalent Web behavior in the same development change/release. An Android update is not complete while Web parity is deferred. Backend-only changes are the only normal exception.
+- For a cross-client feature, implement/define the Android behavior first, then implement and verify the equivalent phone-first Web behavior before calling the work complete.
 - Android and Web must continue to share the same Candidate data, tasks, evaluations, CVs, reports and application state.
 
 See `docs/PROJECT_STRUCTURE.md`, `docs/ANDROID_HANDOFF.md`, `docs/MOBILE_ACCEPTANCE.md` and `docs/WEB_ANDROID_PARITY.md`.
@@ -53,7 +54,9 @@ Read `DATA_CONTRACT.md` before touching Candidate files.
 
 Never commit or casually rewrite real Candidate CVs, profile data, application history, generated reports/PDFs, credentials, gateway sessions, API keys, runtime tasks or private QA artifacts. Preserve Profile isolation.
 
-Do not reset/clean/stash or overwrite parallel work. Do not run destructive Git commands. Commit/push only when the user explicitly requests it.
+Do not reset/clean/stash or overwrite parallel work. Do not run destructive Git commands.
+
+**Automatic delivery rule:** every task that modifies product/source code is incomplete until its relevant checks have run, the task-scoped code/docs changes are committed, and the commit is pushed to `origin/main`. Do this automatically without waiting for a separate “push” request, unless the user explicitly says not to push. Never sweep unrelated parallel dirty work into that commit; if a push is blocked, report the concrete blocker rather than silently leaving code only on the PC.
 
 ## 7. Language contract
 

@@ -1,5 +1,26 @@
 # JobPilot AI benchmark — 2026-09-08
 
+## Full product AI-call acceptance — 0.3.3 / 0.4.1
+
+After the direct-provider migration, every current product path that actually invokes a model was exercised with isolated fictional Candidate roots. Search is intentionally excluded because current Discovery uses structured providers rather than a model; CV import and saved-plan rewrite are deterministic local operations. The acceptance runner is `web/scripts/verify-jobpilot-ai-flows.mjs`; raw artifacts remain ignored under `.career-ops-web/mobile-qa/benchmark-20260908/`.
+
+| Product flow | Result | Wall | Model / transport | Total tokens | Est. API equivalent | Extra assertion |
+| --- | --- | ---: | --- | ---: | ---: | --- |
+| CV + skill analysis | PASS | 28.468s | GPT-5.6 Luna low / OpenAI direct | 4,462 | $0.003069 | Structured analysis parsed |
+| Formal evaluation | PASS after one runtime fix | 7.221s retry | GPT-5.6 Luna low / OpenAI direct | 1,588 | $0.000990 | Official report and candidature persistence confirmed |
+| Tailored CV | PASS | 8.220s | GPT-5.6 Luna low / OpenAI direct | 1,725 | $0.000969 | Actual PDF + ATS; deliberately empty keyword list accepted |
+| Preparation plan | PASS | 28.516s | GPT-5.6 Luna low / OpenAI direct | 6,452 | $0.004303 | Plan/checklist persisted |
+| Interview answer feedback | PASS | 16.363s | GPT-5.6 Luna low / OpenAI direct | 5,999 | $0.002676 | Saved Markdown feedback |
+| Offer comparison | PASS | 20.345s | GPT-5.6 Luna low / OpenAI direct | 3,636 | $0.002972 | Saved comparison output |
+| Career coach | PASS | 21.427s | GPT-5.6 Luna low / OpenAI direct | 6,321 | $0.003067 | Saved coaching output |
+| Display/history localization | PASS | 1.129s | DeepSeek V4 Flash / DeepSeek direct | 353 | not recorded | Pending → completed → cached translated projection |
+
+The first isolated evaluation run produced valid model output and an official report but the mobile wrapper ended as `HTTP 500`. The problem was not inference: after calling the evaluator in-process, `mobile-engine.ts` looped back to `127.0.0.1:3000` for status/candidature reconciliation. In an isolated root that address was the production service, so the final check crossed runtime roots. Evaluation now verifies the persisted report locally and invokes candidature reconciliation in-process. The focused rerun then reached a completed terminal state in 7.221s. This also removes an unnecessary self-HTTP dependency from normal deployment.
+
+The tailored-CV acceptance deliberately used no job keywords. This reproduces the real failure where `verify-ats.mjs` received `--keywords` with an empty argument after model output had already been cached. The renderer now omits the `--keywords` option when the list is empty, and the same flow completes PDF + ATS locally without paying for another model turn.
+
+As a final physical-product check, one evaluation was launched from the installed Android 0.3.3 app against the existing **synthetic marketing profile**. It completed normally in **12.602s wall / 11.811s model time**, used **6,168 tokens**, and carried an estimated **$0.002323** API equivalent while persisting an official report. The central background-task acknowledgement was visible before completion. No real Candidate profile was used by the full-flow benchmark.
+
 ## Production direct-OpenAI validation
 
 After the transport-only ACP work, production was switched to the explicit `web/src/lib/model-transport.ts` adapter with `JOBPILOT_MODEL_TRANSPORT=direct-openai`. The API key stays in a local private file referenced from ignored `web/.env.local`; no key or machine-specific path is committed.

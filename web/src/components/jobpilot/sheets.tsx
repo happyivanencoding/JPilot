@@ -3,14 +3,14 @@ import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, ChevronRight, CircleAlert } from "lucide-react";
 import { rows, texts, usePilot, type Json } from "./pilot-context";
 import { ACTIVE, centerTasks, destinationFor } from "./model.mjs";
-import { Button, Card, Check, Chip, Empty, External, Hint, Input, Loading, Localization, Markdown, Metrics, Pill, Score, Select, Sheet, Spinner, Tabs, TextArea, Title, taskName } from "./ui";
+import { Button, Card, Check, Chip, Empty, EstimatedProgress, External, Hint, Input, Loading, Localization, Markdown, Metrics, Pill, Score, Select, Sheet, Tabs, TextArea, Title, taskName } from "./ui";
 import { PracticeCard, PrepChecklist } from "./profile-prepare";
 import { SearchMetrics } from "./catalog";
 
 export function TasksSheet() {
   const { data, tr, openTask } = usePilot();
   const tasks = centerTasks(rows(data.tasks)) as Json[];
-  return <Sheet title={tr("后台任务", "Vos traitements", "Background tasks")} testId="tasks-sheet"><div className="jp-sheet-content"><Hint>{tr("已完成的结果，直接回到对应页面。", "Vos résultats, au bon endroit.", "Your results, where they belong.")}</Hint><Localization value={data.localization} />{!tasks.length && <Hint>{tr("当前没有任务。", "Aucun traitement pour ce profil.", "No tasks for this profile.")}</Hint>}{tasks.map(task => <button type="button" className="jp-task-row" key={task.id} data-testid={`task-${task.id}`} onClick={() => openTask(task.id)}><div className="jp-row">{ACTIVE.has(task.status) ? <Spinner small /> : task.status === "completed" ? <CheckCircle2 size={20} className="jp-accent" /> : <CircleAlert size={20} />}<h3 className="jp-grow">{task.title || taskName(task.kind, tr)}</h3><ChevronRight size={18} /></div><Hint>{task.phase}</Hint><Metrics value={task.metrics} />{ACTIVE.has(task.status) && <Hint>{task.estimate?.label}</Hint>}</button>)}</div></Sheet>;
+  return <Sheet title={tr("后台任务", "Vos traitements", "Background tasks")} testId="tasks-sheet"><div className="jp-sheet-content"><Hint>{tr("已完成的结果，直接回到对应页面。", "Vos résultats, au bon endroit.", "Your results, where they belong.")}</Hint><Localization value={data.localization} />{!tasks.length && <Hint>{tr("当前没有任务。", "Aucun traitement pour ce profil.", "No tasks for this profile.")}</Hint>}{tasks.map(task => <button type="button" className="jp-task-row" key={task.id} data-testid={`task-${task.id}`} onClick={() => openTask(task.id)}><div className="jp-row">{task.status === "completed" ? <CheckCircle2 size={20} className="jp-accent" /> : ACTIVE.has(task.status) ? null : <CircleAlert size={20} />}<h3 className="jp-grow">{task.title || taskName(task.kind, tr)}</h3><ChevronRight size={18} /></div><Hint>{task.phase}</Hint>{ACTIVE.has(task.status) && <EstimatedProgress createdAt={task.createdAt} estimate={task.estimate} />}<Metrics value={task.metrics} /></button>)}</div></Sheet>;
 }
 export function JobSheet({ job }: { job: Json }) {
   const { route, data, tr, product, navigate, startTask } = usePilot();
@@ -18,6 +18,8 @@ export function JobSheet({ job }: { job: Json }) {
   const evaluating = rows(data.tasks).some(t => t.kind === "evaluate" && t.jobId === job.id && ACTIVE.has(t.status));
   const cv = job.cv || {}, interview = job.interview || {};
   const [question, setQuestion] = useState("");
+  const practiceRef=useRef<HTMLDivElement>(null);
+  const practice=(value:string)=>{setQuestion(value);requestAnimationFrame(()=>practiceRef.current?.scrollIntoView({behavior:"smooth",block:"center"}));};
   return <Sheet title={<><div className="jp-subtitle">{job.company}</div><div className="jp-row"><span className="jp-grow">{job.role}</span><Score score={job.score} /></div></>} testId={`job-detail-${job.id}`}>
     <Tabs labels={[tr("匹配", "Match", "Fit"), "CV", tr("面试", "Entretien", "Interview"), tr("跟踪", "Suivi", "Tracking")]} selected={tab} prefix="job-tab" onChange={i => navigate({ ...route, jobTab: String(i) }, true)} />
     <div className="jp-sheet-content" data-testid="job-content"><Localization value={job.localization} />
@@ -45,7 +47,7 @@ export function JobSheet({ job }: { job: Json }) {
         {job.mobilePlan?.markdown && <Card><Markdown text={job.mobilePlan.markdown} /></Card>}<PrepChecklist job={job} />
         {!!texts(interview.process).length && <Card><h3>{tr("面试流程", "Processus d’entretien", "Interview process")}</h3>{texts(interview.process).map((s, i) => <p className="jp-bullet" key={i}>{s}</p>)}{!interview.processKnown && <Pill warm>{tr("实际流程待确认", "À confirmer avec le recruteur", "Confirm with recruiter")}</Pill>}</Card>}
         {interview.caseStudy && <Card><h3>{tr("针对性案例", "Cas à préparer", "Case preparation")}</h3><p>{interview.caseStudy}</p></Card>}
-        {rows(interview.questions).map((q, i) => <Card key={i}><h4>{q.question}</h4><p>{q.answer}</p><Hint>{q.proof}</Hint><Button kind="text" onClick={() => setQuestion(q.question)}>{tr("练习这道题", "M’entraîner à cette question", "Practice this question")}</Button></Card>)}<PracticeCard job={job} initialQuestion={question || undefined} />
+        {rows(interview.questions).map((q, i) => <Card key={i}><h4>{q.question}</h4><p>{q.answer}</p><Hint>{q.proof}</Hint><Button kind="text" data-testid="practice-this-question" onClick={() => practice(q.question)}>{tr("练习这道题", "M’entraîner à cette question", "Practice this question")}</Button></Card>)}<div ref={practiceRef} data-testid="targeted-practice"><PracticeCard job={job} initialQuestion={question || undefined} /></div>
       </>}
       {tab === 3 && <Tracking job={job} />}
     </div>

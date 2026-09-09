@@ -4,6 +4,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -19,6 +21,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -26,8 +30,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
 import org.json.JSONObject
+import java.time.Instant
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun PilotApp(vm: JobPilotViewModel, state: PilotState) {
@@ -127,13 +133,13 @@ import org.json.JSONObject
             items(active + recent,key = { it.text("id") }) { task ->
                 Column(Modifier.fillMaxWidth().testTag("task-${task.text("id")}").clickable { if(task.text("status") == "completed" || task.text("status") == "failed") { taskCenter = false; vm.loadTask(task.text("id")) } }.padding(vertical = 8.dp),verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically,horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if(task.text("status") in setOf("queued","running","reconciling")) CircularProgressIndicator(Modifier.size(16.dp),strokeWidth = 2.dp) else Icon(if(task.text("status") == "completed") Icons.Rounded.CheckCircleOutline else Icons.Rounded.ErrorOutline,null,Modifier.size(20.dp),tint = MaterialTheme.colorScheme.primary)
+                        if(task.text("status") in setOf("queued","running","reconciling")) Icon(Icons.Rounded.PendingActions,null,Modifier.size(20.dp),tint = MaterialTheme.colorScheme.primary) else Icon(if(task.text("status") == "completed") Icons.Rounded.CheckCircleOutline else Icons.Rounded.ErrorOutline,null,Modifier.size(20.dp),tint = MaterialTheme.colorScheme.primary)
                         Text(task.text("title",taskTitle(task.text("kind"))),Modifier.weight(1f),fontWeight = FontWeight.SemiBold,fontSize = 14.sp)
                         if(task.text("status") in setOf("completed","failed")) Icon(Icons.Rounded.ChevronRight,null,Modifier.size(18.dp))
                     }
                     Hint(task.text("phase"))
+                    if(task.text("status") in setOf("queued","running","reconciling")) EstimatedTaskProgress(task.text("createdAt"),task.child("estimate"))
                     TaskMetrics(task.child("metrics"))
-                    if(task.text("status") in setOf("queued","running")) Hint(product(task.child("estimate").text("label","Habituellement quelques minutes")))
                     HorizontalDivider(Modifier.padding(top = 6.dp))
                 }
             }
@@ -144,6 +150,66 @@ import org.json.JSONObject
     else state.selectedJob?.let { id -> state.snapshot.objects("jobs").find { it.text("id") == id }?.let { JobDetailSheet(it,state,vm) } }
     if(state.analysisVisible && state.snapshot.has("analysis")) AnalysisSheet(state,vm)
     if(state.cvPreview != null || state.previewLoading) CvPreviewDialog(state,vm)
+    state.taskLaunch?.let { BackgroundTaskLaunch(it,vm::clearTaskLaunch) }
+}
+
+@Composable private fun BackgroundTaskLaunch(feedback: TaskLaunchFeedback,onDone: () -> Unit) {
+    var flying by remember(feedback.ids) { mutableStateOf(false) }
+    val scale by animateFloatAsState(if(flying) .16f else 1f,tween(420),label="task-launch-scale")
+    val alpha by animateFloatAsState(if(flying) .12f else 1f,tween(360),label="task-launch-alpha")
+    val offsetX by animateDpAsState(if(flying) 142.dp else 0.dp,tween(420),label="task-launch-x")
+    val offsetY by animateDpAsState(if(flying) (-292).dp else 0.dp,tween(420),label="task-launch-y")
+    LaunchedEffect(flying) { if(flying) { delay(430);onDone() } }
+    Box(
+        Modifier.fillMaxSize().zIndex(80f).background(if(flying) Color.Transparent else Color.Black.copy(alpha=.28f)).testTag("background-task-launch"),
+        contentAlignment=Alignment.Center
+    ) {
+        Surface(
+            Modifier.offset(offsetX,offsetY).widthIn(max=326.dp).padding(horizontal=24.dp).graphicsLayer { scaleX=scale;scaleY=scale;this.alpha=alpha },
+            shape=RoundedCornerShape(24.dp),color=MaterialTheme.colorScheme.surface,shadowElevation=12.dp
+        ) {
+            Column(Modifier.padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                Box(contentAlignment=Alignment.Center) {
+                    Icon(Icons.Rounded.PendingActions,null,Modifier.size(48.dp),tint=MaterialTheme.colorScheme.primary)
+                }
+                Text(tr("正在后台处理","Traitement en arrière-plan","Processing in the background"),fontSize=22.sp,fontWeight=FontWeight.SemiBold)
+                Text(feedback.title,fontSize=15.sp,fontWeight=FontWeight.Medium)
+                EstimatedTaskProgress(feedback.createdAt,feedback.estimate,large=true)
+                Hint(if(feedback.ids.size>1) tr("${feedback.ids.size} 个任务已经加入右上角任务列表。你可以继续使用其他页面。","${feedback.ids.size} tâches ont été ajoutées en haut à droite. Vous pouvez continuer à naviguer.","${feedback.ids.size} tasks were added to the top-right task center. You can keep browsing.") else tr("任务已经加入右上角任务列表。你可以继续使用其他页面。","La tâche a été ajoutée en haut à droite. Vous pouvez continuer à naviguer.","The task was added to the top-right task center. You can keep browsing."))
+                Button({ flying=true },Modifier.fillMaxWidth().testTag("confirm-background-task"),enabled=!flying) { Text(tr("知道了","Compris","Got it")) }
+            }
+        }
+    }
+}
+
+@Composable private fun EstimatedTaskProgress(createdAt:String,estimate:JSONObject,large:Boolean=false) {
+    val target=estimate.optDouble("targetSeconds",estimate.optDouble("maxSeconds",0.0)).toLong()
+    val started=remember(createdAt) { runCatching { Instant.parse(createdAt).toEpochMilli() }.getOrElse { System.currentTimeMillis() } }
+    var now by remember(createdAt,target) { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(createdAt,target) {
+        if(target>0) while(true) { delay(1000);now=System.currentTimeMillis() }
+    }
+    if(target<=0) { Hint(product(estimate.text("label","Habituellement quelques minutes")));return }
+    val elapsed=((now-started)/1000L).coerceAtLeast(0L)
+    val overdue=elapsed>=target
+    val remaining=(target-elapsed).coerceAtLeast(0L)
+    // This is elapsed time versus an ETA, not model-reported completion.
+    // Keep it below 100% until a real terminal task state arrives.
+    val progress=(elapsed.toFloat()/target.toFloat()).coerceIn(.04f,.96f)
+    val ringSize=if(large) 66.dp else 38.dp
+    val ringText=if(overdue) "…" else if(remaining<60) "${remaining}s" else "${(remaining+59)/60}m"
+    val remainingLabel=if(overdue) tr("已超过预计时间，仍在处理中","Durée estimée dépassée · toujours en cours","Estimated time exceeded · still processing") else if(remaining<60) tr("预计剩余 ${remaining} 秒","Environ ${remaining} s restantes","About ${remaining} s remaining") else tr("预计剩余约 ${(remaining+59)/60} 分钟","Environ ${(remaining+59)/60} min restantes","About ${(remaining+59)/60} min remaining")
+    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=if(large) Arrangement.Center else Arrangement.Start) {
+        Box(Modifier.size(ringSize),contentAlignment=Alignment.Center) {
+            CircularProgressIndicator(progress={progress},modifier=Modifier.fillMaxSize(),strokeWidth=if(large) 6.dp else 4.dp,trackColor=MaterialTheme.colorScheme.primaryContainer)
+            Text(ringText,fontSize=if(large) 11.sp else 8.sp,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.primary)
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.widthIn(max=190.dp),verticalArrangement=Arrangement.spacedBy(2.dp)) {
+            Text(remainingLabel,fontSize=12.sp,lineHeight=17.sp,fontWeight=FontWeight.SemiBold)
+            Hint(product(estimate.text("label","Habituellement quelques minutes")))
+        }
+    }
 }
 
 @Composable fun TaskMetrics(metrics: JSONObject) {

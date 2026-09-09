@@ -3,7 +3,7 @@ import path from 'node:path';
 import {historyDirectory} from '@/lib/mobile-history';
 import {careerOpsRoot} from '@/lib/career-ops';
 import {readJson,writeJson,withProfileLock,processAlive} from '@/lib/mobile-state.mjs';
-import {runModelTransport} from '@/lib/model-transport';
+import {runTranslationTransport} from '@/lib/model-transport';
 import {extractJsonObject} from '@/lib/extract-json-object.mjs';
 import {uiLocale,choose} from '@/lib/language-contract.mjs';
 import {displaySlots,translationKey,alreadyLocalized,productText,pendingText,setDisplaySlot,protectTranslation,restoreTranslation,translationPrompt} from '@/lib/localization-core.mjs';
@@ -11,6 +11,7 @@ import {displaySlots,translationKey,alreadyLocalized,productText,pendingText,set
 type Entry={key:string;text:string;id:string;packed:ReturnType<typeof protectTranslation>};
 const host=globalThis as typeof globalThis & {jobPilotLocalizations?:Map<string,Promise<void>>};
 const running=host.jobPilotLocalizations ??= new Map<string,Promise<void>>();
+const TRANSLATION_ENGINE_ID='deepseek-v4-flash-nonthinking-v1';
 
 /** Translation operations use the existing cross-process profile lock, but NOT
  * business tasks/results. Locale switches cannot create evaluation/CV task rows.
@@ -50,11 +51,11 @@ export async function localizeDisplay(profileId:string,target:unknown,value:any,
         entries.push({key,text,id:String(entries.length),packed:protectTranslation(text)});characters+=text.length;
       }
       if(!entries.length)return;
-      const key=translationKey(JSON.stringify(['localize',locale,entries.map(e=>e.key).sort()]));
+      const key=translationKey(JSON.stringify(['localize',TRANSLATION_ENGINE_ID,locale,entries.map(e=>e.key).sort()]));
       const previous=readJson(path.join(operations,key+'.json'));
       if(previous && ['failed','interrupted'].includes(previous.status) && !options.retry) {active=previous;return;}
       const now=new Date().toISOString();
-      active={key,kind:'localize',profileId,locale,scope,identity:options.identity || scope,status:'queued',ownerPid:process.pid,createdAt:now,updatedAt:now,segmentKeys:entries.map(e=>e.key),model:'gpt-5.6-luna',reasoning:'low',attempt:(previous?.attempt || 0)+1};
+      active={key,kind:'localize',profileId,locale,scope,identity:options.identity || scope,status:'queued',ownerPid:process.pid,createdAt:now,updatedAt:now,segmentKeys:entries.map(e=>e.key),model:'deepseek-v4-flash',reasoning:'none',transport:'deepseek-direct',attempt:(previous?.attempt || 0)+1};
       writeJson(path.join(operations,key+'.json'),active);writeJson(path.join(directory,'active.json'),active);
       const operation={...active};
       const work=executeLocalization(directory,operation,entries);
@@ -79,7 +80,7 @@ async function executeLocalization(directory:string,operation:any,entries:Entry[
   const save=()=>{operation.updatedAt=new Date().toISOString();writeJson(file,operation);writeJson(path.join(directory,'active.json'),operation);};
   try {
     let output='';
-    await runModelTransport({cwd:careerOpsRoot(),prompt:translationPrompt(entries,operation.locale),model:'gpt-5.6-luna',reasoning:'low',timeoutMs:120000,
+    await runTranslationTransport({cwd:careerOpsRoot(),prompt:translationPrompt(entries,operation.locale),timeoutMs:120000,
       onRun:run=>{Object.assign(operation,{sessionId:run.sessionId,runId:run.runId,remoteSessionId:run.remoteSessionId,transport:run.transport,status:'running'});save();},
       onMetrics:metrics=>{operation.metrics=metrics;save();},
       onText:text=>{output+=text;},onFinalText:text=>{output=text;},

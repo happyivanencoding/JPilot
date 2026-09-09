@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { candidateVersion, withProfileLock, writeJson, readJson, operationKey, discoveryProjection, normalizeAnalysis, resolvedIssues, applyEvidenceEdits, contractMatches } from '../src/lib/mobile-state.mjs';
-import { usageFromRollout, apiEquivalent, historicalEstimate, FLOW_DEFAULTS } from '../src/lib/ai-metrics.mjs';
+import { usageFromRollout, apiEquivalent, historicalEstimate, flowEstimate, FLOW_DEFAULTS } from '../src/lib/ai-metrics.mjs';
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'jobpilot-persistence-'));
 const priorRoot=process.env.CAREER_OPS_ROOT;
 process.env.CAREER_OPS_ROOT=root;
@@ -177,4 +177,12 @@ test('ETA stays non-numeric without comparable history; reused/other model runs 
  const estimate=historicalEstimate([base,base,base,{...base,reusedResult:true,metrics:{...base.metrics,wallMs:999999}}],'analysis','gpt-5.6-luna','low');
  assert.equal(estimate.samples,3);assert(estimate.maxSeconds<60);
  assert.equal(historicalEstimate([base,base,base],'analysis','gpt-6-astra','low').samples,0);
+});
+
+test('AI ETA uses a conservative verified baseline until profile history is sufficient, then switches to production history',()=>{
+ const baseline=flowEstimate([],'analysis','gpt-5.6-luna','low');
+ assert.equal(baseline.source,'verified-baseline');assert.equal(baseline.targetSeconds,45);assert.equal(baseline.minSeconds,20);
+ const base={kind:'analysis',status:'completed',metrics:{model:'gpt-5.6-luna',reasoning:'low',wallMs:30000}};
+ const learned=flowEstimate([base,base,base],'analysis','gpt-5.6-luna','low');
+ assert.equal(learned.source,'production-history');assert.equal(learned.samples,3);assert.equal(learned.targetSeconds,learned.maxSeconds);
 });

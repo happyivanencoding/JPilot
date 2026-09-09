@@ -1,6 +1,34 @@
 # JobPilot mobile — acceptance record
 
-Date: 2026-09-08, Europe/Paris. Current installation: **Android 0.3.2/code6 on the Samsung USB device, with production backend build 0.3.2**. Language-specific acceptance, repaired native failures and remaining limits are recorded in `ANDROID_LANGUAGE_SEPARATION.md`; installation/build alone is not a full language acceptance. The 0.3.1 search evidence below is retained. Private evidence remains in ignored `.career-ops-web/mobile-qa/` directories.
+Date: 2026-09-09, Europe/Paris. Current installation: **Android 0.3.4/code8 on the Samsung USB device, with production backend build 0.3.4 and Web 0.4.2**. Language-specific acceptance and historical limits remain in `ANDROID_LANGUAGE_SEPARATION.md`; earlier release evidence below is retained. Private evidence remains in ignored `.career-ops-web/mobile-qa/` directories.
+
+## 0.3.4 AI ETA / circular progress acceptance
+
+| Verification | Observed result |
+| --- | --- |
+| Install | `adb install -r` succeeded; package reports versionName **0.3.4**, versionCode **8**. |
+| ETA source | With fewer than 3 comparable production runs, the backend returns verified fallback ranges and `targetSeconds`; with 3+ comparable successful runs it switches to profile-specific production history. Targeted persistence/ETA suite: **16/16 pass**. |
+| Central AI launch | On the physical Samsung, a synthetic Yueyue interview-plan task displayed `正在后台处理`, **预计剩余 43 秒**, **预计耗时 20–45 秒** and the existing task-center handoff. A later dump showed **预计剩余 21 秒**, proving the displayed remaining time is live rather than static. |
+| Task center ETA | A separate synthetic practice task was started while the native task center was open. The active row displayed **预计剩余 16 秒 / 预计耗时 10–30 秒**. The task completed normally after **12.894s**, 12,085 tokens, estimated API-equivalent cost ~$0.003727. |
+| First synthetic plan timing | The plan task completed normally after **40.0s**, 9,451 tokens, estimated API-equivalent cost ~$0.0056. No real Candidate profile was used for either ETA acceptance task. |
+| Progress semantics | The circular indicator is elapsed-time-versus-ETA only; it is capped below 100% while active and changes to an “estimated time exceeded, still processing” state if the target elapses. No fake model-completion percentage is exposed. |
+| Web parity | Web 0.4.2 isolated Chromium/Edge **22/22** and WebKit **22/22** pass. The background-task check now asserts an ETA ring plus estimated remaining time. |
+| Build | Web TypeScript pass; Next production build pass; Android `assembleDebug` pass. |
+
+## 0.3.3 interaction / batch / AI-feedback acceptance
+
+| Verification | Observed result |
+| --- | --- |
+| Install | `adb install -r` succeeded; package reports versionName **0.3.3**, versionCode **7**; existing login/data remained available after force-stop/relaunch. |
+| Offers bulk selection | Current synthetic profile shows `一键选中所有待处理岗位`; selecting it exposes `收藏 5` and `评估 5` on the physical device. No bulk action was fired merely to prove the controls. |
+| Applications bulk evaluation | Physical device shows `一键评估所有未评估岗位` with the current live count. Active evaluations are excluded by task identity. |
+| Practice navigation | On a real evaluated synthetic role, tapping `练习这道题` scrolled from the question card to `针对性模拟`; the chosen question, `我的回答` and `获取反馈` were all visible afterward. No feedback task was submitted for this navigation check. |
+| Offer bottom stability | After reaching the Offer-list bottom, an additional bottom-edge swipe left the two captured UI semantic trees byte-identical, including unchanged final-card bounds. The former bottom bounce/jitter did not reproduce. |
+| AI acknowledgement | A single formal evaluation was launched from the synthetic marketing profile. The physical device displayed centered `正在后台处理`, named the job evaluation, stated it was added to the top-right task list, and showed `知道了`; after confirmation the overlay disappeared and the task-center control remained. |
+| Same synthetic evaluation | Completed in **12.602s wall / 11.811s model**, 6,168 tokens, estimated $0.002323 API equivalent, with an official persisted report. |
+| Shared AI acceptance | Isolated fictional roots passed analysis, evaluation, tailored CV, plan, practice, compare, coach and DeepSeek display localization. See `AI_BENCHMARK_2026-09-08.md`. |
+| Web parity | 0.4.1 Edge/Chromium **22/22** and WebKit **22/22** isolated browser groups passed, including bulk actions, task acknowledgement and practice auto-scroll; zero production Candidate writes. |
+| Build/regression | Web TypeScript pass; **317/317** Node tests pass; production Next build pass; Android `assembleDebug` pass. |
 
 ## Web 0.4.0 replacement — 2026-09-08
 
