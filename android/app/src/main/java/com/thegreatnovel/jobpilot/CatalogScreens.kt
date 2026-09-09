@@ -170,8 +170,6 @@ import org.json.JSONObject
         val mode = if(metrics.optBoolean("aiFallbackUsed")) tr("结构化源不足，已使用精简 AI 补充。","Sources structurées insuffisantes : complément IA ciblé utilisé.","Structured sources were insufficient; targeted AI fallback was used.") else tr("本次未调用搜索 Agent。","Aucun agent de recherche utilisé pour cette requête.","No search agent was used for this query.")
         Hint(mode)
         if(providerBits.isNotEmpty()) Hint(providerBits.joinToString("  ·  "))
-        val apiCost = metrics.optDouble("estimatedApiCostUsd",0.0)
-        if(apiCost > 0) Hint(tr("估算搜索 API 成本：$" + String.format(java.util.Locale.US,"%.3f",apiCost),"Coût API estimé : $" + String.format(java.util.Locale.US,"%.3f",apiCost),"Estimated search API cost: $" + String.format(java.util.Locale.US,"%.3f",apiCost)))
         HorizontalDivider()
     }
 }

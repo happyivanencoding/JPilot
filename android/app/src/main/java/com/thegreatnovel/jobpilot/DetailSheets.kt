@@ -125,7 +125,6 @@ import org.json.JSONArray
             item { Row(verticalAlignment = Alignment.CenterVertically) { Text(taskTitle(task.text("kind")),Modifier.weight(1f),fontSize = 23.sp,fontWeight = FontWeight.SemiBold); Pill(taskState(task.text("status")),warm = task.text("status") == "failed") } }
             item { Hint(task.text("phase"));LocalizationNotice(result.child("localization"),vm::retryLocalization) }
             if(task.text("status") in setOf("queued","running")) item { LinearProgressIndicator(Modifier.fillMaxWidth()); Spacer(Modifier.height(10.dp)); Hint(tr("可以离开这个页面。结果会保存在当前档案的任务记录中。","Vous pouvez quitter cet écran. Le résultat sera conservé dans l’activité de ce profil.","You can leave this screen. Results will remain in this profile’s activity.")) }
-            item { TaskMetrics(task.child("metrics")) }
             if(task.text("error").isNotBlank()) item { GlassCard { Text(task.text("error"),color = MaterialTheme.colorScheme.error); if(task.text("kind") != "ingest") OutlinedButton({ vm.dismissTask(); vm.startTask(JSONObject(task.child("input").toString()).put("kind",task.text("kind")).put("retry",true)) },Modifier.fillMaxWidth(),enabled = !state.working) { Text(tr("重试这项操作","Réessayer cette action","Retry this action")) } } }
             if(task.text("status") == "completed") {
                 when(task.text("kind")) {
