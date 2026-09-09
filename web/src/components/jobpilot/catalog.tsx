@@ -4,7 +4,7 @@ import { ArrowRight, CheckSquare, ChevronRight, GraduationCap, Square } from "lu
 import { DISCOVERY_OFFER_LIMIT } from "@/lib/mobile-domain.mjs";
 import { rows, texts, usePilot, type Json } from "./pilot-context";
 import { ACTIVE, safeExternalUrl } from "./model.mjs";
-import { Button, Card, Chip, Empty, External, Hint, Input, Pill, RowLink, Score, TextArea, Title } from "./ui";
+import { AiProgressButton, Button, Card, Chip, Empty, External, Hint, Input, Pill, RowLink, Score, TextArea, Title } from "./ui";
 
 export function HomePage() {
   const { data, tr, product, navigate, openJob } = usePilot();
@@ -42,7 +42,9 @@ export function SearchMetrics({ value: m }: { value: Json }) {
 }
 function OfferCard({ offer, selected, onSelect }: { offer: Json; selected: boolean; onSelect: () => void }) {
   const { data, tr, product, act, startTask } = usePilot();
-  const saved = offer.jobId || rows(data.jobs).some(j => j.url === offer.url);
+  const savedJob = rows(data.jobs).find(j => j.url === offer.url);
+  const saved = offer.jobId || savedJob;
+  const evaluateJobId = offer.jobId || savedJob?.id;
   const evaluating = offer.lifecycle === "evaluating";
   const bits: string[] = [];
   if (offer.sourceLabel || offer.source) bits.push(product(offer.sourceLabel || offer.source));
@@ -57,7 +59,7 @@ function OfferCard({ offer, selected, onSelect }: { offer: Json; selected: boole
   if (offer.contractType === "unknown") bits.push(tr("合同待确认", "contrat à confirmer", "contract to confirm"));
   if (offer.ageDays != null) bits.push(offer.ageDays === 0 ? tr("今天发布", "publiée aujourd’hui", "posted today") : tr(`${offer.ageDays} 天前`, `il y a ${offer.ageDays} j`, `${offer.ageDays}d ago`));
   if (offer.searchRelevance != null) bits.push(tr(`检索相关度 ${offer.searchRelevance}/100`, `pertinence recherche ${offer.searchRelevance}/100`, `search relevance ${offer.searchRelevance}/100`));
-  return <article className="jp-offer" data-testid="discovery-offer"><div className="jp-row jp-offer-select-row"><button type="button" className="jp-select-box" aria-pressed={selected} aria-label={selected ? tr("取消选择岗位", "Désélectionner l’offre", "Deselect role") : tr("选择岗位", "Sélectionner l’offre", "Select role")} onClick={onSelect}>{selected ? <CheckSquare size={22} /> : <Square size={22} />}</button><div className="jp-grow"><div className="jp-company">{offer.company}</div><h2>{offer.title}</h2></div></div><Hint>{[offer.location, offer.contractType !== "unknown" ? product(offer.contractType) : ""].filter(Boolean).join(" · ")}</Hint><Hint>{bits.join(" · ")}</Hint><p>{offer.why}</p><Hint>{evaluating ? tr("分析中 · 不会重复启动", "Évaluation en cours · une seule tâche", "Evaluation in progress · one task only") : tr("待评估 · 岗位开放情况需核实", "À évaluer · disponibilité à confirmer", "Unassessed · availability unconfirmed")}</Hint><External url={offer.url}>{tr("查看职位来源", "Voir l’annonce source", "View source posting")}</External><div className="jp-row"><Button kind="outline" disabled={Boolean(saved)} onClick={() => act({ action: "saveOffer", offer })}>{saved ? tr("已收藏", "Enregistrée", "Saved") : tr("保存", "Enregistrer", "Save")}</Button><Button disabled={evaluating} onClick={() => startTask({ kind: "evaluate", url: offer.url, offer })}>{evaluating ? tr("分析中", "Analyse en cours", "Analyzing") : tr("岗位评估", "Évaluer", "Evaluate")}</Button></div></article>;
+  return <article className="jp-offer" data-testid="discovery-offer"><div className="jp-row jp-offer-select-row"><button type="button" className="jp-select-box" aria-pressed={selected} aria-label={selected ? tr("取消选择岗位", "Désélectionner l’offre", "Deselect role") : tr("选择岗位", "Sélectionner l’offre", "Select role")} onClick={onSelect}>{selected ? <CheckSquare size={22} /> : <Square size={22} />}</button><div className="jp-grow"><div className="jp-company">{offer.company}</div><h2>{offer.title}</h2></div></div><Hint>{[offer.location, offer.contractType !== "unknown" ? product(offer.contractType) : ""].filter(Boolean).join(" · ")}</Hint><Hint>{bits.join(" · ")}</Hint><p>{offer.why}</p><Hint>{evaluating ? tr("分析中 · 不会重复启动", "Évaluation en cours · une seule tâche", "Evaluation in progress · one task only") : tr("待评估 · 岗位开放情况需核实", "À évaluer · disponibilité à confirmer", "Unassessed · availability unconfirmed")}</Hint><External url={offer.url}>{tr("查看职位来源", "Voir l’annonce source", "View source posting")}</External><div className="jp-row"><Button kind="outline" disabled={Boolean(saved)} onClick={() => act({ action: "saveOffer", offer })}>{saved ? tr("已收藏", "Enregistrée", "Saved") : tr("保存", "Enregistrer", "Save")}</Button><AiProgressButton taskKind="evaluate" jobId={evaluateJobId} disabled={evaluating} onClick={() => startTask({ kind: "evaluate", url: offer.url, offer })}>{tr("岗位评估", "Évaluer", "Evaluate")}</AiProgressButton></div></article>;
 }
 export function OffersPage() {
   const { data, tr, product, startTask, startTasks, saveOffers, busy } = usePilot();
@@ -65,6 +67,7 @@ export function OffersPage() {
   const [query, setQuery] = useState(defaultQuery), priorDefault = useRef(defaultQuery);
   useEffect(() => { setQuery(previous => previous === priorDefault.current ? defaultQuery : previous); priorDefault.current = defaultQuery; }, [defaultQuery]);
   const [url, setUrl] = useState("");
+  const pastedJobId = rows(data.jobs).find(job=>job.url===url.trim())?.id;
   const searching = rows(data.tasks).some(t => t.kind === "search" && ACTIVE.has(t.status));
   const discovery = data.discovery || {};
   const offers=rows(discovery.offers).slice(0,DISCOVERY_OFFER_LIMIT);
@@ -73,7 +76,7 @@ export function OffersPage() {
   const picked=offers.filter(offer=>selected.includes(String(offer.url))), allSelected=offers.length>0 && picked.length===offers.length;
   return <div className="jp-page" data-testid="offers-page"><Title sub={tr("已评估的岗位在「投递」中，不会重复出现在这里。", "Les postes évalués se retrouvent dans Candidatures.", "Evaluated roles move to Applications.")}>{tr("值得看的机会", "Les bonnes opportunités", "Worth a closer look")}</Title>
     <div className="jp-stack"><TextArea label={tr("搜索目标", "Ma recherche", "My search")} rows={3} value={query} onChange={e => setQuery(e.target.value)} /><Hint>{tr("合同类型：", "Contrats : ", "Contracts: ") + (texts(data.config?.target_roles?.contract_types).map(product).join(" · ") || tr("不限", "Tous", "All"))}</Hint><Button data-testid="search-offers" disabled={searching || !query.trim()} onClick={() => startTask({ kind: "search", query })}>{searching ? tr("搜索中", "Recherche en cours", "Searching") : tr("寻找适合我的岗位", "Rechercher des offres", "Find opportunities")}</Button></div>
-    <div className="jp-stack"><Input label={tr("或粘贴职位链接", "Ou coller le lien d’un poste", "Or paste a job URL")} value={url} type="url" autoCapitalize="none" onChange={e => setUrl(e.target.value)} /><Button kind="text" disabled={!safeExternalUrl(url.trim())} onClick={() => startTask({ kind: "evaluate", url: url.trim() })}>{tr("查看／评估该岗位", "Consulter / évaluer cette offre", "View / evaluate this role")}<ArrowRight size={16} /></Button><hr /></div>
+    <div className="jp-stack"><Input label={tr("或粘贴职位链接", "Ou coller le lien d’un poste", "Or paste a job URL")} value={url} type="url" autoCapitalize="none" onChange={e => setUrl(e.target.value)} /><AiProgressButton taskKind="evaluate" jobId={pastedJobId} kind="outline" disabled={!safeExternalUrl(url.trim())} onClick={() => startTask({ kind: "evaluate", url: url.trim() })}>{tr("查看／评估该岗位", "Consulter / évaluer cette offre", "View / evaluate this role")}</AiProgressButton><hr /></div>
     <div className="jp-row spread"><strong>{tr("待处理岗位", "À examiner", "To review")}</strong><Hint>{discovery.searchedAt?.slice(0, 10)}</Hint></div>
     {!!offers.length && <Button kind="text" data-testid="select-all-pending" onClick={() => setSelected(allSelected ? [] : offers.map(offer=>String(offer.url)))}>{allSelected ? tr("取消全选", "Tout désélectionner", "Clear selection") : tr("一键选中所有待处理岗位", "Tout sélectionner", "Select all pending roles")}</Button>}
     {!!picked.length && <div className="jp-row"><Button kind="outline" data-testid="bulk-save-offers" disabled={busy} onClick={() => { const batch=[...picked];setSelected([]);void saveOffers(batch); }}>{tr(`收藏 ${picked.length}`, `Enregistrer ${picked.length}`, `Save ${picked.length}`)}</Button><Button data-testid="bulk-evaluate-offers" disabled={busy || !picked.some(offer=>offer.lifecycle!=="evaluating")} onClick={() => { const batch=picked.filter(offer=>offer.lifecycle!=="evaluating").map(offer=>({kind:"evaluate",url:offer.url,offer}));setSelected([]);void startTasks(batch,tr("批量岗位评估", "Évaluations groupées", "Batch evaluations")); }}>{tr(`评估 ${picked.length}`, `Évaluer ${picked.length}`, `Evaluate ${picked.length}`)}</Button></div>}

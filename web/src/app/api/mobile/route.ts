@@ -65,7 +65,7 @@ export async function GET(req: Request) {
     const latest = (kind: string) => tasks.find((t:MobileTask) => t.kind === kind && t.status === "completed");
     const projectedJobs=store.jobs.map(j=>({...evaluationProjection(j,tasks),stage:stageOf(j.status)}));
     const snapshot={
-      version: "0.3.6", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
+      version: "0.3.7", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
       cv: read("cv"), cvState:{versionId:version.id,cvVersion:version.cvVersion,revision:version.revision,changedAt:version.createdAt},
       languageSettings:{uiLocale:locale,applicationLanguage:applicationLanguage(config || {},read("cv")),documentLanguage:documentLanguage(version)},
       config: config || {}, jobs: projectedJobs, dashboard: dashboardFor(projectedJobs), statuses: APPLICATION_STATUSES,

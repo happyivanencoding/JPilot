@@ -2,6 +2,7 @@ package com.thegreatnovel.jobpilot
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,6 +40,7 @@ import org.json.JSONArray
     var replyKind by rememberSaveable(job.text("id")) { mutableStateOf("Recruteur") }
     var practiceQuestion by rememberSaveable(job.text("id")) { mutableStateOf("") }
     var practiceAnswer by rememberSaveable(job.text("id")) { mutableStateOf("") }
+    var planExpanded by rememberSaveable(job.text("id")) { mutableStateOf(true) }
     val contentState=rememberLazyListState()
     val scope=rememberCoroutineScope()
     val evaluating=state.snapshot.objects("tasks").any { it.text("kind")=="evaluate" && it.text("jobId")==job.text("id") && it.text("status") in setOf("queued","running","reconciling") }
@@ -62,7 +64,7 @@ import org.json.JSONArray
                         if(job.objects("gaps").isNotEmpty()) item { Text(tr("需要准备的差距","Les écarts à préparer","Gaps to prepare"),fontSize = 18.sp,fontWeight = FontWeight.SemiBold) }
                         items(job.objects("gaps")) { gap -> GlassCard { Text(gap.text("title"),fontWeight = FontWeight.SemiBold); if(gap.text("severity").isNotBlank()) Pill(product(gap.text("severity")),warm = true); Text(gap.text("why"),fontSize = 14.sp); Hint(gap.text("positioning")) } }
                         items(job.objects("match")) { match -> GlassCard { Text(match.text("requirement"),fontWeight = FontWeight.SemiBold); Pill(product(match.text("fit"))); Text(match.text("evidence"),fontSize = 14.sp); if(match.text("action").isNotBlank()) Hint(match.text("action")) } }
-                        item { if(job.text("evaluationState") != "evaluated") Button({vm.startTask(json("kind" to "evaluate","url" to job.text("url")))},Modifier.fillMaxWidth().testTag("evaluate-job"),enabled=!state.working&&!evaluating){Text(if(evaluating)tr("分析中","Évaluation en cours","Evaluating")else tr("运行正式评估","Évaluer ce poste","Evaluate this role"))}; Hint(tr("已保存的评估不会重复生成。评分不是录用概率。","Les évaluations enregistrées ne sont pas régénérées. Le score n’est pas une probabilité d’embauche.","Saved evaluations are not regenerated. Scores are not hiring probabilities.")) }
+                        item { if(job.text("evaluationState") != "evaluated") AiProgressButton(state,"evaluate",job.text("id"),tr("运行正式评估","Évaluer ce poste","Evaluate this role"),!state.working&&!evaluating,modifier=Modifier.testTag("evaluate-job")){vm.startTask(json("kind" to "evaluate","url" to job.text("url")))}; Hint(tr("已保存的评估不会重复生成。评分不是录用概率。","Les évaluations enregistrées ne sont pas régénérées. Le score n’est pas une probabilité d’embauche.","Saved evaluations are not regenerated. Scores are not hiring probabilities.")) }
                         if(job.text("reportNum").isNotBlank()) item { TextButton({ vm.openReport(job) },Modifier.testTag("view-report")) { Text(tr("查看完整评估报告","Lire le rapport complet","Read full report")) } }
                     }
                     1 -> {
@@ -72,16 +74,25 @@ import org.json.JSONArray
                             Hint(tr("只使用当前档案的已核实经历。生成结果先成为候选草稿，只有你确认后才成为这个岗位的已保留版本。","Uniquement à partir des preuves du profil actif. La proposition reste un brouillon jusqu’à votre confirmation.","Uses verified evidence only. The proposal stays a draft until you confirm it."))
                             if(cv.has("atsScore")) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { Pill("ATS ${cv.text("atsScore")}/100"); if(cv.has("presentationScore")&&!cv.isNull("presentationScore"))Pill(tr("已保留呈现分 ${cv.text("presentationScore")}/100","Présentation conservée ${cv.text("presentationScore")}/100","Saved presentation ${cv.text("presentationScore")}/100")) }
                             if(cv.text("file").isNotBlank()) OutlinedButton({ vm.openCvPreview(job = job) },Modifier.fillMaxWidth(),enabled=!state.working) { Text(tr("查看已保留的定制简历","Voir le CV adapté conservé","View saved tailored CV")) }
-                            if(!pendingDraft) PrimaryButton(if(cv.text("file").isBlank())tr("生成定制 PDF 简历草稿","Générer un brouillon de CV adapté","Generate tailored CV draft")else tr("生成新的候选版本","Générer une nouvelle proposition","Generate new candidate version"),!state.working) { vm.startTask(json("kind" to "cv","jobId" to job.text("id"),"retry" to true)) }
-                            if(cv.text("inputVersionId").isNotBlank() && cv.text("inputVersionId") != state.snapshot.child("cvState").text("versionId") && !pendingDraft) TextButton({ vm.startTask(json("kind" to "cv","jobId" to job.text("id"),"retry" to true)) },enabled = !state.working) { Text(tr("根据新版主简历生成新版本","Créer depuis le nouveau CV","Generate from updated master CV")) }
+                            if(!pendingDraft) AiProgressButton(state,"cv",job.text("id"),if(cv.text("file").isBlank())tr("生成定制 PDF 简历草稿","Générer un brouillon de CV adapté","Generate tailored CV draft")else tr("生成新的候选版本","Générer une nouvelle proposition","Generate new candidate version"),!state.working) { vm.startTask(json("kind" to "cv","jobId" to job.text("id"),"retry" to true)) }
+                            if(cv.text("inputVersionId").isNotBlank() && cv.text("inputVersionId") != state.snapshot.child("cvState").text("versionId") && !pendingDraft) AiProgressButton(state,"cv",job.text("id"),tr("根据新版主简历生成新版本","Créer depuis le nouveau CV","Generate from updated master CV"),!state.working,outlined=true) { vm.startTask(json("kind" to "cv","jobId" to job.text("id"),"retry" to true)) }
                         } }
                         if(draft.length()>0)item { TailoredCvDraftCard(job,state,vm) }
                         if(cv.strings("changes").isNotEmpty()) item { GlassCard { Text(tr("已保留版本的调整","Adaptations de la version conservée","Saved version changes"),fontWeight = FontWeight.SemiBold); cv.strings("changes").forEach { Bullet(it) } } }
                         if(cv.strings("keywords").isNotEmpty()) item { GlassCard { Text(tr("岗位关键词","Mots-clés du poste","Role keywords"),fontWeight = FontWeight.SemiBold); Text(cv.strings("keywords").joinToString(" · "),fontSize = 14.sp) } }
                     }
                     2 -> {
-                        if(job.child("mobilePlan").text("markdown").isBlank()) item { PrimaryButton(tr("制定针对性准备计划","Créer un plan de préparation","Create a preparation plan"),!state.working) { vm.startTask(json("kind" to "plan","jobId" to job.text("id"),"minutesPerDay" to 30)) } }
-                        if(job.child("mobilePlan").text("markdown").isNotBlank()) item { GlassCard { Markdown(job.child("mobilePlan").text("markdown")) } }
+                        val planMarkdown=job.child("mobilePlan").text("markdown")
+                        if(planMarkdown.isBlank()) item { AiProgressButton(state,"plan",job.text("id"),tr("制定针对性准备计划","Créer un plan de préparation","Create a preparation plan"),!state.working) { vm.startTask(json("kind" to "plan","jobId" to job.text("id"),"minutesPerDay" to 30)) } }
+                        if(planMarkdown.isNotBlank()) item { GlassCard(Modifier.testTag("interview-plan-card")) {
+                            Row(Modifier.fillMaxWidth().clickable { planExpanded=!planExpanded }.testTag("toggle-interview-plan"),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Text(tr("面试准备计划","Plan de préparation à l’entretien","Interview preparation plan"),Modifier.weight(1f),fontSize=18.sp,fontWeight=FontWeight.SemiBold)
+                                Text(if(planExpanded)tr("收起","Réduire","Collapse")else tr("展开","Développer","Expand"),fontSize=12.sp,color=MaterialTheme.colorScheme.primary)
+                                Icon(if(planExpanded)Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,null,Modifier.size(20.dp),tint=MaterialTheme.colorScheme.primary)
+                            }
+                            AnimatedVisibility(planExpanded) { Column(verticalArrangement=Arrangement.spacedBy(10.dp)) { HorizontalDivider();Markdown(planMarkdown) } }
+                            AiProgressButton(state,"plan",job.text("id"),tr("更新准备计划","Actualiser le plan","Update preparation plan"),!state.working,outlined=true) { vm.startTask(json("kind" to "plan","jobId" to job.text("id"),"minutesPerDay" to 30,"retry" to true)) }
+                        } }
                         items(job.objects("prepTasks")) { task -> Row(Modifier.fillMaxWidth(),verticalAlignment = Alignment.CenterVertically) { Checkbox(task.optBoolean("done"),{ vm.updateJob(job.text("id"),json("taskId" to task.text("id"),"taskDone" to it)) }); Text(task.text("label"),Modifier.weight(1f),fontSize = 14.sp) } }
                         val interview = job.child("interview")
                         if(interview.strings("process").isNotEmpty()) item { GlassCard { Text(tr("面试流程","Processus d’entretien","Interview process"),fontWeight = FontWeight.SemiBold); interview.strings("process").forEach { Bullet(it) }; if(!interview.optBoolean("processKnown")) Pill(tr("实际流程待确认","À confirmer avec le recruteur","Confirm with recruiter"),warm = true) } }
@@ -91,7 +102,7 @@ import org.json.JSONArray
                             Text(tr("针对性模拟","Simulation ciblée","Targeted practice"),fontSize = 18.sp,fontWeight = FontWeight.SemiBold)
                             OutlinedTextField(practiceQuestion,{ practiceQuestion = it },Modifier.fillMaxWidth(),label = { Text(tr("问题","Question","Question")) },minLines = 2,shape = RoundedCornerShape(18.dp))
                             OutlinedTextField(practiceAnswer,{ practiceAnswer = it },Modifier.fillMaxWidth(),label = { Text(tr("我的回答","Ma réponse","My answer")) },minLines = 4,maxLines = 10,shape = RoundedCornerShape(18.dp))
-                            PrimaryButton(tr("获取反馈","Recevoir un retour","Get feedback"),!state.working && practiceQuestion.isNotBlank() && practiceAnswer.isNotBlank()) { vm.startTask(json("kind" to "practice","jobId" to job.text("id"),"question" to practiceQuestion,"answer" to practiceAnswer)) }
+                            AiProgressButton(state,"practice",job.text("id"),tr("获取反馈","Recevoir un retour","Get feedback"),!state.working && practiceQuestion.isNotBlank() && practiceAnswer.isNotBlank()) { vm.startTask(json("kind" to "practice","jobId" to job.text("id"),"question" to practiceQuestion,"answer" to practiceAnswer)) }
                         } }
                     }
                     else -> {
@@ -149,7 +160,7 @@ import org.json.JSONArray
         } else if(pending) {
             OutlinedButton({vm.openCvPreview(job=job,tailoredDraftId=draft.text("id"))},Modifier.fillMaxWidth().testTag("preview-tailored-draft"),enabled=!state.working){Text(tr("预览真实 PDF","Prévisualiser le PDF réel","Preview actual PDF"))}
             OutlinedButton({editing=true},Modifier.fillMaxWidth(),enabled=!state.working){Text(tr("手动修改这个版本","Modifier manuellement cette version","Edit this version manually"))}
-            OutlinedButton({vm.startTask(json("kind" to "cv_review","jobId" to job.text("id"),"draftId" to draft.text("id"),"revision" to draft.optInt("revision"),"retry" to true))},Modifier.fillMaxWidth().testTag("review-tailored-draft"),enabled=!state.working){Text(if(assessment.optInt("revision",-1)==draft.optInt("revision"))tr("重新评估这个草稿","Réévaluer ce brouillon","Reassess this draft")else tr("评估修改后的草稿","Évaluer le brouillon modifié","Assess edited draft"))}
+            AiProgressButton(state,"cv_review",job.text("id"),if(assessment.optInt("revision",-1)==draft.optInt("revision"))tr("重新评估这个草稿","Réévaluer ce brouillon","Reassess this draft")else tr("评估修改后的草稿","Évaluer le brouillon modifié","Assess edited draft"),!state.working,outlined=true,modifier=Modifier.testTag("review-tailored-draft")){vm.startTask(json("kind" to "cv_review","jobId" to job.text("id"),"draftId" to draft.text("id"),"revision" to draft.optInt("revision"),"retry" to true))}
             Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){Button({vm.decideTailoredDraft(draft.text("id"),"accept")},Modifier.weight(1f).testTag("accept-tailored-draft"),enabled=!state.working){Text(tr("保留这个版本","Conserver","Keep"))};OutlinedButton({vm.decideTailoredDraft(draft.text("id"),"reject")},Modifier.weight(1f).testTag("reject-tailored-draft"),enabled=!state.working){Text(tr("不要这个版本","Refuser","Reject"))}}
         }
     }

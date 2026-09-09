@@ -1,6 +1,19 @@
 # JobPilot mobile — acceptance record
 
-Date: 2026-09-09, Europe/Paris. Current installation: **Android 0.3.6/code10 on the Samsung USB device, with production backend build 0.3.6 and Web 0.4.4**. Language-specific acceptance and historical limits remain in `ANDROID_LANGUAGE_SEPARATION.md`; earlier release evidence below is retained. Private evidence remains in ignored `.career-ops-web/mobile-qa/` directories.
+Date: 2026-09-09, Europe/Paris. Current source/APK: **Android 0.3.7/code11**; the Samsung was not connected to ADB at this release check, so the latest physically verified installed build remains **0.3.6/code10**. Production backend build is **0.3.7** and Web is **0.4.5**. Language-specific acceptance and historical limits remain in `ANDROID_LANGUAGE_SEPARATION.md`; earlier release evidence below is retained. Private evidence remains in ignored `.career-ops-web/mobile-qa/` directories.
+
+## 0.3.7 collapsible interview plan / inline AI progress acceptance
+
+| Verification | Observed result |
+| --- | --- |
+| Android build | `:app:assembleDebug --no-daemon` passed for **versionName 0.3.7 / versionCode 11**. APK generated at `android/app/build/outputs/apk/debug/app-debug.apk`. |
+| Physical install boundary | `adb` was located and started, but `adb devices` returned no connected device. This release therefore does **not** claim a 0.3.7 physical install; last verified device version remains 0.3.6/code10. |
+| Interview-plan folding | Android source uses saveable `planExpanded` + `AnimatedVisibility`; Web browser acceptance verifies the generated plan starts expanded, `toggle-interview-plan` changes `aria-expanded` to false and removes the Markdown body, then expands it again. The saved plan itself is unchanged. |
+| Inline AI progress | Shared Android/Web AI buttons use backend `targetSeconds` with `0.96 × (1 - exp(-3t/T))`, so visual progress is fast early and slower near the ETA. Active state is capped at 96% and labelled `≈NN%`; this is explicitly ETA progress, not a model completion API. |
+| Real terminal success | Synthetic Web acceptance holds a coach task in `queued`, observes an active inline progress button, then changes the task snapshot to real `completed`; the same button reaches **100% / 已完成**. The centered ETA ring uses the same real-terminal finish rule. |
+| Failure visibility | Synthetic Web acceptance transitions a queued practice task to `failed` with a known error and confirms the error becomes visible. Android source handles active→failed/interrupted refresh by clearing the launch overlay, setting the failed task and opening the error/task surface. |
+| Web parity | Chromium/Edge and WebKit synthetic browser suites: **24/24 PASS each**, fail-closed against production business writes. They include plan collapse/expand, active inline progress, completion snap and failure feedback. |
+| Production build/deploy | Web **0.4.5** `npm run build` passed. `start-mobile.ps1 -RestartWeb` restarted the persistent Web service; local `GET http://127.0.0.1:3000/api/mobile` returned **version 0.3.7** and gateway 3002 remained listening. |
 
 ## 0.3.6 tailored-CV proposal / comparison acceptance
 

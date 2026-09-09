@@ -153,11 +153,22 @@ try {
     await page.getByLabel('我的回答', { exact: true }).fill('A documented example of research with a clear method.'); await buttons('获取逐项反馈').click(); await shown('result-sheet');
     assert.equal(api.posts.findLast(p => p.body?.input?.kind === 'practice').body.input.jobId, 'qa-role-1'); await close();
     await page.getByLabel('关于我的职业路径……', { exact: true }).fill('How should I prioritize my research experience?'); await buttons('一起思考').click(); await shown('result-sheet'); assert.ok(api.posts.some(p => p.body?.input?.kind === 'coach')); await close();
-    await buttons('查看／更新训练计划').click(); await shown('job-detail-qa-role-1'); assert.equal(await byId('job-tab-2').getAttribute('aria-selected'), 'true');
+    await eventually(async()=>await buttons('更新训练计划').count()===1,6000);await buttons('更新训练计划').click(); await shown('job-detail-qa-role-1'); assert.equal(await byId('job-tab-2').getAttribute('aria-selected'), 'true');
+    await shown('interview-plan-body');assert.equal(await byId('toggle-interview-plan').getAttribute('aria-expanded'),'true');await byId('toggle-interview-plan').click();await eventually(async()=>await byId('interview-plan-body').count()===0);assert.equal(await byId('toggle-interview-plan').getAttribute('aria-expanded'),'false');await byId('toggle-interview-plan').click();await shown('interview-plan-body');
     const jobContent=byId('job-content');await jobContent.evaluate(el=>{el.scrollTop=0;});const beforeScroll=await jobContent.evaluate(el=>el.scrollTop);
     await byId('practice-this-question').click();await eventually(async()=>await jobContent.evaluate(el=>el.scrollTop)>beforeScroll);
     const targeted=byId('targeted-practice');await targeted.waitFor({state:'visible'});await eventually(async()=>await targeted.getByLabel('面试问题',{exact:true}).inputValue()==='Describe your research process.');
     await shot('interview-plan-zh'); await close();
+  });
+  await check('AI buttons expose asymptotic inline progress, snap to complete, and surface failures', async () => {
+    await nav('prepare');await eventually(async()=>await buttons('一起思考').count()===1,6000);
+    const coachInput=page.getByLabel('关于我的职业路径……',{exact:true});const coachCard=coachInput.locator('xpath=ancestor::section[contains(@class,"jp-card")][1]');await coachInput.fill('__QA_ASYNC__ success');await buttons('一起思考').click();await shown('background-task-launch');await byId('confirm-background-task').click();await byId('background-task-launch').waitFor({state:'hidden'});
+    const coachButton=coachCard.locator('.jp-ai-button');await eventually(async()=>await coachButton.getAttribute('aria-busy')==='true');assert.match(await coachButton.getAttribute('style'),/--jp-ai-progress:/);assert.match(await coachButton.innerText(),/≈\d+%/);
+    const successTask=api.fixtures[ids[0]].tasks.find(t=>t.kind==='coach'&&t.input?.question==='__QA_ASYNC__ success');successTask.status='completed';successTask.updatedAt=new Date().toISOString();
+    await eventually(async()=>/已完成/.test(await coachButton.innerText()),8000);assert.match(await coachButton.getAttribute('style'),/--jp-ai-progress:\s*100%/);
+    await eventually(async()=>await buttons('获取逐项反馈').count()===1,6000);const q=page.getByLabel('面试问题',{exact:true}),a=page.getByLabel('我的回答',{exact:true});await q.fill('__QA_ASYNC__ failure');await a.fill('Synthetic answer');await buttons('获取逐项反馈').click();await shown('background-task-launch');await byId('confirm-background-task').click();await byId('background-task-launch').waitFor({state:'hidden'});
+    const failureTask=api.fixtures[ids[0]].tasks.find(t=>t.kind==='practice'&&t.input?.question==='__QA_ASYNC__ failure');await eventually(()=>failureTask?.status==='queued');failureTask.status='failed';failureTask.error='Synthetic AI failure';failureTask.updatedAt=new Date().toISOString();
+    await eventually(async()=>/Synthetic AI failure/.test(await byId('jobpilot-phone').innerText()),8000);assert.match(await byId('jobpilot-phone').innerText(),/Synthetic AI failure/);const dismiss=page.locator('.jp-error .jp-icon-button');if(await dismiss.count())await dismiss.click();
   });
   await check('search stays in background, repeated click submits once, completion routes to offers', async () => {
     await nav('offers'); const before = api.posts.filter(p => p.body?.input?.kind === 'search').length;

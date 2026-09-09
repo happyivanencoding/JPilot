@@ -105,7 +105,8 @@ import org.json.JSONObject
         } }
         item { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(url,{ url = it },Modifier.fillMaxWidth(),label = { Text(tr("或粘贴职位链接","Ou coller le lien d’un poste","Or paste a job URL")) },singleLine = true,shape = RoundedCornerShape(10.dp))
-            TextButton({ vm.startTask(json("kind" to "evaluate","url" to url.trim())) },enabled = !state.working && url.startsWith("http")) { Text(tr("查看／评估该岗位","Consulter / évaluer cette offre","View / evaluate this role")); Icon(Icons.Rounded.ArrowForward,null,Modifier.padding(start = 6.dp).size(16.dp)) }
+            val pastedJobId=state.snapshot.objects("jobs").find { it.text("url")==url.trim() }?.text("id")
+            AiProgressButton(state,"evaluate",pastedJobId,tr("查看／评估该岗位","Consulter / évaluer cette offre","View / evaluate this role"),!state.working && url.startsWith("http"),outlined=true) { vm.startTask(json("kind" to "evaluate","url" to url.trim())) }
             HorizontalDivider()
         } }
         item { Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -153,7 +154,8 @@ import org.json.JSONObject
                 TextButton({ context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(offer.text("url")))) },contentPadding = PaddingValues(0.dp)) { Text(tr("查看职位来源","Voir l’annonce source","View source posting")); Icon(Icons.Rounded.OpenInNew,null,Modifier.padding(start = 6.dp).size(15.dp)) }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedButton({ vm.saveOffer(offer) },Modifier.weight(1f),enabled = !saved && !state.working) { Text(if(saved) tr("已收藏","Enregistrée","Saved") else tr("保存","Enregistrer","Save")) }
-                    Button({ vm.startTask(json("kind" to "evaluate","url" to offer.text("url"),"offer" to JSONObject(offer.toString()))) },Modifier.weight(1f),enabled = !evaluating && !state.working) { Text(if(evaluating) tr("分析中","Analyse en cours","Analyzing") else tr("岗位评估","Évaluer","Evaluate")) }
+                    val evaluateJobId=offer.text("jobId").takeIf(String::isNotBlank) ?: state.snapshot.objects("jobs").find { it.text("url")==offer.text("url") }?.text("id")
+                    AiProgressButton(state,"evaluate",evaluateJobId,tr("岗位评估","Évaluer","Evaluate"),!evaluating && !state.working,modifier=Modifier.weight(1f)) { vm.startTask(json("kind" to "evaluate","url" to offer.text("url"),"offer" to JSONObject(offer.toString()))) }
                 }
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
             }

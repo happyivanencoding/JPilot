@@ -34,6 +34,7 @@ import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
 import org.json.JSONObject
 import java.time.Instant
+import kotlin.math.exp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun PilotApp(vm: JobPilotViewModel, state: PilotState) {
@@ -150,10 +151,10 @@ import java.time.Instant
     else state.selectedJob?.let { id -> state.snapshot.objects("jobs").find { it.text("id") == id }?.let { JobDetailSheet(it,state,vm) } }
     if(state.analysisVisible && state.snapshot.has("analysis")) AnalysisSheet(state,vm)
     if(state.cvPreview != null || state.previewLoading) CvPreviewDialog(state,vm)
-    state.taskLaunch?.let { BackgroundTaskLaunch(it,vm::clearTaskLaunch) }
+    state.taskLaunch?.let { BackgroundTaskLaunch(it,state,vm::clearTaskLaunch) }
 }
 
-@Composable private fun BackgroundTaskLaunch(feedback: TaskLaunchFeedback,onDone: () -> Unit) {
+@Composable private fun BackgroundTaskLaunch(feedback: TaskLaunchFeedback,state:PilotState,onDone: () -> Unit) {
     var flying by remember(feedback.ids) { mutableStateOf(false) }
     val scale by animateFloatAsState(if(flying) .16f else 1f,tween(420),label="task-launch-scale")
     val alpha by animateFloatAsState(if(flying) .12f else 1f,tween(360),label="task-launch-alpha")
@@ -174,7 +175,9 @@ import java.time.Instant
                 }
                 Text(tr("正在后台处理","Traitement en arrière-plan","Processing in the background"),fontSize=22.sp,fontWeight=FontWeight.SemiBold)
                 Text(feedback.title,fontSize=15.sp,fontWeight=FontWeight.Medium)
-                EstimatedTaskProgress(feedback.createdAt,feedback.estimate,large=true)
+                val launchTasks=state.snapshot.objects("tasks").filter { it.text("id") in feedback.ids }
+                val launchStatus=if(launchTasks.isNotEmpty() && launchTasks.all { it.text("status")=="completed" }) "completed" else null
+                EstimatedTaskProgress(feedback.createdAt,feedback.estimate,large=true,terminalStatus=launchStatus)
                 Hint(if(feedback.ids.size>1) tr("${feedback.ids.size} 个任务已经加入右上角任务列表。你可以继续使用其他页面。","${feedback.ids.size} tâches ont été ajoutées en haut à droite. Vous pouvez continuer à naviguer.","${feedback.ids.size} tasks were added to the top-right task center. You can keep browsing.") else tr("任务已经加入右上角任务列表。你可以继续使用其他页面。","La tâche a été ajoutée en haut à droite. Vous pouvez continuer à naviguer.","The task was added to the top-right task center. You can keep browsing."))
                 Button({ flying=true },Modifier.fillMaxWidth().testTag("confirm-background-task"),enabled=!flying) { Text(tr("知道了","Compris","Got it")) }
             }
@@ -182,7 +185,7 @@ import java.time.Instant
     }
 }
 
-@Composable private fun EstimatedTaskProgress(createdAt:String,estimate:JSONObject,large:Boolean=false) {
+@Composable private fun EstimatedTaskProgress(createdAt:String,estimate:JSONObject,large:Boolean=false,terminalStatus:String?=null) {
     val target=estimate.optDouble("targetSeconds",estimate.optDouble("maxSeconds",0.0)).toLong()
     val started=remember(createdAt) { runCatching { Instant.parse(createdAt).toEpochMilli() }.getOrElse { System.currentTimeMillis() } }
     var now by remember(createdAt,target) { mutableLongStateOf(System.currentTimeMillis()) }
@@ -191,14 +194,17 @@ import java.time.Instant
     }
     if(target<=0) { Hint(product(estimate.text("label","Habituellement quelques minutes")));return }
     val elapsed=((now-started)/1000L).coerceAtLeast(0L)
-    val overdue=elapsed>=target
+    val completed=terminalStatus=="completed"
+    val overdue=!completed && elapsed>=target
     val remaining=(target-elapsed).coerceAtLeast(0L)
     // This is elapsed time versus an ETA, not model-reported completion.
-    // Keep it below 100% until a real terminal task state arrives.
-    val progress=(elapsed.toFloat()/target.toFloat()).coerceIn(.04f,.96f)
+    // The asymptotic curve visibly slows near the end and stays below 100%
+    // until a real terminal task state arrives.
+    val estimated=(0.96*(1.0-exp(-3.0*elapsed.toDouble()/target.toDouble()))).coerceIn(.04,.96).toFloat()
+    val progress by animateFloatAsState(if(completed)1f else estimated,tween(if(completed)260 else 450),label="task-eta-progress")
     val ringSize=if(large) 66.dp else 38.dp
-    val ringText=if(overdue) "…" else if(remaining<60) "${remaining}s" else "${(remaining+59)/60}m"
-    val remainingLabel=if(overdue) tr("已超过预计时间，仍在处理中","Durée estimée dépassée · toujours en cours","Estimated time exceeded · still processing") else if(remaining<60) tr("预计剩余 ${remaining} 秒","Environ ${remaining} s restantes","About ${remaining} s remaining") else tr("预计剩余约 ${(remaining+59)/60} 分钟","Environ ${(remaining+59)/60} min restantes","About ${(remaining+59)/60} min remaining")
+    val ringText=if(completed) "✓" else if(overdue) "…" else if(remaining<60) "${remaining}s" else "${(remaining+59)/60}m"
+    val remainingLabel=if(completed)tr("已完成","Terminé","Completed") else if(overdue) tr("已超过预计时间，仍在处理中","Durée estimée dépassée · toujours en cours","Estimated time exceeded · still processing") else if(remaining<60) tr("预计剩余 ${remaining} 秒","Environ ${remaining} s restantes","About ${remaining} s remaining") else tr("预计剩余约 ${(remaining+59)/60} 分钟","Environ ${(remaining+59)/60} min restantes","About ${(remaining+59)/60} min remaining")
     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=if(large) Arrangement.Center else Arrangement.Start) {
         Box(Modifier.size(ringSize),contentAlignment=Alignment.Center) {
             CircularProgressIndicator(progress={progress},modifier=Modifier.fillMaxSize(),strokeWidth=if(large) 6.dp else 4.dp,trackColor=MaterialTheme.colorScheme.primaryContainer)

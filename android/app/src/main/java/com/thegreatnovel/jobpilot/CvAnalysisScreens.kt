@@ -24,9 +24,7 @@ import org.json.JSONObject
         Text(tr("让招聘方看到重点","Les bons signaux, au premier regard","The right signals, at first glance"),fontWeight=FontWeight.SemiBold,fontSize=18.sp)
         Hint(tr("不是把每一段写满，而是让最有价值的证据占据正确的位置。","Pas davantage de texte : une place juste pour vos preuves les plus utiles.","Not more text: the right space for your strongest evidence."))
         if(exists) Button({vm.showAnalysis()},Modifier.fillMaxWidth().testTag("view-analysis")) {Text(tr("查看分析","Voir mon analyse","View analysis"))}
-        if(!exists || stale) OutlinedButton({vm.startTask(json("kind" to "analysis"))},Modifier.fillMaxWidth().testTag("update-analysis"),enabled=!running&&!state.working&&state.snapshot.text("cv").isNotBlank()) {
-            Text(if(running) tr("分析中","Analyse en cours","Analysis in progress") else if(stale) tr("更新分析","Mettre à jour l’analyse","Update analysis") else tr("分析整份简历","Analyser mon CV","Analyze my CV"))
-        }
+        if(!exists || stale) AiProgressButton(state,"analysis",label=if(stale)tr("更新分析","Mettre à jour l’analyse","Update analysis")else tr("分析整份简历","Analyser mon CV","Analyze my CV"),enabled=!running&&!state.working&&state.snapshot.text("cv").isNotBlank(),outlined=true,modifier=Modifier.testTag("update-analysis")) { vm.startTask(json("kind" to "analysis")) }
         if(stale) Hint(tr("简历发生了真实变化。更新会保留上次结论和接受过的改进。","Votre CV a réellement changé. La mise à jour reprend les conclusions et améliorations précédentes.","Your CV changed. Updates retain prior conclusions and accepted improvements."))
     }
 }

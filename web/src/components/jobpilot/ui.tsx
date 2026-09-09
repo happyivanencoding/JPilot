@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type CSS
 import { ArrowUpRight, ChevronRight, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { usePilot, type Json } from "./pilot-context";
+import { rows, usePilot, type Json } from "./pilot-context";
 import { validScore, safeExternalUrl } from "./model.mjs";
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) { return <section className={`jp-card ${className}`}>{children}</section>; }
@@ -13,6 +13,40 @@ export function Pill({ children, warm = false }: { children: ReactNode; warm?: b
 export function Button({ children, kind = "primary", className = "", disabled, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { kind?: "primary" | "outline" | "text" }) {
   const { busy } = usePilot();
   return <button type="button" className={`jp-button ${kind} ${className}`} disabled={disabled || busy} {...props}>{children}</button>;
+}
+export function AiProgressButton({ taskKind, jobId, children, kind = "primary", className = "", disabled, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { taskKind: string; jobId?: string; kind?: "primary" | "outline" | "text" }) {
+  const { data, tr } = usePilot();
+  const [now, setNow] = useState(() => Date.now());
+  const candidates = rows(data.tasks).filter(task => task.kind === taskKind && (!jobId || task.jobId === jobId)).sort((a,b) => Date.parse(String(b.createdAt || "")) - Date.parse(String(a.createdAt || "")));
+  const latest = candidates[0];
+  const status = String(latest?.status || "");
+  const active = ["queued","running","reconciling"].includes(status);
+  const terminal = ["completed","failed","interrupted"].includes(status);
+  const updated = Date.parse(String(latest?.updatedAt || latest?.createdAt || ""));
+  const recent = active || terminal && Number.isFinite(updated) && now - updated <= 3200;
+  const task = recent ? latest : null;
+  useEffect(() => {
+    if (!latest) return;
+    const age = Date.now() - updated;
+    if (!active && (!terminal || !Number.isFinite(updated) || age > 3200)) return;
+    const id = window.setInterval(() => setNow(Date.now()), 250);
+    const stop = !active ? window.setTimeout(() => { window.clearInterval(id); setNow(Date.now()); }, Math.max(1, 3201 - age)) : undefined;
+    return () => { window.clearInterval(id); if (stop) window.clearTimeout(stop); };
+  }, [latest?.id, active, terminal, updated]);
+  const target = Number(task?.estimate?.targetSeconds || task?.estimate?.maxSeconds || 0);
+  const started = Date.parse(String(task?.createdAt || ""));
+  const elapsed = Number.isFinite(started) ? Math.max(0, (now - started) / 1000) : 0;
+  const completed = task?.status === "completed";
+  const failed = task?.status === "failed" || task?.status === "interrupted";
+  const estimated = active ? Math.min(.96, Math.max(.04, target > 0 ? .96 * (1 - Math.exp(-3 * elapsed / target)) : .18)) : 0;
+  const progress = completed || failed ? 1 : estimated;
+  const pct = Math.round(progress * 100);
+  const label = completed ? tr("已完成", "Terminé", "Completed") : failed ? tr("处理失败", "Échec du traitement", "Processing failed") : active ? <>{children} <span className="jp-ai-percent">≈{pct}%</span></> : children;
+  const style = { ...(props.style || {}), "--jp-ai-progress": `${pct}%` } as CSSProperties;
+  return <Button kind={kind} className={`jp-ai-button${failed ? " failed" : ""} ${className}`} disabled={disabled || active} aria-busy={active || undefined} {...props} style={style}>
+    {task && <span className="jp-ai-button-fill" aria-hidden="true" />}
+    <span className="jp-ai-button-label">{label}</span>
+  </Button>;
 }
 export function IconButton({ label, children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) { return <button type="button" className="jp-icon-button" aria-label={label} title={label} {...props}>{children}</button>; }
 export function Chip({ children, selected = false, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { selected?: boolean }) { return <button type="button" className={`jp-chip ${selected ? "selected" : ""}`} aria-pressed={selected} {...props}>{children}</button>; }
@@ -32,7 +66,7 @@ function remainingText(seconds: number, tr: (z: string, f: string, e?: string) =
   const minutes = Math.ceil(seconds / 60);
   return tr(`预计剩余约 ${minutes} 分钟`, `Environ ${minutes} min restantes`, `About ${minutes} min remaining`);
 }
-export function EstimatedProgress({ createdAt, estimate, large = false }: { createdAt?: string; estimate?: Json; large?: boolean }) {
+export function EstimatedProgress({ createdAt, estimate, large = false, status }: { createdAt?: string; estimate?: Json; large?: boolean; status?: string }) {
   const { tr } = usePilot();
   const target = Number(estimate?.targetSeconds || estimate?.maxSeconds || 0);
   const started = Date.parse(createdAt || "");
@@ -45,16 +79,19 @@ export function EstimatedProgress({ createdAt, estimate, large = false }: { crea
   }, [createdAt, started, target]);
   if (!target || !Number.isFinite(started)) return <Hint>{estimate?.label || tr("正在估算耗时", "Estimation en cours", "Estimating duration")}</Hint>;
   const elapsed = Math.max(0, (now - started) / 1000);
-  const overdue = elapsed >= target;
+  const completed = status === "completed";
+  const overdue = !completed && elapsed >= target;
   const remaining = Math.max(0, target - Math.floor(elapsed));
   // This ring visualizes elapsed time against an ETA, not model-reported progress.
-  // It deliberately stays below 100% until the task reaches a real terminal state.
-  const progress = Math.min(.96, Math.max(.04, elapsed / target));
-  const center = overdue ? "…" : remaining < 60 ? `${remaining}s` : `${Math.ceil(remaining / 60)}m`;
+  // The asymptotic curve slows near the end and stays below 100% until a real
+  // terminal state arrives, then snaps to the final position.
+  const progress = completed ? 1 : Math.min(.96, Math.max(.04, .96 * (1 - Math.exp(-3 * elapsed / target))));
+  const center = completed ? "✓" : overdue ? "…" : remaining < 60 ? `${remaining}s` : `${Math.ceil(remaining / 60)}m`;
   const style = { "--jp-task-progress": `${progress * 360}deg` } as CSSProperties;
-  return <div className={`jp-estimated-progress${large ? " large" : ""}`} role="status" aria-label={overdue ? tr("已超过预计时间，仍在处理中", "Durée estimée dépassée, traitement toujours en cours", "Estimated time exceeded, still processing") : remainingText(remaining, tr)}>
+  const progressText = completed ? tr("已完成", "Terminé", "Completed") : overdue ? tr("已超过预计时间，仍在处理中", "Durée estimée dépassée · toujours en cours", "Estimated time exceeded · still processing") : remainingText(remaining, tr);
+  return <div className={`jp-estimated-progress${large ? " large" : ""}`} role="status" aria-label={progressText}>
     <span className="jp-estimated-ring" style={style}><span>{center}</span></span>
-    <span className="jp-estimated-copy"><strong>{overdue ? tr("已超过预计时间，仍在处理中", "Durée estimée dépassée · toujours en cours", "Estimated time exceeded · still processing") : remainingText(remaining, tr)}</strong><small>{estimate?.label}</small></span>
+    <span className="jp-estimated-copy"><strong>{progressText}</strong><small>{estimate?.label}</small></span>
   </div>;
 }
 export function Loading({ children }: { children?: ReactNode }) { const { tr } = usePilot(); return <div className="jp-loading" role="status"><Spinner /><Hint>{children || tr("正在读取你的档案…", "Chargement de votre profil…", "Loading your profile…")}</Hint></div>; }

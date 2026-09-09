@@ -110,8 +110,18 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
                 prefs.edit().putString("profile", actual).apply()
                 val prior = mutable.value.snapshot.objects("tasks").associateBy { it.text("id") }
                 val completed = data.objects("tasks").firstOrNull { it.text("status") == "completed" && (prior[it.text("id")]?.text("status") in activeStates || (prior[it.text("id")] == null && mutable.value.noticeTaskId == it.text("id"))) }
+                val failed = data.objects("tasks").firstOrNull { it.text("status") in setOf("failed","interrupted") && prior[it.text("id")]?.text("status") in activeStates }
+                val failedMessage = failed?.let { task ->
+                    val title = task.text("title").ifBlank { when(mutable.value.language) { "zh" -> "AI 处理失败"; "en" -> "AI processing failed"; else -> "Échec du traitement IA" } }
+                    val reason = ProductStrings.error(getApplication(),mutable.value.language,task.text("error",task.text("phase")))
+                    "$title · $reason"
+                }
                 mutable.update { it.copy(snapshot = data, profileId = actual, loading = false, loggedIn = true,
-                    notice = completed?.text("title") ?: it.notice, noticeTaskId = completed?.text("id") ?: it.noticeTaskId) }
+                    notice = if(failed!=null) null else completed?.text("title") ?: it.notice,
+                    noticeTaskId = if(failed!=null) null else completed?.text("id") ?: it.noticeTaskId,
+                    error = failedMessage ?: it.error,
+                    task = failed ?: it.task,
+                    taskLaunch = if(failed!=null) null else it.taskLaunch) }
                 val open = mutable.value.task
                 if (open != null && open.text("status") in activeStates) loadTask(open.text("id"))
                 else if(open?.child("result")?.child("localization")?.optBoolean("pending")==true && !open.child("result").child("localization").optBoolean("failed")) {

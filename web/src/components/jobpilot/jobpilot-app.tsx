@@ -11,13 +11,15 @@ import { PdfPreview } from "./pdf-preview";
 import { Button, Empty, EstimatedProgress, Hint, IconButton, Loading, Localization, Sheet, Spinner } from "./ui";
 
 function TaskLaunchOverlay() {
-  const {taskLaunch,setTaskLaunch,tr}=usePilot();
+  const {taskLaunch,setTaskLaunch,tr,data}=usePilot();
   const [flying,setFlying]=useState(false);
   const identity=taskLaunch?.ids.join(",") || "";
   useEffect(()=>{setFlying(false);},[identity]);
   useEffect(()=>{if(!flying)return;const timer=setTimeout(()=>setTaskLaunch(null),430);return()=>clearTimeout(timer);},[flying,setTaskLaunch]);
   if(!taskLaunch)return null;
-  return <div className={`jp-task-launch-backdrop${flying?" flying":""}`} data-testid="background-task-launch"><div className="jp-task-launch-card"><div className="jp-task-launch-icon"><ClipboardClock size={44}/></div><h2>{tr("正在后台处理","Traitement en arrière-plan","Processing in the background")}</h2><strong>{taskLaunch.title}</strong><EstimatedProgress createdAt={taskLaunch.createdAt} estimate={taskLaunch.estimate} large /><Hint>{taskLaunch.ids.length>1?tr(`${taskLaunch.ids.length} 个任务已经加入右上角任务列表。你可以继续使用其他页面。`,`${taskLaunch.ids.length} tâches ont été ajoutées en haut à droite. Vous pouvez continuer à naviguer.`,`${taskLaunch.ids.length} tasks were added to the top-right task center. You can keep browsing.`):tr("任务已经加入右上角任务列表。你可以继续使用其他页面。","La tâche a été ajoutée en haut à droite. Vous pouvez continuer à naviguer.","The task was added to the top-right task center. You can keep browsing.")}</Hint><Button data-testid="confirm-background-task" disabled={flying} onClick={()=>setFlying(true)}>{tr("知道了","Compris","Got it")}</Button></div></div>;
+  const launchTasks=rows(data.tasks).filter(task=>taskLaunch.ids.includes(String(task.id)));
+  const launchStatus=launchTasks.length>0&&launchTasks.every(task=>task.status==="completed")?"completed":undefined;
+  return <div className={`jp-task-launch-backdrop${flying?" flying":""}`} data-testid="background-task-launch"><div className="jp-task-launch-card"><div className="jp-task-launch-icon"><ClipboardClock size={44}/></div><h2>{tr("正在后台处理","Traitement en arrière-plan","Processing in the background")}</h2><strong>{taskLaunch.title}</strong><EstimatedProgress createdAt={taskLaunch.createdAt} estimate={taskLaunch.estimate} large status={launchStatus} /><Hint>{taskLaunch.ids.length>1?tr(`${taskLaunch.ids.length} 个任务已经加入右上角任务列表。你可以继续使用其他页面。`,`${taskLaunch.ids.length} tâches ont été ajoutées en haut à droite. Vous pouvez continuer à naviguer.`,`${taskLaunch.ids.length} tasks were added to the top-right task center. You can keep browsing.`):tr("任务已经加入右上角任务列表。你可以继续使用其他页面。","La tâche a été ajoutée en haut à droite. Vous pouvez continuer à naviguer.","The task was added to the top-right task center. You can keep browsing.")}</Hint><Button data-testid="confirm-background-task" disabled={flying} onClick={()=>setFlying(true)}>{tr("知道了","Compris","Got it")}</Button></div></div>;
 }
 
 function Phone() {

@@ -2,12 +2,15 @@ package com.thegreatnovel.jobpilot
 
 import android.app.Activity
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -28,6 +31,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.Velocity
 import androidx.core.view.WindowCompat
+import kotlinx.coroutines.delay
+import org.json.JSONObject
+import java.time.Instant
+import kotlin.math.exp
+import kotlin.math.roundToInt
 
 val Indigo = Color(0xFF166568)
 val Apricot = Color(0xFF64748B)
@@ -93,6 +101,101 @@ fun Modifier.blockSheetEdgeMotion(): Modifier = nestedScroll(SheetContentEdgeBlo
 @Composable fun EmptyCard(title: String, text: String) { GlassCard { Text(title, fontWeight = FontWeight.SemiBold); Hint(text) } }
 @Composable fun PrimaryButton(label: String, enabled: Boolean = true, onClick: () -> Unit) {
     Button(onClick, Modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = enabled, shape = RoundedCornerShape(8.dp)) { Text(label, fontWeight = FontWeight.SemiBold) }
+}
+
+private val aiProgressActiveStates = setOf("queued", "running", "reconciling")
+private val aiProgressTerminalStates = setOf("completed", "failed", "interrupted")
+
+private fun aiProgressTask(state: PilotState, kind: String, jobId: String?): JSONObject? {
+    val now = System.currentTimeMillis()
+    fun epoch(value: String): Long = runCatching { Instant.parse(value).toEpochMilli() }.getOrDefault(0L)
+    return state.snapshot.objects("tasks")
+        .asSequence()
+        .filter { it.text("kind") == kind && (jobId.isNullOrBlank() || it.text("jobId") == jobId) }
+        .maxByOrNull { epoch(it.text("createdAt")) }
+        ?.takeIf { task ->
+            val status = task.text("status")
+            status in aiProgressActiveStates || status in aiProgressTerminalStates && now - epoch(task.text("updatedAt", task.text("createdAt"))) <= 3200L
+        }
+}
+
+/**
+ * Estimated progress for model-backed actions. This is intentionally an ETA curve,
+ * not model-reported completion: it advances quickly at first, slows near the end,
+ * stays below 100% while active, then snaps to 100% only on a real completed state.
+ */
+@Composable fun AiProgressButton(
+    state: PilotState,
+    taskKind: String,
+    jobId: String? = null,
+    label: String,
+    enabled: Boolean = true,
+    outlined: Boolean = false,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val task = aiProgressTask(state, taskKind, jobId)
+    val status = task?.text("status").orEmpty()
+    val active = status in aiProgressActiveStates
+    val completed = status == "completed"
+    val failed = status == "failed" || status == "interrupted"
+    val estimate = task?.child("estimate")
+    val target = estimate?.optDouble("targetSeconds", estimate.optDouble("maxSeconds", 0.0)) ?: 0.0
+    val started = remember(task?.text("id"), task?.text("createdAt")) {
+        runCatching { Instant.parse(task?.text("createdAt").orEmpty()).toEpochMilli() }.getOrDefault(System.currentTimeMillis())
+    }
+    var now by remember(task?.text("id")) { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(task?.text("id"), status, target) {
+        if(task != null && (active || status in aiProgressTerminalStates)) {
+            while(true) {
+                now = System.currentTimeMillis()
+                val updated = runCatching { Instant.parse(task.text("updatedAt", task.text("createdAt"))).toEpochMilli() }.getOrDefault(now)
+                if(!active && now - updated > 3200L) break
+                delay(250)
+            }
+        }
+    }
+    val elapsed = ((now - started).coerceAtLeast(0L) / 1000.0)
+    val estimated = when {
+        completed -> 1f
+        failed -> 1f
+        !active -> 0f
+        target <= 0.0 -> .18f
+        else -> (0.96 * (1.0 - exp(-3.0 * elapsed / target))).coerceIn(.04, .96).toFloat()
+    }
+    val animated by animateFloatAsState(estimated, tween(if(completed || failed) 260 else 450), label = "ai-inline-progress")
+    val primary = MaterialTheme.colorScheme.primary
+    val foreground = if(outlined) primary else MaterialTheme.colorScheme.onPrimary
+    val fill = when {
+        failed -> MaterialTheme.colorScheme.error.copy(alpha = .24f)
+        outlined -> primary.copy(alpha = .15f)
+        else -> MaterialTheme.colorScheme.onPrimary.copy(alpha = .18f)
+    }
+    val display = when {
+        completed -> tr("已完成", "Terminé", "Completed")
+        failed -> tr("处理失败", "Échec du traitement", "Processing failed")
+        active -> "$label  ≈${(animated * 100).roundToInt()}%"
+        else -> label
+    }
+    Button(
+        onClick,
+        modifier.fillMaxWidth().heightIn(min = 48.dp),
+        enabled = enabled && !active,
+        shape = RoundedCornerShape(8.dp),
+        border = if(outlined) BorderStroke(1.dp, primary) else null,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if(outlined) Color.Transparent else primary,
+            contentColor = foreground,
+            disabledContainerColor = if(outlined) Color.Transparent else primary.copy(alpha = .72f),
+            disabledContentColor = foreground.copy(alpha = .92f),
+        ),
+        contentPadding = PaddingValues(0.dp),
+    ) {
+        Box(Modifier.fillMaxWidth().heightIn(min = 48.dp), contentAlignment = Alignment.Center) {
+            if(task != null) Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().fillMaxWidth(animated.coerceIn(0f, 1f)).background(fill))
+            Text(display, Modifier.padding(horizontal = 14.dp), fontWeight = FontWeight.SemiBold)
+        }
+    }
 }
 @Composable fun Bullet(text: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
