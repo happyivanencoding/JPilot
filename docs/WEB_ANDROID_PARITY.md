@@ -1,4 +1,4 @@
-# JobPilot Web 0.4.5 — Android-aligned product
+# JobPilot Web 0.4.6 — Android-aligned product
 
 ## Product decision — 2026-09-08
 
@@ -7,6 +7,13 @@ The Web client is now JobPilot, not a separate upstream Career-Ops workbench. Th
 **Development repository:** `https://github.com/happyivanencoding/JPilot`. Native Android is the frontend product authority; Web parity follows Android rather than evolving independently. Historical Career-Ops upstream/release/update machinery is not part of the JPilot development path. See `PROJECT_STRUCTURE.md`.
 
 **Hard parity release gate:** every Android UI/product behavior change must include and verify its equivalent phone-first Web behavior in the same development change/release. An Android release is not complete while the Web version is intentionally left behind. Backend-only changes are the normal exception.
+
+## 0.4.6 parity delta — Android 0.3.8
+
+- Web and Android both ship the same first-use welcome plus one-time five-tab onboarding. Web persists it in `localStorage`; Android uses app preferences.
+- Skipping onboarding suppresses all remaining guides on both clients; normal start keeps one-time tab walkthroughs.
+- User-facing Token/API-cost metrics are hidden on both clients, while ETA/progress remains visible and backend metrics stay intact for internal analysis.
+- This release is layered on top of 0.4.5/0.3.7 and therefore retains collapsible interview plans, inline AI progress, CV draft review, localization and current application filters. Production `typecheck`/Next build pass; Node **325/325** pass; Chromium/Edge and WebKit synthetic browser QA both **25/25 PASS** including onboarding skip-all with zero production business writes. The persistent service was restarted; `127.0.0.1:3000/api/mobile` returns backend **0.3.8** and root HTTP 200 while gateway 3002 remains listening.
 
 ## 0.4.5 parity delta — Android 0.3.7
 
@@ -56,7 +63,7 @@ The Web client is now JobPilot, not a separate upstream Career-Ops workbench. Th
 
 The shared server-side AI runtime now treats AgentDock/ACP strictly as model transport. Product inference receives backend-assembled data and cannot use terminal/filesystem/web/browser/plugins/skills/sub-agents. Formal evaluation returns JSON and the backend owns report/tracker persistence. Structured providers, not ACP web search, are the discovery network layer. CV ingest is extracted locally before inference; tailored CV generation embeds the frozen Candidate version. This changes backend latency/security boundaries, not the phone-frame Web interaction contract. See `AI_BENCHMARK_2026-09-08.md` for the measured transport tax and quality comparison.
 
-The reference is the current Android 0.3.7 implementation in `android/app/src/main/java/com/thegreatnovel/jobpilot/`, particularly `PilotApp`, `PilotDesign`, `CatalogScreens`, `PreparationScreens`, `DetailSheets`, `CvAnalysisScreens` and `CvPreview`. Do not infer current requirements from old Web screenshots or the historical upstream README.
+The reference is the current Android 0.3.8 implementation in `android/app/src/main/java/com/thegreatnovel/jobpilot/`, particularly `PilotApp`, `PilotDesign`, `CatalogScreens`, `PreparationScreens`, `DetailSheets`, `CvAnalysisScreens` and `CvPreview`. Do not infer current requirements from old Web screenshots or the historical upstream README.
 
 ## Layout and interaction
 

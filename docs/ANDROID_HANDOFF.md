@@ -1,8 +1,15 @@
 # JobPilot Android — implementation handoff
 
-Updated: 2026-09-09 (Europe/Paris). Current Android source/APK: **0.3.7 / versionCode 11**. The phone was not connected to ADB during this release, so the latest physically verified USB installation remains **0.3.6 / versionCode 10** rather than being silently claimed as 0.3.7. Current public backend build: **0.3.7** and Web counterpart **0.4.5**. Read `ANDROID_LANGUAGE_SEPARATION.md` for the independent UI/material language contracts. Earlier release evidence below remains historical, not invalidated.
+Updated: 2026-09-09 (Europe/Paris). Current Android source/APK: **0.3.8 / versionCode 12**; backend contract **0.3.8**; Web **0.4.6**. `assembleDebug` passes. ADB currently reports no connected device, so this release has not been physically installed during this merge and no installation claim is inferred from the build alone. Read `ANDROID_LANGUAGE_SEPARATION.md` for the independent UI/material language contracts. Earlier release evidence below remains historical, not invalidated.
 
 **Repository authority:** `https://github.com/happyivanencoding/JPilot`. Android is the canonical frontend for JPilot product decisions. Web follows this native implementation; it is not a second desktop product. **Every Android UI/product update must ship and verify the equivalent Web behavior in the same development change/release; parity cannot be deferred and still be called complete.** Backend-only changes are the normal exception. `santifer/career-ops` is historical provenance only and its updater is no longer part of the JPilot development workflow. See `PROJECT_STRUCTURE.md`.
+
+## Android 0.3.8 / Web 0.4.6 — onboarding + hide internal usage metrics
+
+- Merged Yifeng's first-use onboarding on top of the current Android/Web product rather than replacing current main. Welcome + one-time guides cover Home, Offers, Applications, Prepare and Profile in zh/fr/en.
+- "Skip guide" now suppresses all remaining tab guides; "Get started" keeps the per-tab first-visit walkthrough.
+- Token counts and API-cost estimates are removed from user-facing task/search surfaces while internal metrics remain persisted. Existing ETA/progress UI remains user-visible.
+- The collaboration branch is now `Yifeng`; CI and automatic PR maintenance follow `Yifeng → main`. Validation: Web Node **325/325**, Chromium/Edge **25/25**, WebKit **25/25**, Web typecheck/build PASS; Android `assembleDebug` PASS and `testDebugUnitTest` currently `NO-SOURCE`. The persistent Web service was restarted and local `/api/mobile` reports **0.3.8**; ADB had no connected device.
 
 ## Android 0.3.7 / Web 0.4.5 — collapsible interview plan + inline AI ETA progress
 

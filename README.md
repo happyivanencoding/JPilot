@@ -13,9 +13,9 @@ JPilot 是一个 **Android-first** 的 AI 求职产品。原生 Android 客户�
 ## 协作分支
 
 - `main` — 集成/生产主线，合并仍由项目负责人手动决定。
-- `codex/development` — Yifeng 的持续开发分支。
-- 每次 push 到 `codex/development` 都运行与 `main` 相同的 Android + Web CI。
-- dev CI 全部通过且分支相对 `main` 存在真实文件差异时，GitHub Actions 会确保存在一个 `codex/development → main` PR；后续 push 自动更新同一个 PR，不自动 merge。
+- `Yifeng` — Yifeng 的持续开发分支。
+- 每次 push 到 `Yifeng` 都运行与 `main` 相同的 Android + Web CI。
+- dev CI 全部通过且分支相对 `main` 存在真实文件差异时，GitHub Actions 会确保存在一个 `Yifeng → main` PR；后续 push 自动更新同一个 PR，不自动 merge。
 
 ## 产品结构
 

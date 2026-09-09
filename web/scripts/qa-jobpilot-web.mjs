@@ -43,6 +43,14 @@ try {
   const shot = async name => { await byId('jobpilot-phone').screenshot({ path: path.join(out, name + '.png'), animations: 'disabled' }); };
   const buttons = (name, exact = true) => page.getByRole('button', { name, exact });
   await goto();
+  await check('first-use onboarding appears and skip suppresses remaining tab guides', async () => {
+    await shown('onboarding-welcome');
+    await page.getByRole('button', { name: '跳过引导', exact: true }).click();
+    await byId('onboarding-welcome').waitFor({ state: 'hidden' });
+    await byId('nav-offers').click(); await shown('offers-page');
+    assert.equal(await byId('onboarding-offers').count(), 0);
+    await byId('nav-home').click(); await shown('home-page');
+  });
   await check('phone frame is exactly 384x832 on desktop; five navigation entries; own branding', async () => {
     const b = await byId('jobpilot-phone').boundingBox(); assert.equal(b.width, 384); assert.equal(b.height, 832);
     assert.equal(await page.locator('.jp-nav button').count(), 5); assert.equal(await page.title(), 'JobPilot');
