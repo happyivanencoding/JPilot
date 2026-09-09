@@ -8,6 +8,7 @@ import { ApplicationsPage, HomePage, OffersPage } from "./catalog";
 import { CvEditor, PreparePage, ProfilePage } from "./profile-prepare";
 import { AnalysisSheet, CompareSheet, JobSheet, ResultSheet, TasksSheet } from "./sheets";
 import { PdfPreview } from "./pdf-preview";
+import { OnboardingOverlay, type GuideTab } from "./onboarding";
 import { Button, Empty, EstimatedProgress, Hint, IconButton, Loading, Localization, Sheet, Spinner } from "./ui";
 
 function TaskLaunchOverlay() {
@@ -26,6 +27,8 @@ function Phone() {
   const p = usePilot();
   const { data, ready, loading, busy, route, selectedJob, notice, error, expired, tr, navigate, close, refresh } = p;
   const [scale, setScale] = useState(1), [keyboard, setKeyboard] = useState(false), [refreshing, setRefreshing] = useState(false);
+  const [onboarding, setOnboarding] = useState<{ mode: "welcome" | "tab"; tab?: GuideTab } | null>(null);
+  const [onboardingReady, setOnboardingReady] = useState(false);
   const touch = useRef<number | null>(null);
   const maxHeight = useRef(0);
   useEffect(() => {
@@ -47,10 +50,44 @@ function Phone() {
   const labels = [tr("首页", "Accueil", "Home"), tr("机会", "Offres", "Offers"), tr("投递", "Candidatures", "Applications"), tr("准备", "Préparer", "Prepare"), tr("档案", "Dossier", "Profile")];
   const icons = [House, Search, BriefcaseBusiness, GraduationCap, UserRound];
   const active = rows(data.tasks).filter(t => ACTIVE.has(t.status)).length;
-  const hasOverlay = Boolean(route.view || p.taskLaunch);
+  const canShowData = Boolean(data.profile?.id);
+  useEffect(() => {
+    if (!ready || !canShowData || onboardingReady) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem("jobpilot:onboarding:v1") || "{}");
+      if (saved.welcome !== true) setOnboarding({ mode: "welcome" });
+    } catch { setOnboarding({ mode: "welcome" }); }
+    setOnboardingReady(true);
+  }, [ready, canShowData, onboardingReady]);
+  const dismissOnboarding = () => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("jobpilot:onboarding:v1") || "{}");
+      localStorage.setItem("jobpilot:onboarding:v1", JSON.stringify({ ...saved, welcome: true }));
+    } catch { /* Continue with session-only onboarding state. */ }
+    setOnboarding(null);
+  };
+  const skipAllOnboarding = () => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("jobpilot:onboarding:v1") || "{}");
+      localStorage.setItem("jobpilot:onboarding:v1", JSON.stringify({ ...saved, welcome: true, tabs: [...TABS] }));
+    } catch { /* Continue with session-only onboarding state. */ }
+    setOnboarding(null);
+  };
+  const goToTab = (tab: GuideTab) => {
+    navigate({ tab });
+    if (!onboardingReady) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem("jobpilot:onboarding:v1") || "{}");
+      const tabs = Array.isArray(saved.tabs) ? saved.tabs : [];
+      if (!tabs.includes(tab)) {
+        localStorage.setItem("jobpilot:onboarding:v1", JSON.stringify({ ...saved, welcome: true, tabs: [...tabs, tab] }));
+        setOnboarding({ mode: "tab", tab });
+      }
+    } catch { /* Continue without persisting the walkthrough. */ }
+  };
+  const hasOverlay = Boolean(route.view || p.taskLaunch || onboarding);
   const reload = async () => { if (refreshing) return; setRefreshing(true); await refresh(); setRefreshing(false); };
   const pages = [<HomePage key="home" />, <OffersPage key="offers" />, <ApplicationsPage key="applications" />, <PreparePage key="prepare" />, <ProfilePage key="profile" />];
-  const canShowData = Boolean(data.profile?.id);
   return <div className="jp-stage"><div className="jp-envelope" style={{ "--jp-scale": scale } as CSSProperties}><div className={`jp-phone${keyboard ? " jp-keyboard" : ""}`} data-testid="jobpilot-phone" data-reference-size="384x832">
     {expired ? <div className="jp-login"><img src="/jobpilot.svg" alt="" /><h1>JobPilot</h1><h2>{tr("你的下一步，值得认真准备。", "Votre prochain pas mérite le meilleur.", "Your next step deserves your best.")}</h2><Hint>{tr("请重新登录以访问你的档案。", "Reconnectez-vous pour accéder à votre profil.", "Sign in again to access your profile.")}</Hint><a href="/api/mobile-auth/bridge">{tr("安全登录", "Connexion sécurisée", "Secure sign in")}</a></div> : <>
       <div className="jp-underlay" inert={hasOverlay}>
@@ -64,7 +101,7 @@ function Phone() {
           {refreshing && <span className="jp-refreshing"><Spinner small /></span>}
           {!ready || loading && !canShowData ? <Loading /> : !canShowData ? <div className="jp-page"><Empty title={tr("暂时无法读取档案", "Profil momentanément indisponible", "Profile temporarily unavailable")}>{tr("请检查服务器连接，然后重试。", "Vérifiez la connexion au serveur, puis réessayez.", "Check the server connection, then try again.")}</Empty><Button onClick={reload}>{tr("重新连接", "Réessayer", "Retry")}</Button></div> : TABS.map((tab, index) => <section key={tab} hidden={route.tab !== tab} className="jp-scroll" aria-label={labels[index]} data-testid={`screen-${tab}`} onTouchStart={e => { touch.current = e.currentTarget.scrollTop <= 0 && !(e.target as HTMLElement).closest("button,input,textarea,select,a") ? e.touches[0].clientY : null; }} onTouchEnd={e => { if (touch.current != null && e.changedTouches[0].clientY - touch.current > 85) void reload(); touch.current = null; }}>{pages[index]}</section>)}
         </main>
-        <nav className="jp-nav" aria-label={tr("主导航", "Navigation principale", "Main navigation")}>{TABS.map((tab, index) => { const Icon = icons[index]; return <button type="button" key={tab} aria-current={route.tab === tab ? "page" : undefined} data-testid={`nav-${tab}`} onClick={() => navigate({ tab })}><span><Icon size={22} strokeWidth={route.tab === tab ? 2.5 : 2} /></span>{labels[index]}</button>; })}</nav>
+        <nav className="jp-nav" aria-label={tr("主导航", "Navigation principale", "Main navigation")}>{TABS.map((tab, index) => { const Icon = icons[index]; return <button type="button" key={tab} aria-current={route.tab === tab ? "page" : undefined} data-testid={`nav-${tab}`} onClick={() => goToTab(tab as GuideTab)}><span><Icon size={22} strokeWidth={route.tab === tab ? 2.5 : 2} /></span>{labels[index]}</button>; })}</nav>
       </div>
       {notice && !hasOverlay && <div className="jp-toast" role="status"><span>{p.product(notice.text)}</span>{notice.taskId && <button type="button" onClick={() => { const id = notice.taskId; p.setNotice(null); if (id) void p.openTask(id); }}>{tr("查看", "Voir", "View")}</button>}</div>}
       {route.view === "tasks" && <TasksSheet />}
@@ -75,6 +112,7 @@ function Phone() {
       {route.view === "edit-cv" && <CvEditor />}
       {route.view === "pdf" && <PdfPreview key={`${route.job || ""}:${route.draft || ""}`} />}
       <TaskLaunchOverlay />
+      {onboarding && <OnboardingOverlay mode={onboarding.mode} tab={onboarding.tab} onClose={dismissOnboarding} onSkip={skipAllOnboarding} />}
     </>}
   </div></div></div>;
 }
