@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { normalizeUrl } from './core/url-key.mjs';
+import { normalizeUrl } from './posting-url.mjs';
 import { evidenceConfig } from './language-contract.mjs';
 
 export function readJson(file, fallback = null) {

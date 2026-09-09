@@ -62,7 +62,7 @@ test('old entry points only redirect into the single new product', () => {
 test('direct browser CV and preference writes are explicitly profile-scoped', () => {
   for(const file of ['cv','profile']){
     const source=fs.readFileSync(new URL(`../src/app/api/${file}/route.ts`,import.meta.url),'utf8');
-    assert.match(source,/activeProfileId\(new URL\(req.url\).searchParams.get\("profileId"\)\)/);
+    assert.match(source,/activeProfileId\(new URL\((?:req|request).url\).searchParams.get\("profileId"\)\)/);
   }
 });
 test('translation polling stops on success or a failed display job', () => {

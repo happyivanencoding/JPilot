@@ -1,8 +1,8 @@
 import fs from "node:fs";
-import { readApplications, readReport } from "@/lib/career-ops";
+import { readApplications, readReport } from "@/lib/backend/workspace";
 import { profileFile } from "@/lib/profile-context";
-import { parseReport, scoreNum } from "@/lib/format";
-import { normalizeUrl } from "@/lib/core/url-key.mjs";
+import { parseReport, scoreNum } from "@/lib/report-metadata.mjs";
+import { normalizeUrl } from "@/lib/posting-url.mjs";
 import { persistedJobEvaluation } from "@/lib/mobile-state.mjs";
 
 /** One authority: profile-filtered tracker/reports, then existing curated candidature analysis. */

@@ -1,8 +1,6 @@
 import fs from "node:fs";
-import path from "node:path";
 import * as yaml from "js-yaml";
-import { careerOpsRoot } from "@/lib/career-ops";
-import { atomicWriteWithBackup } from "@/lib/core/safe-write";
+import { atomicWriteWithBackup } from "@/lib/backend/files.mjs";
 import { profileFile } from "@/lib/profile-context";
 import { activeProfileId } from "@/lib/profile-request";
 import { currentCandidateVersion, historyDirectory } from "@/lib/mobile-history";
@@ -11,117 +9,63 @@ import { CONTRACT_TYPES, withProfileLock } from "@/lib/mobile-state.mjs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Merge-safe writer for config/profile.yml (a USER-LAYER file — DATA_CONTRACT:
-// never clobber the user's archetypes/narrative/proof-points). On first create we
-// seed from config/profile.example.yml; on an existing file we deep-merge ONLY the
-// proposed keys, write atomically (temp + rename), and only ever via the confirm-
-// gated setProfile action. The web orchestrates the real file — no parallel store.
+type Settings = Record<string, Record<string, unknown>>;
+const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 
-type ProfilePatch = {
-  name?: string;
-  email?: string;
-  location?: string;
-  roles?: string[];
-  compMin?: number;
-  compMax?: number;
-  currency?: string;
-  remote?: string;
-  contractTypes?: string[];
-  applicationLanguage?: string;
-};
-
-function isObj(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === "object" && !Array.isArray(v);
+/** Map only product-editable preferences; other Candidate evidence remains untouched. */
+function preferenceChanges(input: Record<string, unknown>): Settings {
+  const changes: Settings = {};
+  const set = (group: string, key: string, value: unknown) => {
+    changes[group] ??= {};
+    changes[group][key] = value;
+  };
+  for (const [key, target] of [["name", "full_name"], ["email", "email"], ["location", "location"]]) {
+    if (typeof input[key] === "string" && input[key]) set("candidate", target, input[key]);
+  }
+  if (Array.isArray(input.roles) && input.roles.length) {
+    if (input.roles.some(role => typeof role !== "string")) throw new Error("Invalid target roles");
+    set("target_roles", "primary", input.roles.slice(0, 6));
+  }
+  if (input.contractTypes !== undefined) {
+    if (!Array.isArray(input.contractTypes) || input.contractTypes.some(type => !CONTRACT_TYPES.includes(type))) throw new Error("Types de contrat invalides.");
+    set("target_roles", "contract_types", [...new Set(input.contractTypes)]);
+  }
+  if (input.applicationLanguage !== undefined) {
+    if (input.applicationLanguage !== "fr" && input.applicationLanguage !== "en") throw new Error("Invalid application language");
+    set("cv", "language", input.applicationLanguage);
+  }
+  if (input.compMin && input.compMax) set("compensation", "target_range", `${input.compMin}-${input.compMax}`);
+  if (input.currency) set("compensation", "currency", input.currency);
+  if (input.remote) set("compensation", "location_flexibility", input.remote);
+  return changes;
 }
 
-/** Deep-merge src onto dst (objects recurse; arrays/scalars replace). Non-mutating. */
-function deepMerge(dst: unknown, src: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = isObj(dst) ? { ...dst } : {};
-  for (const [k, v] of Object.entries(src)) {
-    out[k] = isObj(v) ? deepMerge(out[k], v) : v;
-  }
-  return out;
-}
-
-function patchToProfile(p: ProfilePatch): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  const candidate: Record<string, unknown> = {};
-  if (p.name) candidate.full_name = p.name;
-  if (p.email) candidate.email = p.email;
-  if (p.location) candidate.location = p.location;
-  if (Object.keys(candidate).length) out.candidate = candidate;
-  if (p.roles?.length) out.target_roles = { primary: p.roles.slice(0, 6) };
-  if (p.contractTypes !== undefined) {
-    if (!Array.isArray(p.contractTypes) || p.contractTypes.some(t => !CONTRACT_TYPES.includes(t))) throw new Error("Types de contrat invalides.");
-    out.target_roles = { ...(out.target_roles as object || {}), contract_types: [...new Set(p.contractTypes)] };
-  }
-  if(p.applicationLanguage !== undefined) {
-    if(!['fr','en'].includes(p.applicationLanguage)) throw new Error('Invalid application language');
-    out.cv={language:p.applicationLanguage};
-  }
-  const comp: Record<string, unknown> = {};
-  if (p.compMin && p.compMax) comp.target_range = `${p.compMin}-${p.compMax}`;
-  if (p.currency) comp.currency = p.currency;
-  if (p.remote) comp.location_flexibility = p.remote;
-  if (Object.keys(comp).length) out.compensation = comp;
-  // seniority intentionally not written (no canonical home in profile.yml);
-  // archetypes/narrative live in modes/_profile.md — this writer never touches them.
-  return out;
-}
-
-export async function POST(req: Request) {
-  let patch: ProfilePatch;
+export async function POST(request: Request) {
+  let changes: Settings;
   try {
-    patch = (await req.json()) as ProfilePatch;
-  } catch {
-    return Response.json({ error: "bad json" }, { status: 400 });
-  }
-  let proposed: Record<string, unknown>;
-  try { proposed = patchToProfile(patch); }
-  catch (error) { return Response.json({error: String(error)},{status:400}); }
-  if (Object.keys(proposed).length === 0) return Response.json({ error: "nothing to write" }, { status: 400 });
+    const input: unknown = await request.json();
+    if (!object(input)) return Response.json({ error: "bad json" }, { status: 400 });
+    changes = preferenceChanges(input);
+    if (!Object.keys(changes).length) return Response.json({ error: "nothing to write" }, { status: 400 });
+  } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "bad json" }, { status: 400 }); }
 
-  const root = careerOpsRoot();
-  // Browser tabs carry an explicit scope; the gateway also checks this against session grants.
-  const profileId = await activeProfileId(new URL(req.url).searchParams.get("profileId"));
+  const profileId = await activeProfileId(new URL(request.url).searchParams.get("profileId"));
   const file = profileFile(profileId, "config");
-  let base: Record<string, unknown> = {};
-  let seeded = false;
-  // DATA-LOSS GUARD (maintainer, bug-class #649/#704/#920/#958): distinguish
-  // "no profile yet" (safe to seed from the example) from "profile EXISTS but is
-  // malformed" (NEVER overwrite — that would silently destroy the user's data).
-  if (!fs.existsSync(file)) {
-    try {
-      base = (yaml.load(fs.readFileSync(path.join(root, "config", "profile.example.yml"), "utf8")) as Record<string, unknown>) || {};
-      seeded = Object.keys(base).length > 0;
-    } catch {
-      base = {};
-    }
-  } else {
-    let parsed: unknown;
-    try {
-      parsed = yaml.load(fs.readFileSync(file, "utf8"));
-    } catch {
-      return Response.json({ error: "config/profile.yml exists but is not valid YAML — refusing to overwrite it." }, { status: 409 });
-    }
-    base = isObj(parsed) ? (parsed as Record<string, unknown>) : {};
-  }
-
-  const merged = deepMerge(base, proposed);
+  const seeded = !fs.existsSync(file);
   try {
-    // Back up the prior profile before the first normalized write (yaml.dump
-    // reformats — comments are not preserved; the .bak is the safety net).
     await withProfileLock(historyDirectory(profileId), () => {
+      let previous: unknown;
+      try { previous = fs.existsSync(file) ? yaml.load(fs.readFileSync(file, "utf8")) : {}; }
+      catch { throw new SyntaxError("Profil YAML invalide ; aucune donnée remplacée."); }
+      if (!object(previous)) throw new SyntaxError("Profil YAML invalide ; aucune donnée remplacée.");
+      const updated = { ...previous };
+      for (const [group, values] of Object.entries(changes)) updated[group] = { ...(object(previous[group]) ? previous[group] : {}), ...values };
       currentCandidateVersion(profileId);
-      // Re-read under the same lock as CV actions so a saved preference cannot clobber another edit.
-      const latest = fs.existsSync(file) ? yaml.load(fs.readFileSync(file,"utf8")) : base;
-      if (!isObj(latest)) throw new Error("Profil YAML invalide ; aucune donnée remplacée.");
-      const final = deepMerge(latest, proposed);
-      if (JSON.stringify(final) !== JSON.stringify(latest)) atomicWriteWithBackup(file, yaml.dump(final, { lineWidth: 100, noRefs: true }));
+      if (JSON.stringify(previous) !== JSON.stringify(updated)) atomicWriteWithBackup(file, yaml.dump(updated, { lineWidth: 100, noRefs: true }));
       currentCandidateVersion(profileId);
     });
-  } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : "write failed" }, { status: 500 });
+    return Response.json({ ok: true, seeded });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "write failed" }, { status: error instanceof SyntaxError ? 409 : 500 });
   }
-  return Response.json({ ok: true, seeded });
 }

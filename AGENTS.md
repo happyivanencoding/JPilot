@@ -29,15 +29,15 @@ JPilot is Android-first.
 
 See `docs/PROJECT_STRUCTURE.md`, `docs/ANDROID_HANDOFF.md`, `docs/MOBILE_ACCEPTANCE.md` and `docs/WEB_ANDROID_PARITY.md`.
 
-## 4. Inherited engine boundary
+## 4. JobPilot-owned backend boundary
 
-Some root-level Career-Ops code remains because JPilot backend still calls it. Treat it as a compatibility engine, not as product authority.
+The legacy execution engine has been replaced. Product runtime code lives under `web/src/lib/`, with file-ledger/inbox/PDF services in `backend/` and native search adapters in `job-search/`. The root npm package only delegates to the Web application; it is not a second runtime.
 
-Examples of currently meaningful engine capabilities include structured job providers/search, tracker/report persistence, PDF/CV rendering, ATS checks, canonical states, and the limited mode/template files still read by the mobile backend.
+Do not restore deleted root CLI scripts, provider/plugin catalogues, template engines, upstream mode prompts or old Web/TUI surfaces to implement a feature. Add behavior at the relevant JobPilot service boundary instead. Candidate data roots must not need executable source files.
 
-Do not delete an inherited file merely because its name is old. Delete it only when real code/import/command/data-flow inspection shows it is unreachable from JPilot and not required by retained backend tests or legal attribution.
+Existing private data paths, the `CAREER_OPS_ROOT` variable and the profile cookie are retained compatibility identifiers, not evidence of a remaining upstream execution engine. Never delete or migrate real user data merely to remove an old name. Standard library dependencies, historical attribution and applicable licenses remain valid.
 
-Conversely, upstream distribution/community machinery, marketing material, unrelated multi-CLI UX and obsolete Web/TUI surfaces should not be reintroduced after cleanup.
+See `docs/OWNED_CORE.md` for the replacement scope, public protocol support and acceptance evidence.
 
 ## 5. AI runtime architecture
 

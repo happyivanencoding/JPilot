@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { addOffersToPipeline } from "@/lib/core/pipeline";
-import type { DiscoveredOffer } from "@/lib/explore";
+import { addOffersToPipeline } from "@/lib/backend/inbox";
+import type { PipelineOffer } from "@/lib/backend/inbox";
 import { activeProfileId } from "@/lib/profile-request";
 
 export const runtime = "nodejs";
@@ -10,9 +10,9 @@ export const dynamic = "force-dynamic";
 // record them in data/scan-history.tsv, via the core's CANONICAL exported writers
 // (no parallel writer). No tokens spent.
 export async function POST(req: NextRequest) {
-  let offers: DiscoveredOffer[] = [];
+  let offers: PipelineOffer[] = [];
   try {
-    const body = (await req.json()) as { offers?: DiscoveredOffer[] };
+    const body = (await req.json()) as { offers?: PipelineOffer[] };
     offers = Array.isArray(body.offers) ? body.offers : [];
   } catch {
     return Response.json({ added: 0, error: "bad request" }, { status: 400 });

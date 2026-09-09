@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { findPersistedEvaluation } from "@/lib/evaluation-state";
 import { listMobileTasks } from "@/lib/mobile-engine";
-import { normalizeUrl } from "@/lib/core/url-key.mjs";
+import { normalizeUrl } from "@/lib/posting-url.mjs";
 import { activeProfileId } from "@/lib/profile-request";
 
 export const runtime = "nodejs";

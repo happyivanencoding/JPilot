@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {historyDirectory} from '@/lib/mobile-history';
-import {careerOpsRoot} from '@/lib/career-ops';
+import {workspaceRoot} from '@/lib/backend/workspace';
 import {readJson,writeJson,withProfileLock,processAlive} from '@/lib/mobile-state.mjs';
 import {runTranslationTransport} from '@/lib/model-transport';
-import {extractJsonObject} from '@/lib/extract-json-object.mjs';
+import {extractJsonObject} from '@/lib/model-json.mjs';
 import {uiLocale,choose} from '@/lib/language-contract.mjs';
 import {displaySlots,translationKey,alreadyLocalized,translationLooksLikeTarget,productText,pendingText,setDisplaySlot,protectTranslation,restoreTranslation,translationPrompt} from '@/lib/localization-core.mjs';
 
@@ -82,7 +82,7 @@ async function executeLocalization(directory:string,operation:any,entries:Entry[
   const save=()=>{operation.updatedAt=new Date().toISOString();writeJson(file,operation);writeJson(path.join(directory,'active.json'),operation);};
   try {
     let output='';
-    await runTranslationTransport({cwd:careerOpsRoot(),prompt:translationPrompt(entries,operation.locale),timeoutMs:120000,
+    await runTranslationTransport({cwd:workspaceRoot(),prompt:translationPrompt(entries,operation.locale),timeoutMs:120000,
       onRun:run=>{Object.assign(operation,{sessionId:run.sessionId,runId:run.runId,remoteSessionId:run.remoteSessionId,transport:run.transport,status:'running'});save();},
       onMetrics:metrics=>{operation.metrics=metrics;save();},
       onText:text=>{output+=text;},onFinalText:text=>{output=text;},

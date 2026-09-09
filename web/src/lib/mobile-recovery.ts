@@ -3,7 +3,7 @@ import path from "node:path";
 import { listMobileTasks, mobileDirectory, type MobileTask } from "@/lib/mobile-engine";
 import { readCandidatureStore, writeCandidatureStore } from "@/lib/candidatures";
 import { observeAgentDockRun } from "@/lib/agentdock-acp";
-import { extractJsonObject } from "@/lib/extract-json-object.mjs";
+import { extractJsonObject } from "@/lib/model-json.mjs";
 import { parseDiscoveredOffers } from "@/lib/mobile-domain.mjs";
 import { findPersistedEvaluation } from "@/lib/evaluation-state";
 import { withProfileLock, processAlive, writeJson, readJson, loadCandidateVersion } from "@/lib/mobile-state.mjs";

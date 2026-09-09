@@ -1,4 +1,4 @@
-import { normalizeUrl } from "@/lib/core/url-key.mjs";
+import { normalizeUrl } from "@/lib/posting-url.mjs";
 import type { MobileTask } from "@/lib/mobile-engine";
 import {productText} from "@/lib/localization-core.mjs";
 import {choose,publicError} from "@/lib/language-contract.mjs";

@@ -16,11 +16,6 @@ process.env.CAREER_OPS_ROOT=root;
 process.env.CAREER_OPS_PIPELINE=path.join(root,'data/pipeline.md');
 process.env.CAREER_OPS_SCAN_HISTORY=path.join(root,'data/scan-history.tsv');
 after(()=>{for(const [key,value] of Object.entries(priorEnv)){if(value===undefined)delete process.env[key];else process.env[key]=value;}fs.rmSync(root,{recursive:true,force:true});});
-// The auto-save evaluation test uses the real canonical writer, not a data-only checkout.
-for(const file of ['lib/pipeline-store.mjs','lib/local-today.mjs','lib/cli-flags.mjs','lib/is-main-module.mjs','pipeline-lock.mjs','path-resolver.mjs','fingerprint-core.mjs','tracker-parse.mjs','tracker-aliases.json','invite-match.mjs']){
- const target=path.join(root,file);fs.mkdirSync(path.dirname(target),{recursive:true});
- fs.copyFileSync(path.resolve(import.meta.dirname,'../..',file),target);
-}
 const profiles=['fixture-a','fixture-b'].map(id=>({id,name:id,shortName:id,cvMarkdown:`data/${id}/cv.md`,config:`data/${id}/profile.yml`,notes:`data/${id}/notes.md`,candidatures:`data/${id}/candidatures.json`}));
 writeJson(path.join(root,'data/profiles.json'),{version:1,defaultProfileId:'fixture-a',profiles});
 const original='# Candidat fictif\n\n## Expérience\n- Nettoyage de données financières avec Python.\n';

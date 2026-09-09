@@ -45,8 +45,6 @@ try {
  check('All real canonical CV files remain byte-for-byte unchanged');
 
  const root=prepareCase('backend-acceptance-'+randomUUID(),'analysis');process.env.CAREER_OPS_ROOT=root;
- fs.mkdirSync(path.join(root,'web/scripts'),{recursive:true});
- fs.copyFileSync(path.join(projectRoot,'web/scripts/render-reference-cv.mjs'),path.join(root,'web/scripts/render-reference-cv.mjs'));
  const {currentCandidateVersion,historyDirectory}=await import('../src/lib/mobile-history.ts');
  const {POST,GET}=await import('../src/app/api/mobile/route.ts');
  const {GET:cvGET}=await import('../src/app/api/mobile/cv/route.ts');

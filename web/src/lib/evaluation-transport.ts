@@ -1,18 +1,17 @@
+import { persistEvaluation } from "@/lib/backend/evaluation-ledger";
 import fs from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import * as yaml from "js-yaml";
-import { careerOpsRoot } from "@/lib/career-ops";
+import { workspaceRoot } from "@/lib/backend/workspace";
 import { profileFile } from "@/lib/profile-context";
 import { candidateEvidenceFiles } from "@/lib/mobile-history";
 import { runModelTransport, type JobPilotModelRun } from "@/lib/model-transport";
-import { extractJsonObject } from "@/lib/extract-json-object.mjs";
-import { normalizeUrl } from "@/lib/core/url-key.mjs";
+import { extractJsonObject } from "@/lib/model-json.mjs";
+import { normalizeUrl } from "@/lib/posting-url.mjs";
 import { explanationDirective } from "@/lib/language-contract.mjs";
 import { findPersistedEvaluation } from "@/lib/evaluation-state";
 
-const exec = promisify(execFile);
+
 
 type Evaluation = {
   score: number;
@@ -50,7 +49,7 @@ async function fetchPosting(url: string) {
 export function evaluationCandidateFiles(profileId:string,inputVersionId?:string) {
   if(inputVersionId){
     const evidence=candidateEvidenceFiles(profileId,inputVersionId);
-    const absolute=(file:string)=>path.isAbsolute(file)?file:path.join(careerOpsRoot(),file);
+    const absolute=(file:string)=>path.isAbsolute(file)?file:path.join(workspaceRoot(),file);
     return {cv:absolute(evidence.cv),config:absolute(evidence.config),notes:absolute(evidence.notes)};
   }
   return {cv:profileFile(profileId,"cv"),config:profileFile(profileId,"config"),notes:profileFile(profileId,"notes")};
@@ -87,25 +86,9 @@ function reportMarkdown(args:{num:string;date:string;url:string;job:any;eval:Eva
   return `# Evaluation: ${company} — ${role}\n\n**Date:** ${args.date}\n**URL:** ${args.url}\n**Via:** —\n**Archetype:** ${e.archetype||"Unknown"}\n**Score:** ${e.score.toFixed(1)}/5\n**Legitimacy:** ${legitimacy}\n**Work Auth:** ⚠️ Unstated\n**PDF:** pending\n\n---\n\n## Machine Summary\n\n\`\`\`yaml\n${yaml.dump(machine,{lineWidth:120,noRefs:true}).trim()}\n\`\`\`\n\n## A) Role Summary\n\n${e.summary}\n\nBackend posting retrieval: ${args.postingRetrieved?"available":"unavailable; evaluation is conservative"}.\n\n## B) Match with CV\n\n${strengths}\n\n| Requirement | Status | Evidence |\n|---|---|---|\n${req}\n\n### Gaps\n${gaps}\n\n## C) Level and Strategy\n\n${e.application_angle}\n\n## D) Comp and Demand\n\nNo independent web research was delegated to the model. Advertised compensation: ${e.advertised_comp||"not stated in supplied job data"}.\n\n## E) Customization Plan\n\nUse the grounded strengths above and address only documented gaps; do not invent missing skills.\n\n## F) Interview Plan\n\nPrepare evidence for each partial/missing requirement above, keeping contribution and ownership distinct.\n\n## G) Posting Legitimacy\n\nTransport-only evaluation does not delegate web investigation to the model. Page retrieval by the backend was ${args.postingRetrieved?"successful":"not available"}; legitimacy remains **Proceed with Caution** rather than being invented.\n\n## Risk Summary\n\n- Legitimacy: proceed_with_caution\n- Other research-only risk axes: not_evaluated\n\n---\n\n## Keywords extracted\n${keys}\n`;
 }
 async function persist(profileId:string,url:string,job:any,e:Evaluation,postingRetrieved:boolean) {
-  const root=careerOpsRoot(), date=new Date().toISOString().slice(0,10);
-  const env={...process.env,CAREER_OPS_ROOT:root};
-  const reserve=await exec(process.execPath,[path.join(root,"reserve-report-num.mjs")],{cwd:root,env,timeout:60_000,windowsHide:true,encoding:"utf8",maxBuffer:64_000});
-  const num=String(reserve.stdout).trim().match(/\d+/)?.[0]?.padStart(3,"0");
-  if(!num)throw new Error("Impossible de réserver un numéro de rapport.");
-  try {
-    const company=cleanCell(job?.company||new URL(url).hostname), role=cleanCell(job?.role||job?.title||"Job"), filename=`${num}-${slug(company)}-${date}.md`;
-    const reports=path.join(root,"reports"), additions=path.join(root,"batch","tracker-additions");
-    fs.mkdirSync(reports,{recursive:true});fs.mkdirSync(additions,{recursive:true});
-    const target=path.join(reports,filename),tmp=target+`.tmp-${process.pid}`;
-    fs.writeFileSync(tmp,reportMarkdown({num,date,url,job:{...job,company,role},eval:e,postingRetrieved}),"utf8");fs.renameSync(tmp,target);
-    const note=cleanCell(`${e.summary}; profile: ${profileId}${job?.postedAt && /^20\d\d-\d\d-\d\d/.test(String(job.postedAt))?`; posted: ${String(job.postedAt).slice(0,10)}`:""}`);
-    const row=[num,date,company,role,"Evaluated",`${e.score.toFixed(1)}/5`,`❌`,`[${num}](reports/${filename})`,note,url].join("\t")+"\n";
-    fs.writeFileSync(path.join(additions,`${num}-${slug(company)}.tsv`),row,"utf8");
-    await exec(process.execPath,[path.join(root,"merge-tracker.mjs")],{cwd:root,env,timeout:90_000,windowsHide:true,encoding:"utf8",maxBuffer:1_000_000});
-    return {reportNum:num,reportFile:filename};
-  } finally {
-    await exec(process.execPath,[path.join(root,"reserve-report-num.mjs"),"--release",num],{cwd:root,env,timeout:30_000,windowsHide:true,encoding:"utf8",maxBuffer:64_000}).catch(()=>{});
-  }
+  const company=cleanCell(job?.company||new URL(url).hostname), role=cleanCell(job?.role||job?.title||"Job");
+  return persistEvaluation({ profileId, url, company, role, score:e.score, summary:e.summary, postedAt:job?.postedAt,
+    render:(num,date)=>reportMarkdown({num,date,url,job:{...job,company,role},eval:e,postingRetrieved}) });
 }
 
 export async function executeTransportEvaluation(args:{profileId:string;url:string;inputVersionId?:string;locale:string;model?:any;reasoning?:any}) {
@@ -125,7 +108,7 @@ export async function executeTransportEvaluation(args:{profileId:string;url:stri
         let output="",metrics:any={};
         try{
           send({type:"status",label:"Évaluation transport-only · modèle sans outils"});
-          await runModelTransport({prompt,cwd:careerOpsRoot(),model:args.model||"gpt-5.6-luna",reasoning:args.reasoning||"low",timeoutMs:120_000,
+          await runModelTransport({prompt,cwd:workspaceRoot(),model:args.model||"gpt-5.6-luna",reasoning:args.reasoning||"low",timeoutMs:120_000,
             onRun:(run:JobPilotModelRun)=>send({type:"execution",transport:run.transport,sessionId:run.sessionId,runId:run.runId,remoteSessionId:run.remoteSessionId}),
             onMetrics:value=>{metrics={...metrics,...value};send({type:"metrics",metrics:value});},onText:t=>{output+=t;},onFinalText:t=>{output=t;}});
           const parsed=extractJsonObject(output); if(parsed.truncated||!parsed.obj)throw new Error("Le modèle n’a pas renvoyé un JSON complet.");

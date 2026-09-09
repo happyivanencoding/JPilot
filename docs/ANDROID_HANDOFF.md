@@ -229,3 +229,7 @@ Next can bundle the ACP helper separately for different routes. Its concurrency 
 ## Acceptance and next work
 
 See `MOBILE_ACCEPTANCE.md` for concrete checks and remaining limits. Private evidence is in `.career-ops-web/mobile-qa/`; do not publish it. Keep the root `DEEP_CONTEXT_HANDOFF_FINAL.md` updated with live facts. Do not reset or clean a dirty worktree, and do not commit/push unrelated changes or private files.
+
+## 0.5.0 backend-only replacement
+
+The current Android 0.3.8/code12 interface and backend contract 0.3.8 are unchanged. Its shared server now runs JobPilot-owned ledger/inbox/PDF/search adapters without the former root Career-Ops execution engine. Do not reintroduce that engine or copy executable files into private Candidate directories. See `OWNED_CORE.md` for replacement scope and current validation. Android was built, not installed or tested on a device in this release.

@@ -1,11 +1,10 @@
+import { renderReferenceCv } from "@/lib/backend/cv-document.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { careerOpsRoot } from "@/lib/career-ops";
+import { workspaceRoot } from "@/lib/backend/workspace";
 import { getProfile, profileFile } from "@/lib/profile-context";
-import { atomicWriteWithBackup } from "@/lib/core/safe-write";
+import { atomicWriteWithBackup } from "@/lib/backend/files.mjs";
 import {compileGlobalPlan,globalPlanView,preservePresentationLanguage} from "@/lib/cv-global-plan.mjs";
 import {documentLanguage,contradictsDocumentLanguage} from "@/lib/language-contract.mjs";
 import { candidateVersion, loadCandidateVersion, readJson, writeJson, withProfileLock, resolvedIssues, normalizeAnalysis, applyEvidenceEdits } from "@/lib/mobile-state.mjs";
@@ -13,7 +12,7 @@ import { candidateVersion, loadCandidateVersion, readJson, writeJson, withProfil
 export function historyDirectory(profileId: string) {
   const profile=getProfile(profileId);
   if(profile.id!==profileId) throw new Error("Profil inconnu.");
-  return path.join(careerOpsRoot(), ".career-ops-web", "profiles", profile.id, "mobile");
+  return path.join(workspaceRoot(), ".career-ops-web", "profiles", profile.id, "mobile");
 }
 export function currentCandidateVersion(profileId: string): Record<string, any> {
   const sources: Record<string, any> = {};
@@ -32,7 +31,7 @@ export function candidateEvidenceFiles(profileId: string, versionId: string) {
     const file=path.join(directory,name);
     if(!fs.existsSync(file)) fs.writeFileSync(file,state.sources[kind].text,"utf8");
   }
-  return Object.fromEntries(Object.entries(files).map(([kind,name])=>[kind,path.relative(careerOpsRoot(),path.join(directory,name)).replaceAll("\\","/")])) as Record<"cv"|"config"|"notes",string>;
+  return Object.fromEntries(Object.entries(files).map(([kind,name])=>[kind,path.relative(workspaceRoot(),path.join(directory,name)).replaceAll("\\","/")])) as Record<"cv"|"config"|"notes",string>;
 }
 export function currentAnalysis(profileId: string, version: Record<string, any>, tasks: Array<Record<string, any>>) {
   const completed = tasks.filter(t => t.kind === "analysis" && t.status === "completed" && t.result?.markdown);
@@ -138,16 +137,12 @@ export async function renderCvPreview(profileId: string, draftId?: string, versi
   const directory=historyDirectory(profileId);
   const draft = draftId ? readCvDraft(profileId,draftId) : null;
   const version = versionId ? loadCandidateVersion(directory,versionId) : await withProfileLock(directory,()=>currentCandidateVersion(profileId));
-  const id = draft ? `layout4-draft-${draft.id}` : `layout4-version-${version.id}`;
+  const id = draft ? `layout5-draft-${draft.id}` : `layout5-version-${version.id}`;
   const folder=path.join(directory,"cv-previews",id);
   const pdf=path.join(folder,"cv.pdf"), meta=path.join(folder,"render.json");
   if (!fs.existsSync(pdf) || !fs.existsSync(meta)) {
     fs.mkdirSync(folder,{recursive:true});
-    const input=path.join(folder,"input.json");
-    writeJson(input,{ content:draft?.content || version.sources.cv.text, language:draft?.documentLanguage || documentLanguage(version), globalPlan:!!draft?.globalPlan });
-    await promisify(execFile)(process.execPath,[path.join(careerOpsRoot(),"web/scripts/render-reference-cv.mjs"),input,folder],{
-      cwd:careerOpsRoot(),timeout:60000,windowsHide:true,maxBuffer:1024*1024,
-    });
+    await renderReferenceCv({content:draft?.content || version.sources.cv.text,language:draft?.documentLanguage || documentLanguage(version),globalPlan:!!draft?.globalPlan},folder);
   }
   return { pdf, ...readJson(meta), draft, versionId:version.id, cvVersion:version.cvVersion };
 }

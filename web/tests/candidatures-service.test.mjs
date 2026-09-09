@@ -29,9 +29,6 @@ const put = (name, value) => {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, typeof value === 'string' ? value : JSON.stringify(value));
 };
-for (const file of ['lib/pipeline-store.mjs', 'lib/local-today.mjs', 'lib/cli-flags.mjs', 'lib/is-main-module.mjs', 'pipeline-lock.mjs', 'path-resolver.mjs', 'fingerprint-core.mjs', 'tracker-parse.mjs', 'tracker-aliases.json', 'invite-match.mjs']) {
-  put(file, fs.readFileSync(path.join(project, file), 'utf8'));
-}
 const profiles = ['qa-one', 'qa-two'].map(id => ({ id, name: id, shortName: id,
   cvMarkdown: `data/${id}/cv.md`, config: `data/${id}/profile.yml`, notes: `data/${id}/notes.md`, candidatures: `data/${id}/candidatures.json` }));
 put('data/profiles.json', { version: 1, defaultProfileId: 'qa-one', profiles });
@@ -86,11 +83,11 @@ test('another profile can collect the same URL without sharing the first profile
 });
 
 test('writer failure rejects the save and the HTTP endpoint reports failure, not success', async () => {
-  const writer = path.join(root, 'lib/pipeline-store.mjs');
-  fs.renameSync(writer, writer + '.disabled');
+  const previousHistory = process.env.CAREER_OPS_SCAN_HISTORY;
+  process.env.CAREER_OPS_SCAN_HISTORY = path.join(root, 'data'); // Directory, not a writable history file.
   try {
     const count = readCandidatureStore('qa-one').jobs.length;
-    await assert.rejects(saveMobileOffer('qa-one', { ...offer, url: 'https://example.test/jobs/failed' }), /canonical writer|pipeline writer/i);
+    await assert.rejects(saveMobileOffer('qa-one', { ...offer, url: 'https://example.test/jobs/failed' }), /EISDIR|directory|illegal operation/i);
     assert.equal(readCandidatureStore('qa-one').jobs.length, count);
     const { POST } = await import('../src/app/api/explore/add/route.ts');
     const response = await POST(new Request('http://localhost/api/explore/add?profileId=qa-one', {
@@ -98,7 +95,7 @@ test('writer failure rejects the save and the HTTP endpoint reports failure, not
     }));
     assert.equal(response.status, 500);
     assert.ok((await response.json()).error);
-  } finally { fs.renameSync(writer + '.disabled', writer); }
+  } finally { process.env.CAREER_OPS_SCAN_HISTORY = previousHistory; }
 });
 
 test('official reports reconcile directly into the matching profile and retain user tracking fields', () => {

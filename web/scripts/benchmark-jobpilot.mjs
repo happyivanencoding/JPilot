@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { openAgentDockCodex, runAgentDockCodex } from '../src/lib/agentdock-acp.ts';
 import { cvAnalysisPrompt } from '../src/lib/cv-analysis-prompt.mjs';
-import { extractJsonObject } from '../src/lib/extract-json-object.mjs';
+import { extractJsonObject } from '../src/lib/model-json.mjs';
 import { writeJson } from '../src/lib/mobile-state.mjs';
 const root = path.resolve(import.meta.dirname, '../..');
 const directory = path.join(root, '.career-ops-web/mobile-qa/benchmark-20260908');

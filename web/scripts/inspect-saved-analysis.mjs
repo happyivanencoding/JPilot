@@ -5,7 +5,7 @@ import path from 'node:path';
 process.env.CAREER_OPS_ROOT ||= path.resolve(import.meta.dirname,'../..');
 const {readMobileTask,mobileDirectory}=await import('../src/lib/mobile-engine.ts');
 import {observeAgentDockRun} from '../src/lib/agentdock-acp.ts';
-import {extractJsonObject} from '../src/lib/extract-json-object.mjs';
+import {extractJsonObject} from '../src/lib/model-json.mjs';
 import {readCodexFinalAnswer} from '../src/lib/ai-metrics.mjs';
 import {parseAnalysisResult} from '../src/lib/analysis-result.mjs';
 import {compileGlobalPlan,preservePresentationLanguage} from '../src/lib/cv-global-plan.mjs';

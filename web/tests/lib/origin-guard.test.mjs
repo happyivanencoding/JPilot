@@ -5,7 +5,7 @@ import {
   isLoopbackHost,
   parseAllowedHosts,
   checkRequest,
-} from "../../src/lib/origin-guard.mjs";
+} from "../../src/lib/request-origin.mjs";
 
 // --- normalizeHost --------------------------------------------------------
 

@@ -6,7 +6,7 @@ import { getProfile, listProfiles, profileFile } from "@/lib/profile-context";
 import { mobileDirectory, prepareTaskHistory, readMobileTask, listMobileTasks, reconcileCompletedEvaluationCards, startMobileTask, type MobileTask } from "@/lib/mobile-engine";
 import { readCandidatureStore, saveMobileOffer, updateMobileJob, reconcileCandidatures } from "@/lib/candidatures";
 import { dashboardFor, APPLICATION_STATUSES, DISCOVERY_OFFER_LIMIT, stageOf, topDiscoveryOffers } from "@/lib/mobile-domain.mjs";
-import { readReport, readApplications, careerOpsRoot } from "@/lib/career-ops";
+import { readReport, readApplications, workspaceRoot } from "@/lib/backend/workspace";
 import { currentCandidateVersion, currentAnalysis, decideCvDraft, saveCanonicalCv } from "@/lib/mobile-history";
 import { discoveryProjection, withProfileLock, evaluationProjection, contractMatches } from "@/lib/mobile-state.mjs";
 import { taskView,estimateView } from "@/lib/mobile-view";

@@ -1,15 +1,14 @@
+import { renderTailoredCv } from "@/lib/backend/cv-document.mjs";
 import fs from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
 import * as yaml from "js-yaml";
-import { careerOpsRoot } from "@/lib/career-ops";
+import { workspaceRoot } from "@/lib/backend/workspace";
 import { activeProfileId } from "@/lib/profile-request";
 import { getProfile, profileFile } from "@/lib/profile-context";
 import { runModelTransport } from "@/lib/model-transport";
-import { extractJsonObject } from "@/lib/extract-json-object.mjs";
-import { atomicWrite } from "@/lib/core/safe-write";
+import { extractJsonObject } from "@/lib/model-json.mjs";
+import { atomicWrite } from "@/lib/backend/files.mjs";
 import { currentCandidateVersion, historyDirectory } from "@/lib/mobile-history";
 import { withProfileLock, loadCandidateVersion, operationKey, readJson, writeJson } from "@/lib/mobile-state.mjs";
 import { FLOW_DEFAULTS } from "@/lib/ai-metrics.mjs";
@@ -19,7 +18,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 420;
 
-const execFileAsync = promisify(execFile);
+
 
 type CvInfo = {
   language?: string;
@@ -189,24 +188,6 @@ Return ONLY one compact JSON object with this exact shape (no markdown fence, no
 `;
 }
 
-async function runNode(script: string, args: string[], cwd: string) {
-  const result = await execFileAsync(process.execPath, [script, ...args], {
-    cwd,
-    windowsHide: true,
-    timeout: 120_000,
-    maxBuffer: 4 * 1024 * 1024,
-  });
-  return { stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
-}
-
-async function runNodeResult(script: string, args: string[], cwd: string) {
-  try { return {ok:true,...await runNode(script,args,cwd)}; }
-  catch(error) {
-    const e=error as Error & {stdout?:string;stderr?:string};
-    return {ok:false,stdout:String(e.stdout || ""),stderr:String(e.stderr || e.message || "")};
-  }
-}
-
 export function floorTailoredPresentationScore(baseline: unknown, rawDraft: unknown) {
   const clamp=(value:unknown)=>Math.max(0,Math.min(100,Math.round(Number(value))));
   const baselineScore=clamp(baseline),rawDraftScore=clamp(rawDraft),draftScore=Math.max(baselineScore,rawDraftScore);
@@ -250,26 +231,19 @@ function candidateRenderContext(profileId:string, version:Record<string,any>, ma
 }
 
 async function renderDraftFiles(profileId:string,job:Job,version:Record<string,any>,payload:TailoredPayload,material:string,draftId:string) {
-  const root=careerOpsRoot(),{cvOptions,candidate}=candidateRenderContext(profileId,version,material);
+  const root=workspaceRoot(),{cvOptions,candidate}=candidateRenderContext(profileId,version,material);
   const renderPayload={lang:cvOptions.language,page_format:"a4",candidate,sections:{summary:"Professional Summary",competencies:"Core Competencies",experience:"Professional Experience",projects:"Selected Projects",education:"Education",certifications:"Certifications",awards:"Awards & Honors",interests:"Interests",skills:"Skills"},summary:payload.summary,competencies:[],experience:payload.experience||[],projects:payload.projects||[],education:payload.education||[],certifications:[],awards:[],interests:[],skills:payload.skills||[]};
-  const dir=path.join(root,".career-ops-web","candidature-cv"),outputDir=path.join(root,"output");fs.mkdirSync(dir,{recursive:true});fs.mkdirSync(outputDir,{recursive:true});
+  const outputDir=path.join(root,"output");
   const stem=`cv-draft-${slug(candidate.name,"candidate")}-${slug(job.company,"company")}-${draftId.slice(0,8)}`;
-  const jsonPath=path.join(dir,`${stem}.json`),htmlPath=path.join(outputDir,`${stem}.html`),pdfPath=path.join(outputDir,`${stem}.pdf`);
-  fs.writeFileSync(jsonPath,`${JSON.stringify(renderPayload,null,2)}\n`,"utf8");
-  const customTemplatePath=path.join(root,"templates",cvOptions.template,"cv-template.html");
-  const templatePath=cvOptions.template!=="standard"&&fs.existsSync(customTemplatePath)?customTemplatePath:path.join(root,"templates","cv-template.html");
-  await runNode(path.join(root,"build-cv-html.mjs"),[jsonPath,htmlPath,templatePath],root);
-  await runNode(path.join(root,"generate-pdf.mjs"),[htmlPath,pdfPath,"--format=a4","--allow-reorder",`--max-pages=${cvOptions.preferredPages}`,"--strict-pages"],root);
-  const keywords=cleanArray(job.cv?.keywords).join(","),auditArgs=[htmlPath];if(keywords)auditArgs.push("--keywords",keywords);auditArgs.push("--json");
-  const audit=await runNodeResult(path.join(root,"verify-ats.mjs"),auditArgs,root);
-  let ats:any;try{ats=JSON.parse(audit.stdout);}catch{throw new Error(audit.stderr || "ATS audit did not return JSON.");}
-  return {file:path.relative(root,pdfPath).replace(/\\/g,"/"),htmlFile:path.relative(root,htmlPath).replace(/\\/g,"/"),pages:cvOptions.preferredPages,atsScore:Number.isFinite(ats.score)?ats.score:0,atsPass:ats.pass===true,atsGrade:String(ats.grade||""),atsIssues:Array.isArray(ats.issues)?ats.issues.slice(0,12):[],keywordCoverage:keywords&&typeof ats.keywordCoverage?.percent==="number"?ats.keywordCoverage.percent:null};
+  const htmlPath=path.join(outputDir,stem+".html"),pdfPath=path.join(outputDir,stem+".pdf");
+  const rendered=await renderTailoredCv(renderPayload,{htmlPath,pdfPath,language:material,template:cvOptions.template,maxPages:cvOptions.preferredPages,keywords:cleanArray(job.cv?.keywords)});
+  return {file:path.relative(root,pdfPath).replaceAll("\\","/"),htmlFile:path.relative(root,htmlPath).replaceAll("\\","/"),...rendered};
 }
 
 async function compareCvPresentation(profileId:string,job:Job,version:Record<string,any>,payload:TailoredPayload,locale:string,revision:number,hooks?:{onRun?:(run:any)=>void;onMetrics?:(metrics:any)=>void}) {
   const prompt=`You are comparing how well TWO CV versions PRESENT the same candidate for ONE job. This is not hiring probability and not a new candidate-fit evaluation. The candidate's real capability is unchanged. Score only how clearly each CV surfaces documented, job-relevant evidence without exaggeration.\n\nUse the exact same 0-100 rubric for both versions: relevance/selection 35, specificity of evidence 30, recruiter scan clarity 20, honest keyword/requirement alignment 15. Do not reward keyword stuffing. Penalize invented or unsupported claims.\n\nReturn ONE JSON object only: {"baseline_score":0,"draft_score":0,"summary":"...","improvements":["..."],"remaining_gaps":["..."]}. Scores are integers 0-100.\n\nJOB DATA:\n${JSON.stringify({company:job.company,role:job.role,location:job.location,summary:job.summary,angle:job.angle,strengths:job.strengths,gaps:job.gaps,match:job.match,description:boundedText(job.sourceDescription||job.description,18000)},null,2)}\n\nMASTER CV:\n${boundedText(version.sources.cv.text,35000)}\n\nTAILORED DRAFT:\n${payloadText(payload)}\n\nOUTPUT LANGUAGE: ${locale}. ${explanationDirective(locale)}`;
   let output="",metrics:any={};
-  await runModelTransport({cwd:careerOpsRoot(),prompt,model:FLOW_DEFAULTS.cv.model as any,reasoning:FLOW_DEFAULTS.cv.reasoning as any,timeoutMs:180_000,onRun:run=>hooks?.onRun?.(run),onMetrics:m=>{metrics=m;hooks?.onMetrics?.(m);},onText:text=>{output+=text;},onFinalText:complete=>{output=complete;}});
+  await runModelTransport({cwd:workspaceRoot(),prompt,model:FLOW_DEFAULTS.cv.model as any,reasoning:FLOW_DEFAULTS.cv.reasoning as any,timeoutMs:180_000,onRun:run=>hooks?.onRun?.(run),onMetrics:m=>{metrics=m;hooks?.onMetrics?.(m);},onText:text=>{output+=text;},onFinalText:complete=>{output=complete;}});
   const parsed=extractJsonObject(output).obj as any;if(!parsed)throw new Error("La comparaison du CV n'a pas renvoyé de résultat structuré.");
   if(!Number.isFinite(Number(parsed.baseline_score))||!Number.isFinite(Number(parsed.draft_score)))throw new Error("Score de présentation du CV invalide.");
   const floored=floorTailoredPresentationScore(parsed.baseline_score,parsed.draft_score);
@@ -334,8 +308,8 @@ export async function downloadTailoredCv(req: Request) {
     if(draftId && (!draft || draft.id!==draftId)) return new Response("tailored CV draft not found",{status:404});
     const rel = draft?.file || job?.cv?.file;
     if (!rel) return new Response("no tailored CV for this candidature", { status: 404 });
-    const abs = path.resolve(careerOpsRoot(), rel);
-    const outputRoot = path.resolve(careerOpsRoot(), "output") + path.sep;
+    const abs = path.resolve(workspaceRoot(), rel);
+    const outputRoot = path.resolve(workspaceRoot(), "output") + path.sep;
     if (!abs.startsWith(outputRoot)) return new Response("invalid CV path", { status: 400 });
     const bytes = fs.readFileSync(abs);
     return new Response(new Uint8Array(bytes), {
@@ -360,7 +334,7 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
   if (!body.id) return Response.json({ error: "Identifiant de candidature manquant" }, { status: 400 });
 
   const profileId = await activeProfileId(body.profileId);
-  const root = careerOpsRoot();
+  const root = workspaceRoot();
   const inputVersion = body.inputVersionId ? loadCandidateVersion(historyDirectory(profileId),body.inputVersionId)
     : await withProfileLock(historyDirectory(profileId),()=>currentCandidateVersion(profileId));
   let store: Store;

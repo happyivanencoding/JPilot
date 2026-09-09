@@ -160,3 +160,9 @@ Private evidence root: `.career-ops-web/mobile-qa/web-parity-20260908/`. See `br
 `refactor/jobpilot-simplify-20260909` includes the published 0.4.6 / Android 0.3.8 features, with shared candidature services and retired internal-HTTP/CLI paths. Current-code verification: Node 217/217; Next build passed; Chromium and WebKit fixture QA 25/25 each; both engines also passed five real-backend browser checks. Current CV draft generation/assessment and explicit re-review completed with a fictional Candidate, leaving the saved CV unchanged until confirmation. Android APK builds; unit tests remain `NO-SOURCE` and no device installation was performed.
 
 This is **not deployed** and **not merged into main**. The user explicitly put main integration on hold. Lower Node counts reflect removal of tests exclusive to retired implementations, not skipped live-path failures. Full scope/evidence: `REFACTOR_2026-09-09.md`.
+
+## Backend 0.5.0 ownership replacement
+
+The Web/backend runtime is now JobPilot-owned: the root CLI/provider/mode/template execution engine has been removed after replacement and acceptance. Android remains 0.3.8/code12 and its source is unchanged; all 0.4.6 main product interactions are retained. The contract remains 0.3.8, so the installed app does not require replacement for this backend-only release.
+
+Current evidence: 165 Node tests, production build, Chromium/WebKit each 25 UI checks and seven actual-backend browser checks, four deterministic PDF scenarios and eight real-model functional flows passed. Android packaging succeeded with up-to-date tasks; unit tests were NO-SOURCE. No phone installation or device test was performed. Details and data/ownership limitations: `OWNED_CORE.md`.

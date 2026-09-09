@@ -3,13 +3,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import * as yaml from "js-yaml";
-import { readApplications, readReport } from "@/lib/career-ops";
+import { readApplications, readReport } from "@/lib/backend/workspace";
 import { getProfile, profileFile } from "@/lib/profile-context";
-import { atomicWrite } from "@/lib/core/safe-write";
-import { addOffersToPipeline } from "@/lib/core/pipeline";
-import { normalizeUrl } from "@/lib/core/url-key.mjs";
+import { atomicWrite } from "@/lib/backend/files.mjs";
+import { addOffersToPipeline } from "@/lib/backend/inbox";
+import { normalizeUrl } from "@/lib/posting-url.mjs";
 import { normalizeOffer, applyJobUpdate } from "@/lib/mobile-domain.mjs";
-import { parseReport } from "@/lib/format";
+import { parseReport } from "@/lib/report-metadata.mjs";
 import { evaluationAction, evaluationSummary, retirePendingEvaluation } from "@/lib/evaluation-action.mjs";
 import { reportTableValue as tableValue, blockBMatches } from "@/lib/report-job-fields.mjs";
 

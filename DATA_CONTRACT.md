@@ -37,10 +37,10 @@ JPilot 是 local-first 产品。Git 仓库保存产品代码与公开配置模�
 - `web/` 当前 Android parity Web 与 backend/API 代码
 - `shared/` 共享产品资源
 - 当前 JPilot docs、测试和构建配置
-- 当前 backend 仍真实依赖的 root scripts、`providers/`、必要 `modes/`、`templates/`、`fonts/` 等继承引擎代码
+- `web/src/lib/backend/` 文件与 PDF 服务、`web/src/lib/job-search/` 自有搜索适配器等当前 JobPilot 实现
 - `LICENSE`、`LICENSES/`、`THIRD_PARTY_NOTICES.md` 等许可文件
 
-“继承自 Career-Ops”不等于“可以删除”。只要 Android/Web backend 的 import、spawn、数据契约或保留测试仍依赖它，就仍属于当前实现。
+旧的 root CLI、provider/plugin catalog、mode Prompt 和 CV template 执行引擎已被替换。不能为了旧目录名清理而删除同目录中的 ignored 私有数据；系统运行不再要求 Candidate 数据目录同时包含代码。
 
 ## 4. 历史上游文件的处理原则
 

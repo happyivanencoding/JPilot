@@ -1,3 +1,11 @@
+# Current structure — JobPilot 0.5.0
+
+The runtime now consists of Android, the phone-first Web product, its shared API/services and ordinary library dependencies. `web/src/lib/backend/` owns workspace/ledger/inbox/PDF persistence and rendering. `web/src/lib/job-search/providers/ats-board.mjs` implements the currently configured direct ATS families. No root Career-Ops CLI, catalogue, templates, or mode prompts are required. The root package has no engine dependencies.
+
+See `OWNED_CORE.md` for exact replacement boundaries, preserved product behavior, data-only acceptance, current protocol coverage and licensing limitations. Installed private data stays at its existing paths.
+
+The following sections preserve earlier restructuring history; references to retained root engine code or paused integration describe those earlier checkpoints, not the current runtime.
+
 # JPilot Project Structure
 
 > Repository authority: `https://github.com/happyivanencoding/JPilot`  

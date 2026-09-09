@@ -1,70 +1,49 @@
-# JPilot
+# JobPilot
 
-JPilot 是一个 **Android-first** 的 AI 求职产品。原生 Android 客户端是产品功能、交互、信息架构和视觉体验的唯一前端基线；Web 客户端只负责在浏览器中复刻当前 Android 体验，不再维护独立的桌面工作台或 Classic UI。
+JobPilot is an Android-first, local-first job-search application. It imports and analyzes a CV, discovers opportunities, evaluates individual roles, prepares a user-confirmed tailored CV, supports interview practice and tracks applications. The Web client mirrors the native Android product in a phone-sized interface; there is no separate legacy dashboard.
 
-## 开发仓库
+## Product and code
 
-唯一开发仓库：
+- `android/` — native Kotlin/Compose client, the interaction and design reference.
+- `web/src/components/jobpilot/` — equivalent phone-first Web interface.
+- `web/src/app/api/` — shared product API used by both clients.
+- `web/src/lib/backend/` — JobPilot's own data ledger, inbox, atomic document writes and CV/PDF rendering.
+- `web/src/lib/job-search/` — structured discovery, ranking and public-source adapters.
+- `web/src/lib/model-transport.ts` — replaceable model transport; business prompts, evidence, persistence and task orchestration stay in the application.
 
-**https://github.com/happyivanencoding/JPilot**
+The current backend does not require the former Career-Ops CLI, provider registry, mode files, CV templates or root npm dependencies. Installed private Candidate files are read in their existing locations, without a migration. See [the architecture](docs/PROJECT_STRUCTURE.md), [the replacement record](docs/OWNED_CORE.md) and [the data contract](DATA_CONTRACT.md).
 
-本地 `C:\dev\career-ops` 的 `origin` 必须指向该仓库。`santifer/career-ops` 仅是历史代码来源和许可证归属参考，不再是 JPilot 的产品上游，也不得通过旧 updater 覆盖当前实现。
+## Development
 
-## 协作分支
-
-- `main` — 集成/生产主线，合并仍由项目负责人手动决定。
-- `Yifeng` — Yifeng 的持续开发分支。
-- 每次 push 到 `Yifeng` 都运行与 `main` 相同的 Android + Web CI。
-- dev CI 全部通过且分支相对 `main` 存在真实文件差异时，GitHub Actions 会确保存在一个 `Yifeng → main` PR；后续 push 自动更新同一个 PR，不自动 merge。
-
-## 产品结构
-
-- `android/` — **产品前端权威**。新功能和 UX 决策优先以原生 Android 为准。
-- `web/` — Android 的 phone-first Web 镜像，同时承载当前本地 backend/API。Web 不应另起一套交互模型。
-- `shared/` — Android 与 Web 共用的产品资源，例如 UI 多语言词典。
-- 根目录的扫描、tracker、PDF、CV、provider、部分 `modes/` / `templates/` — 从 Career-Ops 继承但仍被 JPilot backend 实际调用的兼容引擎。它们是实现依赖，不是产品设计权威。
-- `docs/` — 当前 JPilot 架构、Android/Web 交接、验收和实验结论。
-
-更完整的目录边界见 [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md)。任何修改前先读取 `DEEP_CONTEXT_HANDOFF_FINAL.md`。
-
-## 前端原则
-
-1. Android 决定导航、页面结构、核心交互、状态呈现和视觉语言。
-2. Web 跟随 Android；不得重新引入旧 Career-Ops 侧栏、TUI/Workbench 或桌面后台。
-3. Android 与 Web 共用同一 Candidate、岗位、评估、CV、任务和 tracker 数据，不创建平行数据库。
-4. App/UI 语言与求职材料语言彼此独立；当前约束见 [`docs/ANDROID_LANGUAGE_SEPARATION.md`](docs/ANDROID_LANGUAGE_SEPARATION.md)。
-
-## AI transport
-
-JPilot 的业务层不依赖 coding agent。正式评估、CV 分析/教练、历史结果翻译和定制 CV 都通过统一的 model transport adapter 调模型；Prompt、文件读取、岗位抓取、任务编排和持久化由 JPilot backend 自己负责。
-
-当前生产默认使用 **OpenAI direct API (`gpt-5.6-luna / low`)**。本机只保存一个指向私有 key 文件的 ignored `.env.local` 配置；API key 本身不得进入 Git。AgentDock/ACP 只保留为可替换 transport fallback，不再是产品业务逻辑的一部分。
-
-## 本地开发
-
-### Android
+Use Node 22 or newer and a local Chromium/Edge/Chrome installation for server-rendered CV PDFs. Android uses the Gradle wrapper in `android/` and the locally installed Android SDK.
 
 ```powershell
-cd C:\dev\career-ops\android
-.\gradlew.bat assembleDebug
+npm --prefix web ci
+# Copy .env.example into web/.env.local and set private credentials as needed.
+npm run dev
 ```
 
-### Web / backend
+For production Web builds and local verification:
 
 ```powershell
-cd C:\dev\career-ops\web
-npm ci
-npm run typecheck
 npm test
 npm run build
+npm run qa:backend
+npm --prefix web run qa:cv
 ```
 
-生产 Web 仍按现有本地服务与 gateway 方式运行；不要为了开发把 Candidate 数据、密钥或认证会话迁移到 Git。
+The root package only delegates to `web/`; it has no separate engine dependency installation. `qa:backend` starts a temporary built server against fictional data and exercises actual API calls, persistence and CV rendering. `qa:cv` verifies rendered PDF contents/layout without calling a model. Real-model checks live separately in `web/scripts/verify-jobpilot-ai-flows.mjs` and require explicitly configured private credentials.
 
-## 数据与隐私
+The hosted installation uses the authenticated gateway in `web/scripts/mobile-gateway.mjs`; do not expose the unauthenticated local Next port directly. Existing Windows deployment helpers are `web/scripts/start-mobile.ps1` and `run-mobile-service.ps1`. Read `docs/ANDROID_HANDOFF.md` before changing production connectivity.
 
-真实 Candidate CV、Profile、岗位追踪、报告、生成 PDF、运行任务、QA 截图、API key 和认证状态均属于本地私有数据。具体边界见 [`DATA_CONTRACT.md`](DATA_CONTRACT.md)。
+## Collaboration
 
-## License
+The development repository is `happyivanencoding/JPilot`. `main` is the integrated product branch; `Yifeng` is the collaborator's development branch. Successful `Yifeng` CI maintains a review PR, but does not merge it automatically. Product changes must preserve Android/Web parity and update the handoff documents. Repository rules are in [AGENTS.md](AGENTS.md).
 
-JPilot 自有代码采用 **AGPL-3.0-only**，完整文本见 [`LICENSE`](LICENSE)。从 Career-Ops 继承的代码继续保留其原 MIT 许可证通知，见 [`LICENSES/career-ops-MIT.txt`](LICENSES/career-ops-MIT.txt) 和 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。清理历史文件时不得删除仍适用的第三方许可证与版权声明。
+Real CVs, profile details, generated reports/PDFs, application history, credentials, sessions and QA transcripts do not belong in Git. Rewriting code is never permission to delete or overwrite that data.
+
+## License and provenance
+
+JobPilot-authored material is licensed under **AGPL-3.0-only**. This repository originated from the MIT-licensed Career-Ops project. The legacy execution engine has been replaced, but development history and applicable third-party rights are not erased by refactoring. Original notices remain in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [LICENSES/](LICENSES/). See [LICENSE](LICENSE).
+
+This is an independently maintained product, not a claim of clean-room development, exclusive rights to third-party software, guaranteed job placement or ATS-vendor certification.

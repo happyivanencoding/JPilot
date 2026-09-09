@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { checkRequest, parseAllowedHosts } from "@/lib/origin-guard.mjs";
+import { checkRequest, parseAllowedHosts } from "@/lib/request-origin.mjs";
 
 // Single choke point over the API surface. Every /api request is gated on the
 // same-origin + loopback guard before it can reach a route handler (which may
-// spawn a child process or write the user's files). See origin-guard.mjs for
+// spawn a child process or write the user's files). See request-origin.mjs for
 // the two-layer rationale (F1 drive-by CSRF, F2 LAN reachability).
 //
 // Opt in to extra hosts (e.g. a trusted LAN box) with a comma/space separated

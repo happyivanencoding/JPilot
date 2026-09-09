@@ -14,7 +14,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractJsonObject } from "../../src/lib/extract-json-object.mjs";
+import { extractJsonObject } from "../../src/lib/model-json.mjs";
 
 test("a complete, well-formed object parses normally (not the truncation path)", () => {
   const { obj, truncated } = extractJsonObject('{"a": {"value": "x", "needs_confirmation": false}}');

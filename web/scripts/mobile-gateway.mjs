@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes, randomUUID, createPublicKey, verify, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { checkRequest, isLoopbackHost } from '../src/lib/origin-guard.mjs';
+import { checkRequest, isLoopbackHost } from '../src/lib/request-origin.mjs';
 
 const root = process.env.CAREER_OPS_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const privateRoot = path.join(root, '.career-ops-web');
