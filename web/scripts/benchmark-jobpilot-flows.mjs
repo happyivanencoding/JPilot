@@ -43,8 +43,9 @@ if(caseIndex<0){
   const version=currentCandidateVersion('benchmark');
   if(flow==='cv' || flow==='evaluate'){
    const body=flow==='cv'?{id:fixtureJob.id,profileId:'benchmark',inputVersionId:version.id}:{kind:'evaluate',input:fixtureJob.url,profileId:'benchmark',inputVersionId:version.id};
-   const fn=flow==='cv'?(await import('../src/lib/tailored-cv.ts')).generateTailoredCv:(await import('../src/lib/core-run.ts')).executeCoreRun;
-   const response=await fn(new Request('http://localhost/isolated-benchmark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{model,reasoning});
+   const response=flow==='evaluate'
+     ? await (await import('../src/lib/evaluation-transport.ts')).executeTransportEvaluation({profileId:'benchmark',url:fixtureJob.url,inputVersionId:version.id,locale:'fr',model,reasoning})
+     : await (await import('../src/lib/tailored-cv.ts')).generateTailoredCv(new Request('http://localhost/isolated-benchmark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{model,reasoning});
    if(!response.ok)throw new Error(await response.text());
    const reader=response.body.getReader(),decoder=new TextDecoder();let pending='',done=false;
    const event=e=>{const type=e.type || e.t;if(type==='metrics')metrics(e.metrics);else if(type==='execution')onRun(e);else if(type==='text')record.output+=String(e.text || '');else if(type==='error')record.error=String(e.message||e.msg||'Pipeline error');else if(type==='done'){record.result=e;done=true;}if(['progress','status'].includes(type))record.events.push({at:new Date().toISOString(),label:e.label});save();};

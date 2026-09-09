@@ -4,19 +4,19 @@ import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { careerOpsRoot } from "@/lib/career-ops";
-import { getProfile, profileFile, PROFILE_COOKIE } from "@/lib/profile-context";
+import { getProfile, profileFile } from "@/lib/profile-context";
 import { atomicWrite } from "@/lib/core/safe-write";
+import { normalizeUrl } from "@/lib/core/url-key.mjs";
 import { runModelTransport } from "@/lib/model-transport";
 import { extractJsonObject } from "@/lib/extract-json-object.mjs";
 import { searchStructuredOffers, rankSearchResults } from "@/lib/job-search/index.mjs";
 import { searchRequestFromConfig } from "@/lib/job-search/mobile-context.mjs";
-import { normalizeOffer, applyJobUpdate } from "@/lib/mobile-domain.mjs";
 import * as yaml from "js-yaml";
-import { normalizeUrl } from "@/lib/core/url-key.mjs";
 import { withProfileLock, processAlive, canAdoptLegacy, operationKey, reusableTask, writeJson, loadCandidateVersion, resolvedIssues, contractMatches } from "@/lib/mobile-state.mjs";
 import { currentCandidateVersion, currentAnalysis, analysisContinuity, createCvDraft, renderCvPreview } from "@/lib/mobile-history";
 import { findPersistedEvaluation } from "@/lib/evaluation-state";
-import { executeCoreRun } from "@/lib/core-run";
+import { executeTransportEvaluation } from "@/lib/evaluation-transport";
+import { readCandidatureStore, writeCandidatureStore, reconcileCandidatures } from "@/lib/candidatures";
 import { generateTailoredCv } from "@/lib/tailored-cv";
 import { cvAnalysisPrompt } from "@/lib/cv-analysis-prompt.mjs";
 import { parseAnalysisResult } from "@/lib/analysis-result.mjs";
@@ -36,7 +36,6 @@ export type MobileTask = {
   uploadSource?: string;
 };
 type Job = Record<string, any>;
-type Store = { candidate: string; updatedAt: string; jobs: Job[] };
 const host = globalThis as typeof globalThis & { jobPilotRunning?: Map<string, Promise<void>> };
 const running = host.jobPilotRunning ??= new Map();
 const exec = promisify(execFile);
@@ -81,76 +80,12 @@ export function listMobileTasks(profileId: string): MobileTask[] {
   return fs.readdirSync(dir).filter(f => /^[a-f0-9-]{36}\.json$/.test(f)).map(f => readMobileTask(profileId, f.slice(0, -5)))
     .sort((a,b) => b.createdAt.localeCompare(a.createdAt));
 }
-export function readCandidatureStore(profileId: string): Store {
-  const file = profileFile(profileId, "candidatures");
-  if (!fs.existsSync(file)) return { candidate: getProfile(profileId).name, updatedAt: new Date().toISOString(), jobs: [] };
-  const store = JSON.parse(fs.readFileSync(file, "utf8"));
-  if (!Array.isArray(store.jobs)) throw new Error("Le fichier de candidatures est invalide ; aucune donnée n’a été remplacée.");
-  return store;
-}
-export function writeCandidatureStore(profileId: string, store: Store) {
-  const file = profileFile(profileId, "candidatures");
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  store.updatedAt = new Date().toISOString();
-  atomicWrite(file, JSON.stringify(store, null, 2) + "\n");
-}
-export function updateMobileJob(profileId: string, id: string, change: Record<string, unknown>) {
-  const store = readCandidatureStore(profileId);
-  const index = store.jobs.findIndex(j => j.id === id);
-  if (index < 0) throw new Error("Candidature introuvable.");
-  store.jobs[index] = applyJobUpdate(store.jobs[index], change);
-  writeCandidatureStore(profileId, store);
-  return store.jobs[index];
-}
-
-function localUrl(route: string) {
-  const base = process.env.JOBPILOT_INTERNAL_URL || "http://127.0.0.1:3000";
-  const u = new URL(base);
-  if (!["127.0.0.1", "localhost", "[::1]"].includes(u.hostname)) throw new Error("L’API interne doit rester sur loopback.");
-  return new URL(route, base).href;
-}
-export async function coreRequest(profileId: string, route: string, body?: unknown) {
-  const response = await fetch(localUrl(route), {
-    method: body === undefined ? "GET" : "POST",
-    headers: { Cookie: `${PROFILE_COOKIE}=${profileId}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    cache: "no-store", signal: AbortSignal.timeout(960_000),
-  });
-  if (!response.ok) throw new Error((await response.text()).slice(0, 1500) || `HTTP ${response.status}`);
-  return response;
-}
-export async function saveMobileOffer(profileId: string, raw: unknown) {
-  const offer = normalizeOffer(raw);
-  // Reuse the canonical inbox writer before adding a rich, explicitly UNRATED card.
-  await coreRequest(profileId, "/api/explore/add", { offers: [offer] });
-  const store = readCandidatureStore(profileId);
-  const existing = store.jobs.find(j => normalizeUrl(j.url) === normalizeUrl(offer.url));
-  if (existing) return existing;
-  const job: Job = {
-    id: "saved-" + randomUUID(), company: offer.company, role: offer.title, url: offer.url,
-    location: offer.location, contract: (offer as any).contractType || "À confirmer", score: null, priority: "À évaluer", recommendation: "Évaluation officielle nécessaire",
-    status: "À candidater", summary: offer.why, sourceDescription: offer.description, verification: "unconfirmed", discoveredAt: new Date().toISOString(),
-    postedAt: offer.postedAt || offer.postedHint || "À confirmer",
-    discovery: { source: offer.source, sourceLabel: offer.sourceLabel, direct: offer.direct, remote: offer.remote, searchRelevance: offer.searchRelevance, relevanceTier: offer.relevanceTier, dataQuality: offer.dataQuality, ageDays: offer.ageDays },
-    strengths: [], gaps: [], match: [], prepTasks: [], replies: [],
-    cv: { file: "", changes: [], keywords: [] }, interview: { process: [], questions: [] },
-    followup: { nextAction: "Évaluer la compatibilité avant de candidater", dueDate: "", note: "" },
-  };
-  store.jobs.push(job);
-  writeCandidatureStore(profileId, store);
-  return job;
-}
-
-async function consume(task: MobileTask, route: string, body: unknown, format: "text" | "events") {
-  const internal = () => new Request(localUrl(route),{method:"POST",headers:{"Content-Type":"application/json",Cookie:`${PROFILE_COOKIE}=${task.profileId}`},body:JSON.stringify(body)});
-  const response = route === "/api/run" ? await executeCoreRun(internal())
-    : route === "/api/candidatures/cv" ? await generateTailoredCv(internal())
-    : await coreRequest(task.profileId, route, body);
+async function consume(task: MobileTask, response: Response) {
   if (!response.ok) throw new Error((await response.text()).slice(0,1500));
   if (!response.body) throw new Error("Réponse vide du moteur.");
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let all = "", pending = "", failure = "", done = false, lastSaved = 0;
+  let pending = "", failure = "", done = false, lastSaved = 0;
   const event = (line: string) => {
     if (!line.trim()) return;
     let e: Record<string, any>;
@@ -173,19 +108,15 @@ async function consume(task: MobileTask, route: string, body: unknown, format: "
   for (;;) {
     const { value, done: ended } = await reader.read();
     const part = decoder.decode(value, { stream: !ended });
-    all += part;
-    if (format === "events") {
-      pending += part;
-      const lines = pending.split(/\r?\n/); pending = lines.pop() || "";
-      lines.forEach(event);
-    } else task.text = all.slice(-180_000);
+    pending += part;
+    const lines = pending.split(/\r?\n/); pending = lines.pop() || "";
+    lines.forEach(event);
     if (Date.now() - lastSaved > 1000) { saveTask(task); lastSaved = Date.now(); }
     if (ended) break;
   }
-  if (format === "events") event(pending);
+  event(pending);
   if (failure) throw new Error(failure);
-  if (format === "events" && !done) throw new Error("Connexion terminée sans confirmation de résultat. Vérifier le rapport avant de relancer.");
-  return all;
+  if (!done) throw new Error("Connexion terminée sans confirmation de résultat. Vérifier le rapport avant de relancer.");
 }
 
 function readText(file: string) {
@@ -305,17 +236,10 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
       task.result = { offers, searchedAt: new Date().toISOString(), contractTypes:request.contractTypes || [], searchMetrics };
     } else if (task.kind === "evaluate") {
       task.phase = "Évaluation officielle et enregistrement du rapport"; saveTask(task);
-      await consume(task, "/api/run", { kind: "evaluate", input: task.input.url, profileId: task.profileId, inputVersionId: task.inputVersionId, uiLocale:task.input.uiLocale }, "events");
+      await consume(task, await executeTransportEvaluation({ profileId: task.profileId, url: String(task.input.url), inputVersionId: task.inputVersionId, locale: String(task.input.uiLocale), model: defaultFlow.model, reasoning: defaultFlow.reasoning }));
       const check = findPersistedEvaluation(task.profileId,String(task.input.url));
       if (!check?.done) throw new Error("Le rapport officiel n’a pas été retrouvé. Évaluation non confirmée.");
-      // Do not loop back through the running Web server after an in-process
-      // evaluation. Keeping reconciliation in the same Candidate root makes
-      // isolated acceptance, local development and future deployments behave
-      // identically instead of depending on 127.0.0.1:3000 pointing at the
-      // exact same runtime root.
-      const {GET:syncCandidatures}=await import("@/app/api/candidatures/route");
-      const synced=await syncCandidatures(new Request(localUrl(`/api/candidatures?profileId=${encodeURIComponent(task.profileId)}`)));
-      if(!synced.ok) throw new Error((await synced.text()).slice(0,1500) || `HTTP ${synced.status}`);
+      reconcileCandidatures(task.profileId);
       task.result = check;
     } else if (task.kind === "rewrite") {
       task.status="running";task.phase="Application des reformulations déjà proposées";saveTask(task);
@@ -332,7 +256,8 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
       task.metrics={model:"local",reasoning:"none",queueMs:0,agentMs:0,inputTokens:0,outputTokens:0,totalTokens:0,costKind:"no-ai"};
     } else if (task.kind === "cv") {
       task.phase = "Adaptation du CV, rendu PDF et vérification ATS"; saveTask(task);
-      await consume(task, "/api/candidatures/cv", { id: task.input.jobId, profileId: task.profileId, inputVersionId: task.inputVersionId, uiLocale:task.input.uiLocale, applicationLanguage:task.input.applicationLanguage }, "events");
+      const request = new Request("http://localhost/api/candidatures/cv", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.input.jobId, profileId: task.profileId, inputVersionId: task.inputVersionId, uiLocale: task.input.uiLocale, applicationLanguage: task.input.applicationLanguage }) });
+      await consume(task, await generateTailoredCv(request));
       const job = readCandidatureStore(task.profileId).jobs.find(j => j.id === task.input.jobId);
       if (!job?.cv?.file || !fs.existsSync(path.join(careerOpsRoot(), job.cv.file))) throw new Error("PDF absent après la génération.");
       task.result = { jobId: job.id, cv: job.cv };

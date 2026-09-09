@@ -27,8 +27,8 @@ export function prepareCase(id,flow) {
  const directory=path.join(benchmarkRoot,'cases',id);
  if(fs.existsSync(path.join(directory,'fixture.json')))return directory;
  fs.mkdirSync(directory,{recursive:true});
- // Copy public, tracked execution assets only. Never copy production Candidate data or handoff notes.
- const files=execFileSync('git',['ls-files','-z'],{cwd:projectRoot,encoding:'utf8'}).split('\0').filter(Boolean);
+ // Copy public execution assets, including new uncommitted source files. Ignored Candidate data and handoff notes are excluded.
+ const files=execFileSync('git',['ls-files','--cached','--others','--exclude-standard','-z'],{cwd:projectRoot,encoding:'utf8'}).split('\0').filter(Boolean);
  for(const file of files) {
   const publicAsset=(!file.includes('/') && /\.mjs$/.test(file)) || /^(lib|utils|templates|fonts|modes|providers|scripts|config)\//.test(file) || ['package.json','tracker-aliases.json'].includes(file);
   if(!publicAsset || /(^|\/)(_profile\.md|profile\.yml|\.env[^/]*)$/.test(file))continue;
@@ -41,7 +41,7 @@ export function prepareCase(id,flow) {
  write('config/profile.yml',`candidate:\n  name: Camille TEST\n  email: benchmark@example.invalid\n  location: Paris, France\nlanguage:\n  output: fr\ncv:\n  template: finance\n  language: fr\n  preferred_pages: 1\ntarget_roles:\n  primary: [Junior Fixed Income Quantitative Analyst]\n  contract_types: [CDI]\n  location: Paris\n  remote: hybrid\n`);
  write('data/profiles.json',{version:1,defaultProfileId:'benchmark',profiles:[{id:'benchmark',name:'Camille TEST',shortName:'TEST',legacyUntagged:true,cvMarkdown:'cv.md',config:'config/profile.yml',notes:'modes/_profile.md',candidatures:'data/candidatures.json'}]});
  write('data/candidatures.json',{candidate:'Camille TEST',updatedAt:new Date().toISOString(),jobs:[flow==='evaluate'?{...fixtureJob,score:null,priority:'À évaluer',summary:''}:fixtureJob]});
- write('data/applications.md','# Applications — synthetic benchmark\n\n| # | Date | Company | Role | Fit Score | Status | Notes |\n|---|---|---|---|---|---|---|\n');
+ write('data/applications.md','# Applications — synthetic benchmark\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|---|---|---|---|---|---|---|---|\n');
  write('data/inbox.json',[]);fs.mkdirSync(path.join(directory,'reports'),{recursive:true});fs.mkdirSync(path.join(directory,'output'),{recursive:true});
  write('fixture.json',{id,flow,synthetic:true,preparedAt:new Date().toISOString(),canonicalProductionDataCopied:false});
  return directory;

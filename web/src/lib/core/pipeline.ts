@@ -2,13 +2,21 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { careerOpsRoot, rootScript } from "@/lib/career-ops";
-import type { DiscoveredOffer } from "./scan";
+import { careerOpsRoot } from "@/lib/career-ops";
+type PipelineOffer = {
+  url: string;
+  company?: string;
+  title?: string;
+  location?: string;
+  source?: string;
+  ats?: string;
+  note?: string;
+};
 
 /**
  * "Add to pipeline" — appends user-selected discovered offers to data/pipeline.md
  * AND records them in data/scan-history.tsv (so future scans dedup them). We reuse
- * the CANONICAL writers exported by the core's scan.mjs (`appendToPipeline`,
+ * the CANONICAL writers exported by the core's lib/pipeline-store.mjs (`appendToPipeline`,
  * `appendToScanHistory`) instead of re-implementing the line format / section
  * markers — single source of truth, per the web↔core contract. We invoke them in
  * a short-lived node process (cwd = the user's career-ops root) so the core's own
@@ -19,7 +27,7 @@ import type { DiscoveredOffer } from "./scan";
  */
 export type AddResult = { added: number; error?: string };
 
-export function addOffersToPipeline(offers: DiscoveredOffer[]): Promise<AddResult> {
+export function addOffersToPipeline(offers: PipelineOffer[], profileId: string): Promise<AddResult> {
   const clean = offers
     .filter((o) => o && typeof o.url === "string" && /^https?:\/\//i.test(o.url))
     .map((o) => ({
@@ -30,20 +38,21 @@ export function addOffersToPipeline(offers: DiscoveredOffer[]): Promise<AddResul
       source: o.source || o.ats || "explorer",
       // Preserve the optional per-offer signal so it survives to pipeline.md.
       // The core writer treats an empty note as absent (byte-identical output).
-      note: o.note || "",
+      note: `profile: ${profileId}${o.note ? `; ${o.note}` : ""}`,
     }));
   if (clean.length === 0) return Promise.resolve({ added: 0 });
 
-  // Data-only / pre-scan-ats checkout has no scan.mjs writers → fail with an
+  const writerPath = path.join(careerOpsRoot(), "lib", "pipeline-store.mjs");
+  // A data-only checkout has no canonical writer → fail with an
   // actionable message instead of a silent added:0.
-  if (!fs.existsSync(rootScript("scan"))) {
-    return Promise.resolve({ added: 0, error: "This checkout is data-only — the pipeline writer (scan.mjs) isn't available." });
+  if (!fs.existsSync(writerPath)) {
+    return Promise.resolve({ added: 0, error: "This checkout is data-only — the pipeline writer (lib/pipeline-store.mjs) isn't available." });
   }
 
-  const scanUrl = pathToFileURL(rootScript("scan")).href;
+  const writerUrl = pathToFileURL(writerPath).href;
   const localTodayUrl = pathToFileURL(path.join(careerOpsRoot(), "lib", "local-today.mjs")).href;
   const code = `
-import { appendToPipeline, appendToScanHistory } from ${JSON.stringify(scanUrl)};
+import { appendToPipeline, appendToScanHistory } from ${JSON.stringify(writerUrl)};
 import { localToday } from ${JSON.stringify(localTodayUrl)};
 let input = "";
 process.stdin.setEncoding("utf8");
@@ -74,9 +83,13 @@ process.stdin.on("end", async () => {
     child.stdout.on("data", (d: Buffer) => (out += d.toString()));
     child.stderr.on("data", (d: Buffer) => (err += d.toString()));
     child.on("error", (e) => resolve({ added: 0, error: e instanceof Error ? e.message : "spawn failed" }));
-    child.on("close", () => {
+    child.on("close", (code) => {
+      if (code !== 0 || !out.trim()) {
+        resolve({ added: 0, error: err.trim().slice(0, 1000) || `Pipeline writer exited ${code} without a result.` });
+        return;
+      }
       try {
-        const parsed = JSON.parse(out.trim() || "{}") as AddResult;
+        const parsed = JSON.parse(out.trim()) as AddResult;
         resolve({ added: parsed.added ?? 0, error: parsed.error });
       } catch {
         resolve({ added: 0, error: err.trim().slice(0, 200) || "writer returned no result" });

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { listMobileTasks, mobileDirectory, readCandidatureStore, writeCandidatureStore, type MobileTask } from "@/lib/mobile-engine";
+import { listMobileTasks, mobileDirectory, type MobileTask } from "@/lib/mobile-engine";
+import { readCandidatureStore, writeCandidatureStore } from "@/lib/candidatures";
 import { observeAgentDockRun } from "@/lib/agentdock-acp";
 import { extractJsonObject } from "@/lib/extract-json-object.mjs";
 import { parseDiscoveredOffers } from "@/lib/mobile-domain.mjs";

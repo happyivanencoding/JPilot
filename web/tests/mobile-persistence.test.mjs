@@ -1,4 +1,5 @@
 import '../scripts/register-source-loader.mjs';
+const { readCandidatureStore } = await import('../src/lib/candidatures.ts');
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -32,7 +33,7 @@ const {taskView}=await import('../src/lib/mobile-view.ts');
 const p='fixture-a',q='fixture-b';
 function task(profile,kind,input,version,extra={}){
  const id=randomUUID(),createdAt=new Date(Date.now()+1000).toISOString();
- const t={id,profileId:profile,kind,input,inputVersionId:version.id,cvVersion:version.cvVersion,operationKey:operationKey(kind,input,version,engine.readCandidatureStore(profile).jobs),status:'completed',createdAt,updatedAt:createdAt,ownerPid:process.pid,text:'INTERNAL_AGENT_TRANSCRIPT',...extra};
+ const t={id,profileId:profile,kind,input,inputVersionId:version.id,cvVersion:version.cvVersion,operationKey:operationKey(kind,input,version,readCandidatureStore(profile).jobs),status:'completed',createdAt,updatedAt:createdAt,ownerPid:process.pid,text:'INTERNAL_AGENT_TRANSCRIPT',...extra};
  writeJson(path.join(engine.mobileDirectory(profile),'tasks',id+'.json'),t);return t;
 }
 function issue(id='expr-1'){return {id,title:'Clarifier Python',before:'- Nettoyage de données financières avec Python.',after:afterEdit,evidence:'CV, Expérience'};}
@@ -105,7 +106,7 @@ test('unchanged analysis is authoritative across language/entry points and more 
 
 test('Discovery hides persisted evaluations and marks in-flight canonical URLs',()=>{
  const offers=[{url:'https://example.org/job/123?utm_campaign=x'},{url:'https://example.org/job/456'},{url:'https://example.org/job/789'}];
- const result=discoveryProjection({offers},engine.readCandidatureStore(p).jobs,engine.listMobileTasks(p));
+ const result=discoveryProjection({offers},readCandidatureStore(p).jobs,engine.listMobileTasks(p));
  assert.equal(result.offers.length,2);assert.equal(result.offers[0].lifecycle,'evaluating');assert.equal(result.offers[1].lifecycle,'discovered');
  assert.notEqual(operationKey('evaluate',{url:'https://example.org/jobs?gh_jid=1'},{} ,[]),operationKey('evaluate',{url:'https://example.org/jobs?gh_jid=2'},{} ,[]));
 });

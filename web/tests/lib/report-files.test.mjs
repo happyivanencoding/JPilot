@@ -1,6 +1,6 @@
 // Tests for the shared `{n}-RESERVED.md` predicate. Imports report-files.mjs
 // directly — it is THE definition for web/, consumed by both career-ops.ts
-// (report lookup) and run-cli-support.mjs (the persistence gate), so a change
+// (report lookup) and the report reservation tooling (the persistence gate), so a change
 // here moves both consumers at once. That is the point: the two used to carry
 // separate copies that already disagreed.
 //
@@ -34,7 +34,7 @@ test("the match is anchored, so a lookalike name is not reserved", () => {
 });
 
 test("only the basename is examined, so a full path works", () => {
-  // Given: career-ops.ts passes a resolved path, run-cli-support.mjs a bare name.
+  // Given: career-ops.ts passes a resolved path, the report reservation tooling a bare name.
   assert.equal(isReservedReportFile("/root/reports/041-RESERVED.md"), true);
   assert.equal(isReservedReportFile("/root/reports/027-acme-2026-08-11.md"), false);
 });

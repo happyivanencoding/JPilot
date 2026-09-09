@@ -1,4 +1,5 @@
-import { readMobileTask, readCandidatureStore, type MobileTask } from "@/lib/mobile-engine";
+import { readMobileTask, type MobileTask } from "@/lib/mobile-engine";
+import { readCandidatureStore } from "@/lib/candidatures";
 /** Subscribers never own the agent lifetime. Multiple web/phone requests observe the same task. */
 export function taskEventResponse(profileId: string, initial: MobileTask) {
   let cancelled=false;

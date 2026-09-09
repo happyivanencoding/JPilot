@@ -4,8 +4,7 @@ import path from "node:path";
 import * as yaml from "js-yaml";
 import { atomicWrite } from "@/lib/core/safe-write";
 import { parseApplications } from "@/lib/tracker-table.mjs";
-// One definition of the `{n}-RESERVED.md` convention, shared with
-// run-cli-support.mjs — see report-files.mjs for why it lives there.
+// Number-reservation placeholders must never be presented as completed reports.
 import { isReservedReportFile } from "@/lib/report-files.mjs";
 import { applicationBelongsToProfile, profileFile } from "@/lib/profile-context";
 

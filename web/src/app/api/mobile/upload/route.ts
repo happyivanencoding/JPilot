@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { activeProfileId } from "@/lib/profile-request";
-import { mobileDirectory, startMobileTask, readCandidatureStore } from "@/lib/mobile-engine";
+import { mobileDirectory, startMobileTask } from "@/lib/mobile-engine";
+import { readCandidatureStore } from "@/lib/candidatures";
 import { taskView } from "@/lib/mobile-view";
 import { UPLOAD_EXTENSIONS, UPLOAD_LIMIT } from "@/lib/mobile-domain.mjs";
 

@@ -3,7 +3,8 @@ import { headers } from "next/headers";
 import * as yaml from "js-yaml";
 import { activeProfileId } from "@/lib/profile-request";
 import { getProfile, listProfiles, profileFile } from "@/lib/profile-context";
-import { coreRequest, mobileDirectory, prepareTaskHistory, readMobileTask, readCandidatureStore, saveMobileOffer, startMobileTask, updateMobileJob, type MobileTask } from "@/lib/mobile-engine";
+import { mobileDirectory, prepareTaskHistory, readMobileTask, startMobileTask, type MobileTask } from "@/lib/mobile-engine";
+import { readCandidatureStore, saveMobileOffer, updateMobileJob, reconcileCandidatures } from "@/lib/candidatures";
 import { dashboardFor, APPLICATION_STATUSES, DISCOVERY_OFFER_LIMIT, stageOf, topDiscoveryOffers } from "@/lib/mobile-domain.mjs";
 import { readReport, readApplications, careerOpsRoot } from "@/lib/career-ops";
 import { currentCandidateVersion, currentAnalysis, decideCvDraft, saveCanonicalCv } from "@/lib/mobile-history";
@@ -48,9 +49,7 @@ export async function GET(req: Request) {
       if(!report) return Response.json({error:publicError("Rapport introuvable.",locale)},{status:404});
       return Response.json(await localizeDisplay(profileId,locale,{markdown:reportForDisplay(report.content)},"report",{...localizationOptions,identity:`report:${job.reportNum}`}),{headers:{"Cache-Control":"no-store"}});
     }
-    // Existing route reconciles official reports into the rich cockpit.
-    let store = readCandidatureStore(profileId);
-    if (fs.existsSync(profileFile(profileId, "candidatures"))) store = await (await coreRequest(profileId, `/api/candidatures?profileId=${encodeURIComponent(profileId)}`)).json();
+    const store = reconcileCandidatures(profileId);
     const read = (kind: "cv" | "config") => { try { return fs.readFileSync(profileFile(profileId, kind), "utf8"); } catch { return ""; } };
     const config = yaml.load(read("config")) as Record<string, unknown> | null;
     const {version,tasks} = await withProfileLock(mobileDirectory(profileId),()=>{

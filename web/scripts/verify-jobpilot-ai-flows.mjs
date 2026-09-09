@@ -1,6 +1,7 @@
 // Real model-call acceptance for JobPilot, using only isolated fictional Candidate roots.
 // Raw model output stays in ignored .career-ops-web/mobile-qa artifacts.
 import './register-source-loader.mjs';
+const {readCandidatureStore}=await import('../src/lib/candidatures.ts');
 import fs from 'node:fs';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
@@ -33,6 +34,14 @@ if(caseIndex<0) {
       const flow=flows[cursor++];
       const id=`ai-${flow}-${tag}`;
       const directory=prepareCase(id,flow==='evaluate'?'evaluate':'ai');
+      const previousFile=path.join(directory,'ai-acceptance.json');
+      const previous=fs.existsSync(previousFile)?JSON.parse(fs.readFileSync(previousFile,'utf8')):null;
+      // A tag identifies one acceptance run. Resume interrupted runners without rebilling completed cases.
+      if(previous?.status==='completed') {
+        results.push(previous);
+        console.log(JSON.stringify({flow,status:'completed',reusedAcceptance:true,wallMs:previous.wallMs}));
+        continue;
+      }
       const child=spawn(process.execPath,['--no-warnings','--experimental-strip-types',path.resolve(import.meta.filename),'--case',flow,`--tag=${tag}`],{
         cwd:path.resolve(import.meta.dirname,'..'),env:{...process.env,CAREER_OPS_ROOT:directory},windowsHide:true,stdio:['ignore','pipe','pipe'],
       });
@@ -82,7 +91,7 @@ if(caseIndex<0) {
       record.checks.translated=translated.localization?.pending===false && translated.markdown!==source.markdown && !String(translated.markdown).includes('正在翻译');
       if(!record.checks.translated)throw new Error('Localization completed but translated projection was not reusable.');
     } else {
-      const {startMobileTask,readMobileTask,readCandidatureStore}=await import('../src/lib/mobile-engine.ts');
+      const {startMobileTask,readMobileTask}=await import('../src/lib/mobile-engine.ts');
       const input=flow==='analysis'?{kind:'analysis',language:'zh',uiLocale:'zh'}
         :flow==='evaluate'?{kind:'evaluate',url:fixtureJob.url,language:'zh',uiLocale:'zh'}
         :flow==='cv'?{kind:'cv',jobId:fixtureJob.id,language:'zh',uiLocale:'zh',applicationLanguage:'fr'}
@@ -90,7 +99,7 @@ if(caseIndex<0) {
         :flow==='practice'?{kind:'practice',jobId:fixtureJob.id,question:'请用一个真实经历说明你如何保证金融数据质量。',answer:'在虚构基准经历中，我使用 Python 清洗金融时间序列，并记录数据质量检查，再把结果与经理讨论。',language:'zh',uiLocale:'zh'}
         :flow==='compare'?{kind:'compare',jobIds:[fixtureJob.id,'benchmark-job-2'],language:'zh',uiLocale:'zh'}
         :{kind:'coach',jobId:fixtureJob.id,question:'基于已记录证据，我转向巴黎初级固定收益量化岗位时应如何定位自己？',language:'zh',uiLocale:'zh'};
-      let task=await startMobileTask('benchmark',input);
+      let task=await startMobileTask('benchmark',{...input,retry:true});
       for(let i=0;i<180 && ['queued','running','reconciling'].includes(task.status);i++){await sleep(1000);task=readMobileTask('benchmark',task.id);}
       record.taskId=task.id;record.metrics=task.metrics||{};record.checks.terminal=task.status==='completed';
       if(task.status!=='completed')throw new Error(task.error || `Task ended as ${task.status}`);

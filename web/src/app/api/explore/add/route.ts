@@ -19,11 +19,7 @@ export async function POST(req: NextRequest) {
   }
   if (offers.length === 0) return Response.json({ added: 0 });
 
-  const profileId = await activeProfileId();
-  const scopedOffers = offers.map((offer) => ({
-    ...offer,
-    note: `profile: ${profileId}${offer.note ? `; ${offer.note}` : ""}`,
-  }));
-  const result = await addOffersToPipeline(scopedOffers);
-  return Response.json(result);
+  const profileId = await activeProfileId(new URL(req.url).searchParams.get("profileId"));
+  const result = await addOffersToPipeline(offers, profileId);
+  return Response.json(result, { status: result.error ? 500 : 200 });
 }

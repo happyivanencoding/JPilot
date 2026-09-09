@@ -5,7 +5,7 @@
  * incomplete we salvage the largest valid prefix so the fields that DID
  * finish still come through (apply/prefill/route.ts).
  *
- * Plain .mjs (same pattern as pdf-paths.mjs / clean-chips.mjs) so this can be
+ * Plain .mjs (same pattern as tracker-table.mjs) so this can be
  * unit-tested with `node --test`, no TypeScript build step — it has no `@/`
  * dependency, so factoring it out of the route is what makes it testable at
  * all.
