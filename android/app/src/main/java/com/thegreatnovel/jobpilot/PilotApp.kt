@@ -79,7 +79,7 @@ import org.json.JSONObject
                 Column {
                     HorizontalDivider()
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha=.92f),tonalElevation = 1.dp) {
-                        labels.forEachIndexed { i,label -> NavigationBarItem(modifier=Modifier.testTag("nav-$i"),selected = tab == i,onClick = { tab = i; if(i == 2) filter = "" },icon = { Icon(icons[i],label,Modifier.size(22.dp)) },label = { Text(label,fontSize = 10.sp,maxLines = 1) },colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer)) }
+                        labels.forEachIndexed { i,label -> NavigationBarItem(modifier=Modifier.testTag("nav-$i"),selected = tab == i,onClick = { tab = i; if(i == 2) filter = ""; vm.showTabGuide(i) },icon = { Icon(icons[i],label,Modifier.size(22.dp)) },label = { Text(label,fontSize = 10.sp,maxLines = 1) },colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer)) }
                     }
                 }
             }
@@ -143,6 +143,8 @@ import org.json.JSONObject
     else state.selectedJob?.let { id -> state.snapshot.objects("jobs").find { it.text("id") == id }?.let { JobDetailSheet(it,state,vm) } }
     if(state.analysisVisible && state.snapshot.has("analysis")) AnalysisSheet(state,vm)
     if(state.cvPreview != null || state.previewLoading) CvPreviewDialog(state,vm)
+    if(state.showWelcome) OnboardingDialog(welcome = true, tab = null, onDismiss = vm::dismissWelcome)
+    else state.walkthroughTab?.let { OnboardingDialog(welcome = false, tab = it, onDismiss = vm::dismissTabGuide) }
 }
 
 @Composable fun taskTitle(kind: String) = when(kind) {

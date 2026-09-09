@@ -29,11 +29,12 @@ data class PilotState(
     val destination: JSONObject? = null, val analysisVisible: Boolean = false,
     val cvPreview: CvPreview? = null, val previewLoading: Boolean = false,
     val noticeTaskId: String? = null, val selectedJobTab: Int = 0,
+    val showWelcome: Boolean = false, val walkthroughTab: Int? = null,
 )
 class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     val api = JobPilotApi(app)
     private val prefs = app.getSharedPreferences("jobpilot", 0)
-    private val mutable = MutableStateFlow(PilotState(loggedIn = api.token != null, profileId = prefs.getString("profile", "") ?: "", language = prefs.getString("language", "fr") ?: "fr", theme = prefs.getString("theme", "system") ?: "system", server = api.base))
+    private val mutable = MutableStateFlow(PilotState(loggedIn = api.token != null, profileId = prefs.getString("profile", "") ?: "", language = prefs.getString("language", "fr") ?: "fr", theme = prefs.getString("theme", "system") ?: "system", server = api.base, showWelcome = api.token != null && !prefs.getBoolean("onboarding_welcome_v1", false)))
     val state = mutable.asStateFlow()
     private var foreground = true
     private var generation = 0
@@ -68,6 +69,13 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     fun setForeground(value: Boolean) { foreground = value; if (value && mutable.value.loggedIn) refresh(silent = true) }
     fun clearMessage() { mutable.update { it.copy(error = null, notice = null) } }
     fun clearNotice() { mutable.update { it.copy(notice = null, noticeTaskId = null) } }
+    fun dismissWelcome() { prefs.edit().putBoolean("onboarding_welcome_v1", true).apply(); mutable.update { it.copy(showWelcome = false) } }
+    fun showTabGuide(tab: Int) {
+        if (tab !in 0..4 || prefs.getBoolean("onboarding_tab_${tab}_v1", false)) return
+        prefs.edit().putBoolean("onboarding_tab_${tab}_v1", true).apply()
+        mutable.update { it.copy(showWelcome = false, walkthroughTab = tab) }
+    }
+    fun dismissTabGuide() { mutable.update { it.copy(walkthroughTab = null) } }
     fun consumeDestination() { mutable.update { it.copy(destination = null) } }
     fun showAnalysis(show: Boolean = true) { mutable.update { it.copy(analysisVisible = show) } }
     fun closePreview() { previewGeneration++; previewMetaJob?.cancel(); previewMetaJob=null; mutable.update { it.copy(cvPreview = null, previewLoading = false) } }
@@ -351,7 +359,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         api.saveToken(token)
         val profile = result.strings("profiles").firstOrNull() ?: ""
         generation++; refreshJob?.cancel(); refreshJob = null
-        mutable.update { it.copy(loggedIn = true, loginPending = false, working = false, server = api.base, profileId = profile, error = null) }
+        mutable.update { it.copy(loggedIn = true, loginPending = false, working = false, server = api.base, profileId = profile, error = null, showWelcome = !prefs.getBoolean("onboarding_welcome_v1", false), walkthroughTab = null) }
         refresh()
     }
     fun beginLogin(openBrowser: (String) -> Unit) {
@@ -378,7 +386,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { withContext(Dispatchers.IO) { api.request("/api/mobile-auth/logout",body = json()) } }
             api.saveToken(null)
             android.webkit.CookieManager.getInstance().removeAllCookies(null)
-            mutable.update { it.copy(loggedIn = false, snapshot = JSONObject(), task = null, selectedJob = null, working = false) }
+            mutable.update { it.copy(loggedIn = false, snapshot = JSONObject(), task = null, selectedJob = null, working = false, showWelcome = false, walkthroughTab = null) }
         }
     }
     fun shareDocument(url: String) {
