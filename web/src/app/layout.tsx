@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "@/components/jobpilot/jobpilot.css";
+import "@/components/jobpilot/feature-surfaces.css";
+import "@/components/jobpilot/layout-adjustments.css";
 export const metadata: Metadata = {
   title: "JobPilot", description: "Votre recherche d’emploi. Vos preuves. Votre prochain pas.",
   applicationName: "JobPilot", manifest: "/manifest.webmanifest",

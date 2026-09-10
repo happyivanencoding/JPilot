@@ -107,6 +107,8 @@ import java.time.ZoneOffset
     var location by remember(state.profileId) { mutableStateOf(config.child("candidate").text("location")) }
     var remote by remember(state.profileId) { mutableStateOf(config.child("compensation").text("location_flexibility")) }
     var preferences by remember { mutableStateOf(false) }
+    var privacyNotice by remember { mutableStateOf(false) }
+    var privacyAccepted by remember { mutableStateOf(false) }
     var contracts by remember(state.profileId) { mutableStateOf(config.child("target_roles").strings("contract_types").toSet()) }
     LazyColumn(Modifier.fillMaxSize().imePadding().testTag("profile-content"),contentPadding = PaddingValues(22.dp),verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item { SectionTitle(tr("我的档案","Votre profil, vos preuves.","Your profile. Your evidence."),state.snapshot.child("profile").text("name")) }
@@ -114,7 +116,7 @@ import java.time.ZoneOffset
             Icon(Icons.Rounded.Description,null,Modifier.size(34.dp),tint = MaterialTheme.colorScheme.primary)
             Text(tr("让简历成为起点","Le CV comme point de départ","Start with your CV"),fontSize = 22.sp,fontWeight = FontWeight.SemiBold)
             Hint(tr("PDF、Word (.docx)、TXT、Markdown，最大 12 MB。导入后先预览，再由你确认是否替换。","PDF, Word (.docx), TXT ou Markdown · 12 Mo maximum. Aperçu avant toute modification.","PDF, Word (.docx), TXT or Markdown · up to 12 MB. Preview before saving."))
-            PrimaryButton(tr("从手机上传简历","Importer un CV du téléphone","Upload a CV from my phone"),!state.working) { picker.launch(arrayOf("application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain","text/markdown")) }
+            PrimaryButton(tr("从手机上传简历","Importer un CV du téléphone","Upload a CV from my phone"),!state.working) { if(privacyAccepted) picker.launch(arrayOf("application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain","text/markdown")) else privacyNotice = true }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton({ vm.openCvPreview() },Modifier.weight(1f),enabled = state.snapshot.text("cv").isNotBlank()) { Text(tr("查看 PDF","Voir le PDF","View PDF")) }
                 TextButton({ editCv = true },Modifier.weight(1f)) { Text(tr("编辑内容","Modifier le contenu","Edit content")) }
@@ -160,6 +162,7 @@ import java.time.ZoneOffset
             Hint("JobPilot Android ${BuildConfig.VERSION_NAME} · " + tr("与网页版共享数据","Données partagées avec le Web","Shared data with the Web"))
         } }
     }
+    if(privacyNotice) AlertDialog(onDismissRequest = { privacyNotice = false },title = { Text(tr("上传前，先了解你的数据","Avant l’import, vos données","Before you upload")) },text = { Text(tr("你的简历只用于岗位匹配、生成建议和准备求职材料。我们通过加密连接传输，并按你的账号隔离保存；不会出售给招聘方，也不会用于训练公共模型。你可以随时删除或更新。","Votre CV sert uniquement à trouver des postes, produire des conseils et préparer vos candidatures. Il est transmis de façon chiffrée, isolé dans votre compte, jamais vendu à des recruteurs ni utilisé pour entraîner un modèle public. Vous pouvez le supprimer à tout moment.","Your CV is used only for job matching, guidance and application preparation. It is transferred over an encrypted connection and kept isolated in your account; it is not sold to recruiters or used to train public models. You can delete or update it at any time.")) },confirmButton = { TextButton({ privacyAccepted = true; privacyNotice = false; picker.launch(arrayOf("application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain","text/markdown")) }) { Text(tr("了解并继续上传","Compris, continuer","Understood, continue")) } },dismissButton = { TextButton({ privacyNotice = false }) { Text(tr("暂不上传","Pas maintenant","Not now")) } })
     if(editCv) ModalBottomSheet(onDismissRequest = { editCv = false },sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),modifier = Modifier.imePadding()) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(.88f).padding(22.dp),verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionTitle(tr("我的主简历","Mon CV de référence","My master CV"))

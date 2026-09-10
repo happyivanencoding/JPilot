@@ -7,9 +7,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.PersonOutline
-import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.WorkOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,17 +30,9 @@ private data class GuideTab(val icon: ImageVector, val title: String, val summar
         tr("根据你的简历、目标和地点搜索岗位。", "Rechercher selon votre CV, vos objectifs et votre localisation.", "Search using your CV, goals and location."),
         tr("保存岗位，或打开职位链接进行评估。", "Enregistrer une offre ou évaluer son annonce.", "Save a role or evaluate its job posting.")
     )),
-    GuideTab(Icons.Rounded.WorkOutline, tr("投递", "Candidatures", "Applications"), tr("集中管理求职进展。", "Suivez toute votre recherche au même endroit.", "Keep your job search in one place."), listOf(
-        tr("查看已保存、已申请、面试和 Offer 中的岗位。", "Voir les offres enregistrées, postulées, en entretien ou avec offre.", "Track saved roles, applications, interviews and offers."),
-        tr("筛选待决定和待跟进事项，明确下一步。", "Filtrer les décisions et relances pour savoir quoi faire ensuite.", "Filter decisions and follow-ups to know what to do next.")
-    )),
-    GuideTab(Icons.Rounded.School, tr("准备", "Préparer", "Prepare"), tr("围绕真实岗位练习和准备。", "Préparez-vous autour d’un poste réel.", "Prepare around a real target role."), listOf(
-        tr("为具体岗位生成面试准备计划。", "Créer un plan de préparation pour une offre précise.", "Create a preparation plan for a specific role."),
-        tr("练习回答，获得逐项反馈，并查看你的优势。", "Pratiquer vos réponses, recevoir un retour précis et revoir vos forces.", "Practice answers, get detailed feedback and review your strengths.")
-    )),
     GuideTab(Icons.Rounded.PersonOutline, tr("档案", "Dossier", "Profile"), tr("维护简历和求职偏好。", "Gérez votre CV et vos critères.", "Maintain your CV and job preferences."), listOf(
         tr("导入、编辑和预览你的主简历。", "Importer, modifier et prévisualiser votre CV de référence.", "Import, edit and preview your master CV."),
-        tr("设置目标岗位、地点、合同类型和界面语言。", "Définir vos rôles, lieux, contrats et langue d’interface.", "Set target roles, locations, contract types and interface language.")
+        tr("从这里进入投递、准备和设置。", "Ouvrir candidatures, préparation et réglages.", "Open applications, preparation and settings from here.")
     ))
 )
 

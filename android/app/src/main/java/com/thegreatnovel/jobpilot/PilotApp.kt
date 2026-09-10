@@ -38,8 +38,8 @@ import org.json.JSONObject
     var profileMenu by remember { mutableStateOf(false) }
     var taskCenter by remember { mutableStateOf(false) }
     val holder = rememberSaveableStateHolder()
-    val labels = listOf(tr("首页","Accueil","Home"),tr("机会","Offres","Offers"),tr("投递","Candidatures","Applications"),tr("准备","Préparer","Prepare"),tr("档案","Dossier","Profile"))
-    val icons = listOf(Icons.Rounded.Home,Icons.Rounded.Search,Icons.Rounded.WorkOutline,Icons.Rounded.School,Icons.Rounded.PersonOutline)
+    val labels = listOf(tr("首页","Accueil","Home"),tr("机会","Offres","Offers"),tr("我的","Moi","My space"))
+    val icons = listOf(Icons.Rounded.Home,Icons.Rounded.Search,Icons.Rounded.PersonOutline)
     val tasks = state.snapshot.objects("tasks")
     val active = tasks.filter { it.text("status") in setOf("queued","running","reconciling") }
     val keyboard = WindowInsets.ime.getBottom(LocalDensity.current) > 0
@@ -98,10 +98,8 @@ import org.json.JSONObject
                     AnimatedContent(targetState = tab,label = "destination",transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(100)) }) { page ->
                         holder.SaveableStateProvider("${state.profileId}:$page") {
                             when(page) {
-                                0 -> OverviewScreen(state,vm,onExplore = { tab = 1 },onPrepare = { tab = 3 },onProfile = { tab = 4 },onFilter = { filter = it; filterRequest++; tab = 2 })
+                                0 -> OverviewScreen(state,vm,onExplore = { tab = 1 },onPrepare = { tab = 2 },onProfile = { tab = 2 },onFilter = { filter = it; filterRequest++; tab = 2 })
                                 1 -> ExploreScreen(state,vm)
-                                2 -> ApplicationsScreen(state,vm,filter = filter,onFilter={filter=it},filterRequest = filterRequest)
-                                3 -> TrainingScreen(state,vm)
                                 else -> ProfileScreen(state,vm)
                             }
                         }

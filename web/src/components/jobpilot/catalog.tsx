@@ -6,12 +6,58 @@ import { rows, texts, usePilot, type Json } from "./pilot-context";
 import { ACTIVE, filteredJobs, safeExternalUrl } from "./model.mjs";
 import { Button, Chip, Empty, External, Hint, Input, Pill, RowLink, Score, TextArea, Title } from "./ui";
 
+function briefSentence(value: unknown): string {
+  const text = String(value || "").replace(/<[^>]+>/g, " ").replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1").replace(/^[\s>*•–-]+/, "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  const sentence = text.match(/^(.+?(?:[.!?。！？]|$))/)?.[1] || text;
+  return sentence.length > 150 ? `${sentence.slice(0, 147).trim()}…` : sentence;
+}
+
+function briefList(value: unknown): string[] {
+  const raw = Array.isArray(value) ? value : String(value || "").split(/\r?\n|[•▪]/g);
+  return [...new Set(raw.flatMap(item => String(item).split(/(?<=[.!?。！？])\s+/)).map(briefSentence).filter(item => item && !/^#+\s/.test(item)))].slice(0, 3);
+}
+
+function extractSection(description: string, labels: string[]): string[] {
+  if (!description) return [];
+  const target = new RegExp(`^(?:[#*_>\\- ]*)(${labels.join("|")})\\s*:?[ ]*$`, "i");
+  const lines = description.split(/\\r?\\n/);
+  const start = lines.findIndex(line => target.test(line.trim()));
+  if (start < 0) return [];
+  const end = lines.findIndex((line, index) => index > start && /^\\s*#{1,6}\\s+/.test(line));
+  return briefList(lines.slice(start + 1, end < 0 ? lines.length : end).join("\\n"));
+}
+
+function offerBrief(offer: Json) {
+  const description = String(offer.description || "");
+  let duties = briefList(offer.responsibilities || offer.duties || offer.missions || offer.tasks);
+  let requirements = briefList(offer.requirements || offer.qualifications || offer.skills || offer.profile);
+  const extractedDuties = extractSection(description, ["responsibilities", "duties", "missions", "tasks", "mission", "responsabilités", "missions", "工作内容", "岗位职责"]);
+  const extractedRequirements = extractSection(description, ["requirements", "qualifications", "skills", "profile", "requirements", "compétences", "profil", "qualifications", "岗位要求", "任职要求"]);
+  duties = [...new Set([...duties, ...extractedDuties])].slice(0, 3);
+  requirements = [...new Set([...requirements, ...extractedRequirements])].slice(0, 3);
+  const fallback = briefList(description);
+  if (!duties.length) duties = fallback.slice(0, 2);
+  if (!requirements.length) requirements = fallback.slice(-2).filter(item => !duties.includes(item));
+  return {
+    duties: duties.length ? duties : ["原始职位页未提供可提炼的工作内容。"],
+    requirements: requirements.length ? requirements : ["原始职位页未提供可提炼的岗位要求。"]
+  };
+}
+
+function openOfferSource(offer: Json) {
+  if (typeof window === "undefined") return;
+  const key = `jobpilot-source-${Date.now()}`;
+  try { window.localStorage.setItem(key, JSON.stringify(offer)); } catch { /* The new page still shows the source URL. */ }
+  window.open(`/jobs/source?key=${encodeURIComponent(key)}`, "_blank", "noopener,noreferrer");
+}
+
 export function HomePage() {
   const { data, tr, product, navigate, openJob } = usePilot();
   const jobs = rows(data.jobs), d = data.dashboard || {}, sets = d.actionSets || {};
   const count = (name: string) => texts(sets[name]).length;
   const hasCv = Boolean(data.cv?.trim());
-  const filter = (name: string) => navigate({ tab: "applications", filter: name });
+  const filter = (name: string) => navigate({ tab: "profile", view: "applications", filter: name });
   const headline = !jobs.length && !hasCv ? tr("从你的简历开始。", "Commençons par votre CV.", "Start with your CV.") : !jobs.length ? tr("选好你的第一批机会。", "Faites votre première sélection.", "Choose your first opportunities.") : count("decide") ? tr(`${count("decide")} 个岗位等待你决定是否投递`, `${count("decide")} postes attendent votre décision`, `${count("decide")} roles await your decision`) : tr("把下一步安排好。", "Gardez une longueur d’avance.", "Plan your next move.");
   return <div className="jp-page" data-testid="home-page">
     <Title sub={data.profile?.name}>{tr("今天，推进哪一步？", "Votre prochain pas.", "Your next step.")}</Title>
@@ -23,7 +69,7 @@ export function HomePage() {
     {!!jobs.length && <section><h3>{tr("我的求职进展", "Votre recherche", "Your job search")}</h3>{[["", tr("所有岗位", "Tous les postes", "All roles"), jobs.length], ["preparing", tr("准备与决定", "Préparation & décision", "Prepare & decide"), d.byStage?.preparing || 0], ["applied", tr("等待回复", "En attente de réponse", "Awaiting reply"), d.byStage?.applied || 0], ["responded", tr("收到回复", "Réponses reçues", "Replies received"), d.byStage?.responded || 0], ["offer", tr("收到 Offer", "Offres reçues", "Offers received"), d.byStage?.offer || 0]].map(([key, label, value]) => <RowLink key={String(key)} onClick={() => filter(String(key))} trailing={<strong>{value}</strong>}>{label}</RowLink>)}</section>}
     {!jobs.length && hasCv && <section className="jp-stack"><h3>{tr("从你的目标开始", "À partir de votre objectif", "Start with your goal")}</h3><Hint>{texts(data.config?.target_roles?.contract_types).map(product).join(" · ")}</Hint>{data.config?.availability?.earliest && <Hint>{tr("预计可入职：", "Disponibilité prévue : ", "Expected availability: ") + data.config.availability.earliest}</Hint>}<p>{tr("先比较少量相关岗位，再根据真实要求准备材料。", "Comparez quelques offres pertinentes, puis préparez vos preuves pour leurs exigences réelles.", "Compare a few relevant roles, then prepare evidence for their actual requirements.")}</p>{data.analysis?.markdown && <Button kind="outline" onClick={() => navigate({ tab: "profile", view: "analysis" })}>{tr("查看我的核心优势与行动", "Voir mes atouts et mes actions", "Review my signals and next actions")}</Button>}</section>}
     {!!rows(d.recentReplies).length && <section className="jp-stack"><h3>{tr("最近回复", "Dernières réponses", "Recent replies")}</h3>{rows(d.recentReplies).slice(0, 2).map((reply, index) => <button type="button" className="jp-list-item" key={index} onClick={() => openJob(reply.jobId, 3)}><strong>{reply.company}</strong><p>{reply.text}</p><Hint>{reply.at?.slice(0, 10)}</Hint></button>)}</section>}
-    <Button kind="outline" onClick={() => navigate({ tab: "prepare" })}><GraduationCap size={20} />{tr("准备下一场面试", "Préparer mon prochain entretien", "Prepare for my next interview")}</Button>
+    <Button kind="outline" onClick={() => navigate({ tab: "profile", view: "prepare" })}><GraduationCap size={20} />{tr("准备下一场面试", "Préparer mon prochain entretien", "Prepare for my next interview")}</Button>
   </div>;
 }
 
@@ -57,7 +103,10 @@ function OfferCard({ offer }: { offer: Json }) {
   if (offer.contractType === "unknown") bits.push(tr("合同待确认", "contrat à confirmer", "contract to confirm"));
   if (offer.ageDays != null) bits.push(offer.ageDays === 0 ? tr("今天发布", "publiée aujourd’hui", "posted today") : tr(`${offer.ageDays} 天前`, `il y a ${offer.ageDays} j`, `${offer.ageDays}d ago`));
   if (offer.searchRelevance != null) bits.push(tr(`检索相关度 ${offer.searchRelevance}/100`, `pertinence recherche ${offer.searchRelevance}/100`, `search relevance ${offer.searchRelevance}/100`));
-  return <article className="jp-offer" data-testid="discovery-offer"><div className="jp-company">{offer.company}</div><h2>{offer.title}</h2><Hint>{[offer.location, offer.contractType !== "unknown" ? product(offer.contractType) : ""].filter(Boolean).join(" · ")}</Hint><Hint>{bits.join(" · ")}</Hint><p>{offer.why}</p><Hint>{evaluating ? tr("分析中 · 不会重复启动", "Évaluation en cours · une seule tâche", "Evaluation in progress · one task only") : tr("待评估 · 岗位开放情况需核实", "À évaluer · disponibilité à confirmer", "Unassessed · availability unconfirmed")}</Hint><External url={offer.url}>{tr("查看职位来源", "Voir l’annonce source", "View source posting")}</External><div className="jp-row"><Button kind="outline" disabled={Boolean(saved)} onClick={() => act({ action: "saveOffer", offer })}>{saved ? tr("已收藏", "Enregistrée", "Saved") : tr("保存", "Enregistrer", "Save")}</Button><Button disabled={evaluating} onClick={() => startTask({ kind: "evaluate", url: offer.url })}>{evaluating ? tr("分析中", "Analyse en cours", "Analyzing") : tr("岗位评估", "Évaluer", "Evaluate")}</Button></div></article>;
+  const brief = offerBrief(offer);
+  return <article className="jp-offer" data-testid="discovery-offer"><div className="jp-company">{offer.company}</div><h2>{offer.title}</h2><Hint>{[offer.location, offer.contractType !== "unknown" ? product(offer.contractType) : ""].filter(Boolean).join(" · ")}</Hint><Hint>{bits.join(" · ")}</Hint><p>{offer.why}</p>
+    <section className="jp-offer-brief"><div><h3>{tr("工作内容", "Missions", "What you will do")}</h3>{brief.duties.map((item, i) => <p className="jp-bullet" key={`duty-${i}`}>{item}</p>)}</div><div><h3>{tr("岗位要求", "Profil recherché", "What you bring")}</h3>{brief.requirements.map((item, i) => <p className="jp-bullet" key={`requirement-${i}`}>{item}</p>)}</div></section>
+    <Hint>{evaluating ? tr("分析中 · 不会重复启动", "Évaluation en cours · une seule tâche", "Evaluation in progress · one task only") : tr("待评估 · 岗位开放情况需核实", "À évaluer · disponibilité à confirmer", "Unassessed · availability unconfirmed")}</Hint><button type="button" className="jp-source-button" onClick={() => openOfferSource(offer)}>{tr("查看原信息", "Voir l’annonce originale", "View original posting")}<ArrowRight size={16} /></button><div className="jp-row"><Button kind="outline" disabled={Boolean(saved)} onClick={() => act({ action: "saveOffer", offer })}>{saved ? tr("已收藏", "Enregistrée", "Saved") : tr("保存", "Enregistrer", "Save")}</Button><Button disabled={evaluating} onClick={() => startTask({ kind: "evaluate", url: offer.url })}>{evaluating ? tr("分析中", "Analyse en cours", "Analyzing") : tr("岗位评估", "Évaluer", "Evaluate")}</Button></div></article>;
 }
 export function OffersPage() {
   const { data, tr, product, startTask } = usePilot();
@@ -67,11 +116,11 @@ export function OffersPage() {
   const [url, setUrl] = useState("");
   const searching = rows(data.tasks).some(t => t.kind === "search" && ACTIVE.has(t.status));
   const discovery = data.discovery || {};
-  return <div className="jp-page" data-testid="offers-page"><Title sub={tr("已评估的岗位在「投递」中，不会重复出现在这里。", "Les postes évalués se retrouvent dans Candidatures.", "Evaluated roles move to Applications.")}>{tr("值得看的机会", "Les bonnes opportunités", "Worth a closer look")}</Title>
+  return <div className="jp-page" data-testid="offers-page"><Title sub={tr("已评估的岗位会收进「我的」，不会重复出现在这里。", "Les postes évalués se retrouvent dans « Moi ».", "Evaluated roles move into My space.")}>{tr("值得看的机会", "Les bonnes opportunités", "Worth a closer look")}</Title>
     <div className="jp-stack"><TextArea label={tr("搜索目标", "Ma recherche", "My search")} rows={3} value={query} onChange={e => setQuery(e.target.value)} /><Hint>{tr("合同类型：", "Contrats : ", "Contracts: ") + (texts(data.config?.target_roles?.contract_types).map(product).join(" · ") || tr("不限", "Tous", "All"))}</Hint><Button data-testid="search-offers" disabled={searching || !query.trim()} onClick={() => startTask({ kind: "search", query })}>{searching ? tr("搜索中", "Recherche en cours", "Searching") : tr("寻找适合我的岗位", "Rechercher des offres", "Find opportunities")}</Button></div>
     <div className="jp-stack"><Input label={tr("或粘贴职位链接", "Ou coller le lien d’un poste", "Or paste a job URL")} value={url} type="url" autoCapitalize="none" onChange={e => setUrl(e.target.value)} /><Button kind="text" disabled={!safeExternalUrl(url.trim())} onClick={() => startTask({ kind: "evaluate", url: url.trim() })}>{tr("查看／评估该岗位", "Consulter / évaluer cette offre", "View / evaluate this role")}<ArrowRight size={16} /></Button><hr /></div>
     <div className="jp-row spread"><strong>{tr("待处理岗位", "À examiner", "To review")}</strong><Hint>{discovery.searchedAt?.slice(0, 10)}</Hint></div>{discovery.partial && <Hint>{discovery.warning}</Hint>}<SearchMetrics value={discovery.searchMetrics} />
-    {!rows(discovery.offers).length && <Empty title={tr("这里没有待处理的岗位", "Aucune offre en attente ici", "No pending offers here")}>{tr("可以发起搜索，或到投递页查看已有评估。", "Lancez une recherche ou consultez vos évaluations dans Candidatures.", "Search for opportunities or view evaluations in Applications.")}</Empty>}{rows(discovery.offers).slice(0, DISCOVERY_OFFER_LIMIT).map(offer => <OfferCard key={offer.url} offer={offer} />)}
+    {!rows(discovery.offers).length && <Empty title={tr("这里没有待处理的岗位", "Aucune offre en attente ici", "No pending offers here")}>{tr("可以发起搜索，或到我的页面查看已有评估。", "Lancez une recherche ou consultez vos évaluations dans Moi.", "Search for opportunities or view your evaluations in My space.")}</Empty>}{rows(discovery.offers).slice(0, DISCOVERY_OFFER_LIMIT).map(offer => <OfferCard key={offer.url} offer={offer} />)}
   </div>;
 }
 export function ApplicationsPage() {

@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ChevronDown, X } from "lucide-react";
-import { WorkOutline as BriefcaseBusiness, PendingActions as ClipboardClock, School as GraduationCap, Home as House, Search, PersonOutline as UserRound } from "./native-icons";
+import { PendingActions as ClipboardClock, Home as House, Search, PersonOutline as UserRound } from "./native-icons";
 import { PilotProvider, rows, usePilot } from "./pilot-context";
 import { ACTIVE, desktopScale, TABS } from "./model.mjs";
-import { ApplicationsPage, HomePage, OffersPage } from "./catalog";
-import { CvEditor, PreparePage, ProfilePage } from "./profile-prepare";
+import { HomePage, OffersPage } from "./catalog";
+import { CvEditor, ProfilePage } from "./profile-prepare";
 import { AnalysisSheet, CompareSheet, JobSheet, ResultSheet, TasksSheet } from "./sheets";
 import { PdfPreview } from "./pdf-preview";
 import { OnboardingOverlay, type GuideTab } from "./onboarding";
@@ -35,8 +35,8 @@ function Phone() {
     document.addEventListener("focusin", measure); document.addEventListener("focusout", measure);
     return () => { window.removeEventListener("resize", measure); window.visualViewport?.removeEventListener("resize", measure); document.removeEventListener("focusin", measure); document.removeEventListener("focusout", measure); };
   }, []);
-  const labels = [tr("首页", "Accueil", "Home"), tr("机会", "Offres", "Offers"), tr("投递", "Candidatures", "Applications"), tr("准备", "Préparer", "Prepare"), tr("档案", "Dossier", "Profile")];
-  const icons = [House, Search, BriefcaseBusiness, GraduationCap, UserRound];
+  const labels = [tr("首页", "Accueil", "Home"), tr("机会", "Offres", "Offers"), tr("我的", "Moi", "My space")];
+  const icons = [House, Search, UserRound];
   const active = rows(data.tasks).filter(t => ACTIVE.has(t.status)).length;
   const canShowData = Boolean(data.profile?.id);
   useEffect(() => {
@@ -55,7 +55,7 @@ function Phone() {
     setOnboarding(null);
   };
   const goToTab = (tab: GuideTab) => {
-    navigate({ tab });
+    navigate({ tab, view: undefined, filter: undefined, job: undefined, task: undefined, draft: undefined, report: undefined, jobTab: undefined, ids: undefined });
     if (!onboardingReady) return;
     try {
       const saved = JSON.parse(localStorage.getItem("jobpilot:onboarding:v1") || "{}");
@@ -66,9 +66,9 @@ function Phone() {
       }
     } catch { /* Continue without persisting the walkthrough. */ }
   };
-  const hasOverlay = Boolean(route.view) || onboarding != null;
+  const hasOverlay = ["tasks", "task", "job", "analysis", "report", "pdf", "compare", "edit-cv"].includes(route.view || "") || onboarding != null;
   const reload = async () => { if (refreshing) return; setRefreshing(true); await refresh(); setRefreshing(false); };
-  const pages = [<HomePage key="home" />, <OffersPage key="offers" />, <ApplicationsPage key="applications" />, <PreparePage key="prepare" />, <ProfilePage key="profile" />];
+  const pages = [<HomePage key="home" />, <OffersPage key="offers" />, <ProfilePage key="profile" />];
   return <div className="jp-stage"><div className="jp-envelope" style={{ "--jp-scale": scale } as CSSProperties}><div className={`jp-phone${keyboard ? " jp-keyboard" : ""}`} data-testid="jobpilot-phone" data-reference-size="384x832">
     {expired ? <div className="jp-login"><img src="/jobpilot.svg" alt="" /><h1>JobPilot</h1><h2>{tr("你的下一步，值得认真准备。", "Votre prochain pas mérite le meilleur.", "Your next step deserves your best.")}</h2><Hint>{tr("请重新登录以访问你的档案。", "Reconnectez-vous pour accéder à votre profil.", "Sign in again to access your profile.")}</Hint><a href="/api/mobile-auth/bridge">{tr("安全登录", "Connexion sécurisée", "Secure sign in")}</a></div> : <>
       <div className="jp-underlay" inert={hasOverlay}>
