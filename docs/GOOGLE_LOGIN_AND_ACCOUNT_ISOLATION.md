@@ -1,5 +1,18 @@
 # Google login and per-user Profile isolation
 
+## Current Google production configuration — 2026-09-10, 08:21 UTC
+
+This section supersedes the quota/client blockers in the historical checks below. Google approved the quota request; the browser subsequently allowed project creation. Created the independent **JobPilot Production** project (`jobpilot-production`) and **JobPilot Web** OAuth Web application client. Branding is `JobPilot`, using the owner account's selectable support/contact email; Audience remains **External / Testing**. The owner and explicitly authorized partner are saved as test users. Data Access contains only `openid`, `https://www.googleapis.com/auth/userinfo.email` and `https://www.googleapis.com/auth/userinfo.profile`; no sensitive or restricted scopes, additional requested APIs, Firebase, publication or verification were added.
+
+- Public Client ID: `693658457123-rg339kiqms0bt1huv5uhm12kgsl23ql5.apps.googleusercontent.com`.
+- Sole authorized JavaScript origin: `https://jobs.thegreatnovel.com`; no authorized redirect URI. No Client Secret was copied to files, VPS, Android or Git.
+- Installed only `googleClientId` in the private VPS access config after a private backup. Existing three admins, one ordinary user and all other fields were preserved. Inode and `1000:1000 / 0400` remained unchanged; the running gateway mount read back the exact Client ID. No restart/recreate was needed.
+- Public login returns **302 → `/api/mobile-auth/google`**; POST pairing start returns **200 / provider=google** with the real production host. Anonymous `/api/mobile` remains **401** and the old Cloudflare bridge remains **302**. At 08:21 UTC gateway/Web were healthy, Tunnel ready, backup fresh.
+- **Owner Google login is NOT TESTED end to end**: Chrome blocked both the login entry and Google page with `ERR_BLOCKED_BY_CLIENT`, before Google account selection or a new JobPilot session. The browser tool refused access to extension-management diagnostics under its URL policy; no browser protections were bypassed. Existing cookies or previous admin sessions are not Google acceptance evidence.
+- Yifeng and ordinary-user real Google sign-in remain pending their own authentication. Android real Google pairing remains pending; only the public pairing provider was verified. No new AI analysis, evaluation, CV generation or job search was triggered, and no Candidate data was deliberately modified.
+
+Next: open `https://jobs.thegreatnovel.com/api/mobile-auth/google` in the owner's browser and resolve the client-side block, then complete real Google sign-in and verify a newly issued admin session with all Profiles. Do not recreate the project/client or replace the installed Client ID while addressing browser access.
+
 ## Partner administrator update — 2026-09-10
 
 The user supplied and explicitly authorized the partner's Google email. That exact email was absent from the production allowlist, so it was added as `admin` without removing or changing the two existing admins or the ordinary user's single-Profile binding. The current total is **3 admins + 1 ordinary user**. Do not continue assuming that the previously inferred second admin is the partner: they are distinct allowlist entries.
