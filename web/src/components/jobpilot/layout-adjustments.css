@@ -1,0 +1,15 @@
+.jp-nav{grid-template-columns:repeat(3,minmax(70px,96px));justify-content:center;gap:8px}
+.jp-profile-section{display:flex;flex-direction:column;gap:18px}
+.jp-profile-section--secondary{margin-top:8px;padding-top:22px;border-top:1px solid var(--jp-outline)}
+.jp-profile-section-heading{display:flex;flex-direction:column;gap:6px}
+.jp-profile-section-heading h2{font-size:21px;line-height:27px;font-weight:600;letter-spacing:-.25px}
+.jp-profile-entry-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.jp-profile-entry-card{height:100%;justify-content:space-between}
+.jp-profile-entry-card h3{font-size:18px;line-height:24px}
+.jp-profile-entry-mark{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:11px;background:var(--jp-primary-container);color:var(--jp-primary);font-size:12px;font-weight:700;letter-spacing:.04em}
+.jp-profile-settings{margin-top:8px}
+.jp-profile-settings-row{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.jp-profile-settings-row>div{flex:1;min-width:0}
+.jp-profile-settings-row h2{font-size:19px;line-height:25px;font-weight:600}
+.jp-profile-settings-row .jp-button{width:auto;flex-shrink:0}
+@media(max-width:420px){.jp-profile-entry-grid{grid-template-columns:1fr}.jp-profile-settings-row{align-items:stretch;flex-direction:column}.jp-profile-settings-row .jp-button{width:100%}}
