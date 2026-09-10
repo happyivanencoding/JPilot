@@ -3,8 +3,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
-const accessFile=process.env.JOBPILOT_ACCESS_CONFIG||path.join(root,'.career-ops-web','mobile-access.json');
-const profilesFile=path.join(root,'data','profiles.json');
+const dataRoot=path.resolve(process.env.CAREER_OPS_ROOT||root);
+const accessFile=process.env.JOBPILOT_ACCESS_CONFIG||path.join(dataRoot,'.career-ops-web','mobile-access.json');
+const profilesFile=process.env.JOBPILOT_PROFILE_REGISTRY||path.join(dataRoot,'data','profiles.json');
 const args=process.argv.slice(2);
 const command=args[0]||'';
 const value=name=>{const index=args.indexOf(`--${name}`);return index>=0?String(args[index+1]||'').trim():'';};
@@ -28,7 +29,7 @@ function ensureProfile(emailAddress,name,requestedId){
   const id=uniqueProfileId(registry,requestedId,emailAddress),displayName=name||emailAddress.split('@')[0];
   const relRoot=`.career-ops-web/profiles/${id}`;
   const profile={id,name:displayName,shortName:displayName,accountEmail:emailAddress,cvMarkdown:`${relRoot}/cv.md`,config:`${relRoot}/profile.yml`,notes:`${relRoot}/_profile.md`,candidatures:`${relRoot}/candidatures.json`};
-  const directory=path.join(root,relRoot);fs.mkdirSync(directory,{recursive:true});
+  const directory=path.join(dataRoot,relRoot);fs.mkdirSync(directory,{recursive:true});
   const configFile=path.join(directory,'profile.yml');
   if(!fs.existsSync(configFile))fs.writeFileSync(configFile,`candidate:\n  full_name: ${JSON.stringify(displayName)}\n  email: ${JSON.stringify(emailAddress)}\ncv:\n  language: fr\ntarget_roles:\n  primary: []\n  contract_types: []\n`,'utf8');
   const notesFile=path.join(directory,'_profile.md');if(!fs.existsSync(notesFile))fs.writeFileSync(notesFile,'','utf8');
