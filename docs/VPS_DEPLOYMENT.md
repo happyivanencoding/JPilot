@@ -20,10 +20,16 @@ the independent infrastructure layer and is not a replacement JobPilot datastore
 ## Delivery
 
 `Deploy JobPilot to production VPS` runs for changes to `web/**` on `main` and can
-also be dispatched manually on `main`. GitHub holds only the restricted deployment
-SSH key and pinned server host key in Actions Secrets, not application API keys.
-The deployment account accepts only a full current-main commit SHA or a read-only
-status request. It cannot open a shell or forward ports.
+also be dispatched manually on `main`. The deployment account accepts only a full
+current-main commit SHA or a read-only status request. It cannot open a shell or
+forward ports. Production application API keys never live in GitHub Actions.
+
+During the 2026-09-10 staging-permission cutover, the repository-wide production
+`VPS_DEPLOY_KEY` secret was deliberately removed before Yifeng retained branch
+write access. Production runtime is unaffected, but new production deployments
+are intentionally paused until the owner copies that same restricted key into the
+`production` GitHub Environment and binds the production workflow to that
+environment. Do not recreate a repository-wide production deploy key as a shortcut.
 
 The server fetches that exact public repository revision, builds a clean Linux
 image, runs Node tests and deterministic PDF checks, takes a consistent backup,
