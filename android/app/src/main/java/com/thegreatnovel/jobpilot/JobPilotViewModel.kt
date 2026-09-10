@@ -24,7 +24,7 @@ data class TaskLaunchFeedback(val ids: List<String>, val title: String, val esti
 data class PilotState(
     val loggedIn: Boolean = false, val loading: Boolean = false, val working: Boolean = false,
     val profileId: String = "", val snapshot: JSONObject = JSONObject(),
-    val task: JSONObject? = null, val selectedJob: String? = null,
+    val task: JSONObject? = null, val selectedJob: String? = null, val selectedOffer: String? = null,
     val error: String? = null, val notice: String? = null,
     val language: String = "fr", val theme: String = "system", val server: String = BuildConfig.API_BASE_URL,
     val loginPending: Boolean = false,
@@ -37,7 +37,9 @@ data class PilotState(
 class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     val api = JobPilotApi(app)
     private val prefs = app.getSharedPreferences("jobpilot", 0)
-    private val mutable = MutableStateFlow(PilotState(loggedIn = api.token != null, profileId = prefs.getString("profile", "") ?: "", language = prefs.getString("language", "fr") ?: "fr", theme = prefs.getString("theme", "system") ?: "system", server = api.base, showWelcome = api.token != null && !prefs.getBoolean("onboarding_welcome_v1", false)))
+    private val previewProfile = BuildConfig.PREVIEW_PROFILE.trim()
+    private val previewMode = previewProfile.isNotBlank()
+    private val mutable = MutableStateFlow(PilotState(loggedIn = previewMode || api.token != null, profileId = if (previewMode) previewProfile else (prefs.getString("profile", "") ?: ""), language = prefs.getString("language", "fr") ?: "fr", theme = prefs.getString("theme", "system") ?: "system", server = if (previewMode) BuildConfig.API_BASE_URL else api.base, showWelcome = (previewMode || api.token != null) && !prefs.getBoolean("onboarding_welcome_v1", false)))
     val state = mutable.asStateFlow()
     private var foreground = true
     private var generation = 0
@@ -54,7 +56,12 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         if(ids.isNotEmpty())refresh(silent=true)
     }
     init {
-        if (api.token != null) refresh()
+        if (previewMode) {
+            api.setBase(BuildConfig.API_BASE_URL)
+            prefs.edit().putString("profile", previewProfile).apply()
+            mutable.update { it.copy(loggedIn = true, profileId = previewProfile, server = api.base) }
+            refresh()
+        } else if (api.token != null) refresh()
         // Feedback lifetime belongs to the operation, not to the composable that
         // happens to be visible while a PDF dialog or destination changes.
         viewModelScope.launch {
@@ -64,7 +71,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             while (isActive) {
-                delay(if (mutable.value.snapshot.objects("tasks").any { it.text("status") in activeStates } || displayPending()) 2500 else 15000)
+                delay(if (mutable.value.snapshot.objects("tasks").any { it.text("status") in activeStates } || mutable.value.snapshot.child("v1").optBoolean("backgroundActive") || displayPending()) 2500 else 15000)
                 if (foreground && mutable.value.loggedIn) refresh(silent = true)
             }
         }
@@ -76,12 +83,12 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     fun dismissWelcome() { prefs.edit().putBoolean("onboarding_welcome_v1", true).apply(); mutable.update { it.copy(showWelcome = false) } }
     fun skipOnboarding() {
         val editor=prefs.edit().putBoolean("onboarding_welcome_v1", true)
-        (0..4).forEach { editor.putBoolean("onboarding_tab_${it}_v1", true) }
+        (0..2).forEach { editor.putBoolean("onboarding_tab_${it}_v1", true) }
         editor.apply()
         mutable.update { it.copy(showWelcome = false, walkthroughTab = null) }
     }
     fun showTabGuide(tab: Int) {
-        if (tab !in 0..4 || prefs.getBoolean("onboarding_tab_${tab}_v1", false)) return
+        if (tab !in 0..2 || prefs.getBoolean("onboarding_tab_${tab}_v1", false)) return
         prefs.edit().putBoolean("onboarding_tab_${tab}_v1", true).apply()
         mutable.update { it.copy(showWelcome = false, walkthroughTab = tab) }
     }
@@ -152,7 +159,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         detailJob?.cancel();detailJob=null;reportJob?.cancel();reportJob=null
         generation++; refreshJob?.cancel(); refreshJob = null
         prefs.edit().putString("profile", id).apply()
-        mutable.update { it.copy(profileId = id, snapshot = JSONObject(), task = null, selectedJob = null, error = null, working = false, notice = null, noticeTaskId = null, taskLaunch = null, destination = null, analysisVisible = false, cvPreview = null, previewLoading = false) }
+        mutable.update { it.copy(profileId = id, snapshot = JSONObject(), task = null, selectedJob = null, selectedOffer = null, error = null, working = false, notice = null, noticeTaskId = null, taskLaunch = null, destination = null, analysisVisible = false, cvPreview = null, previewLoading = false) }
         refresh()
     }
     fun appearance(language: String = mutable.value.language, theme: String = mutable.value.theme) {
@@ -176,9 +183,10 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun selectJob(id: String?, tab: Int = 0) {
         detailJob?.cancel();detailJob=null
-        mutable.update { it.copy(selectedJob = id, selectedJobTab = tab) }
+        mutable.update { it.copy(selectedJob = id, selectedOffer = null, selectedJobTab = tab) }
         if(id!=null) loadJobDetail(id)
     }
+    fun selectOffer(url: String?) { mutable.update { it.copy(selectedOffer = url, selectedJob = null, task = null) } }
     private fun loadJobDetail(id:String,retryLocalization:Boolean=false) {
         if(detailJob?.isActive==true)return
         val epoch=generation;val profile=mutable.value.profileId
@@ -207,18 +215,24 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         val profile = mutable.value.profileId; val epoch = generation
         input.put("language", mutable.value.language)
         input.put("uiLocale", mutable.value.language)
+        val silent=input.optBoolean("silent")
         viewModelScope.launch {
             val estimate = mutable.value.snapshot.child("flowEstimates").child(input.text("kind"))
             val estimateLabel = estimate.text("label", "Habituellement quelques minutes")
-            mutable.update { it.copy(working = true, error = null, notice = "Traitement demandé · $estimateLabel", noticeTaskId = null) }
+            if(!silent) mutable.update { it.copy(working = true, error = null, notice = "Traitement demandé · $estimateLabel", noticeTaskId = null) }
+            else mutable.update { it.copy(error=null) }
             try {
                 val task = withContext(Dispatchers.IO) { api.request("/api/mobile",profile,json("action" to "task", "profileId" to profile, "input" to input)) }
                 if (epoch == generation) {
-                    mutable.update { it.copy(working = false) }
-                    if (task.text("status") == "completed" || task.text("status") == "failed") openTaskResult(task)
-                    else if(input.text("kind") in aiTaskKinds) mutable.update { it.copy(notice = null, noticeTaskId = task.text("id"), taskLaunch = TaskLaunchFeedback(listOf(task.text("id")),task.text("title",input.text("kind")),task.child("estimate").takeIf { value -> value.length()>0 } ?: estimate,task.text("createdAt",java.time.Instant.now().toString()))) }
-                    else mutable.update { it.copy(notice = task.text("title") + " · " + task.child("estimate").text("label", estimateLabel), noticeTaskId = task.text("id")) }
-                    refresh(silent = true)
+                    if(silent) {
+                        refresh(silent=true)
+                    } else {
+                        mutable.update { it.copy(working = false) }
+                        if (task.text("status") == "completed" || task.text("status") == "failed") openTaskResult(task)
+                        else if(input.text("kind") in aiTaskKinds) mutable.update { it.copy(notice = null, noticeTaskId = task.text("id"), taskLaunch = TaskLaunchFeedback(listOf(task.text("id")),task.text("title",input.text("kind")),task.child("estimate").takeIf { value -> value.length()>0 } ?: estimate,task.text("createdAt",java.time.Instant.now().toString()))) }
+                        else mutable.update { it.copy(notice = task.text("title") + " · " + task.child("estimate").text("label", estimateLabel), noticeTaskId = task.text("id")) }
+                        refresh(silent = true)
+                    }
                 }
             } catch (e: Exception) { if (epoch == generation) failure(e) }
         }
@@ -268,6 +282,22 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun updateJob(id: String, change: JSONObject) = writeAction(json("action" to "updateJob", "id" to id, "change" to change))
     fun saveOffer(offer: JSONObject) = writeAction(json("action" to "saveOffer", "offer" to offer))
+    fun tailorOffer(offer: JSONObject) {
+        val profile=mutable.value.profileId;val epoch=generation;val language=mutable.value.language
+        viewModelScope.launch {
+            mutable.update { it.copy(working=true,error=null) }
+            try {
+                val response=withContext(Dispatchers.IO) { api.request("/api/mobile",profile,json("action" to "tailorOffer","profileId" to profile,"uiLocale" to language,"offer" to JSONObject(offer.toString()))) }
+                if(epoch==generation) {
+                    val task=response.child("task");val jobId=response.text("jobId")
+                    mutable.update { state -> state.copy(working=false,notice=when(state.language){"zh"->"正在准备这份岗位版简历，你可以继续浏览。";"en"->"Your role-specific CV is being prepared. You can keep browsing.";else->"Votre CV ciblé se prépare. Vous pouvez continuer à naviguer."},noticeTaskId=task.text("id").takeIf(String::isNotBlank)) }
+                    selectOffer(null)
+                    if(task.text("status")=="completed") { mutable.update { it.copy(destination=json("tab" to 2)) };selectJob(jobId.takeIf(String::isNotBlank),1) }
+                    refresh(silent=true)
+                }
+            } catch(e:Exception) { if(epoch==generation) failure(e) }
+        }
+    }
     private fun writeAction(body: JSONObject) {
         val profile = mutable.value.profileId; val epoch = generation
         body.put("profileId",profile)
@@ -286,7 +316,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 withContext(Dispatchers.IO) { api.request("/api/mobile", profile, json("action" to "confirmCv", "profileId" to profile, "taskId" to taskId, "confirmed" to true, "content" to content, "expectedVersionId" to mutable.value.snapshot.child("cvState").text("versionId"))) }
                 if (epoch == generation) {
-                    mutable.update { it.copy(working = false, task = null, notice = "CV enregistré. L’analyse peut être mise à jour.", noticeTaskId = null) }
+                    mutable.update { state -> state.copy(working = false, task = null, notice = when(state.language){"zh"->"主简历已保存。职业方向和首批岗位会在后台自动更新。";"en"->"Master CV saved. Career directions and initial roles will update automatically in the background.";else->"CV de référence enregistré. Les directions et premières offres se mettent à jour automatiquement."}, noticeTaskId = null) }
                     refresh(silent = true)
                 }
             } catch (e: Exception) { if (epoch == generation) failure(e) }
@@ -324,10 +354,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
                 mutable.update { it.copy(destination = json("tab" to 2), task = null) }
                 selectJob(id.takeIf(String::isNotBlank),1)
             }
-            "plan" -> {
-                mutable.update { it.copy(destination = json("tab" to 3), task = null) }
-                selectJob(destination.text("jobId").takeIf(String::isNotBlank),2)
-            }
+            "plan" -> mutable.update { it.copy(destination = json("tab" to 2), task = task) }
             else -> mutable.update { it.copy(task = task) }
         }
     }
@@ -398,7 +425,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         val profile=mutable.value.profileId;val epoch=generation
         viewModelScope.launch { mutable.update { it.copy(working=true,error=null) };try {
             withContext(Dispatchers.IO) { api.request("/api/mobile",profile,json("action" to "updateTailoredCvDraft","profileId" to profile,"draftId" to id,"payload" to payload)) }
-            if(epoch==generation){mutable.update { it.copy(working=false,notice="Brouillon mis à jour · PDF régénéré",noticeTaskId=null) };refresh(silent=true)}
+            if(epoch==generation){mutable.update { state -> state.copy(working=false,notice=when(state.language){"zh"->"草稿已保存，呈现分正在后台自动更新。";"en"->"Draft saved. The presentation score is updating automatically in the background.";else->"Brouillon enregistré. Le score de présentation se met à jour automatiquement."},noticeTaskId=null) };refresh(silent=true)}
         } catch(e:Exception){if(epoch==generation)failure(e)} }
     }
     fun decideTailoredDraft(id:String,decision:String) {
@@ -452,6 +479,14 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun logout() {
         loginJob?.cancel(); generation++; refreshJob?.cancel(); refreshJob = null
+        if (previewMode) {
+            api.saveToken(null)
+            api.setBase(BuildConfig.API_BASE_URL)
+            prefs.edit().putString("profile", previewProfile).apply()
+            mutable.update { it.copy(loggedIn = true, profileId = previewProfile, server = api.base, snapshot = JSONObject(), task = null, selectedJob = null, working = false, showWelcome = false, walkthroughTab = null) }
+            refresh()
+            return
+        }
         viewModelScope.launch {
             runCatching { withContext(Dispatchers.IO) { api.request("/api/mobile-auth/logout",body = json()) } }
             api.saveToken(null)

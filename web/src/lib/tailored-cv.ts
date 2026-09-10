@@ -123,10 +123,8 @@ function cleanArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((x): x is string => typeof x === "string" && !!x.trim()).map((x) => x.trim()) : [];
 }
 
-function buildPrompt(profileId: string, job: Job, version: Record<string,any>, uiLocale: string, material: string) {
-  const p = getProfile(profileId);
-  const cvOptions = {...profileCvOptions(profileId),language:material};
-  const target = {
+export function tailoredJobContext(job: Job) {
+  return {
     company: job.company,
     role: job.role,
     location: job.location,
@@ -138,7 +136,25 @@ function buildPrompt(profileId: string, job: Job, version: Record<string,any>, u
     requirement_matches: job.match,
     requested_keywords: job.cv?.keywords ?? [],
     planned_changes: job.cv?.changes ?? [],
+    posting_description: boundedText(job.sourceDescription || job.description, 18_000),
+    v1_match: job.v1Match ? {
+      current_score: (job.v1Match as any).currentScore,
+      cv_potential_score: (job.v1Match as any).cvPotentialScore,
+      role_summary: (job.v1Match as any).deepMatch?.roleSummary,
+      responsibilities: (job.v1Match as any).deepMatch?.responsibilities,
+      requirements: (job.v1Match as any).deepMatch?.requirements,
+      tools: (job.v1Match as any).deepMatch?.tools,
+      strengths: (job.v1Match as any).deepMatch?.strengths,
+      presentation_gaps: (job.v1Match as any).deepMatch?.presentationGaps,
+      capability_gaps: (job.v1Match as any).deepMatch?.capabilityGaps,
+    } : null,
   };
+}
+
+function buildPrompt(profileId: string, job: Job, version: Record<string,any>, uiLocale: string, material: string) {
+  const p = getProfile(profileId);
+  const cvOptions = {...profileCvOptions(profileId),language:material};
+  const target = tailoredJobContext(job);
   return `You are producing the CONTENT for a CV tailored to one concrete job. This is a real application for ${p.name}; accuracy matters more than keyword coverage.
 
 CANDIDATE EVIDENCE IS EMBEDDED BELOW. Do not read files or use tools.
@@ -289,6 +305,15 @@ export async function decideTailoredCvDraft(profileId:string,draftId:string,deci
   draft.status=decision==="accept"?"accepted":"rejected";draft.updatedAt=new Date().toISOString();
   if(decision==="accept") {
     job.cv={...(job.cv||{}),language:draft.language,notesLocale:draft.notesLocale,label:`CV adapté — ${job.company}`,pdfCompany:job.company,file:draft.file,pages:draft.pages,atsScore:draft.atsScore,keywordCoverage:draft.keywordCoverage,generatedAt:draft.updatedAt,inputVersionId:draft.baseVersionId,changes:draft.changes,presentationScore:draft.assessment?.draftScore??null,baselinePresentationScore:draft.assessment?.baselineScore??null,presentationDelta:draft.assessment?.delta??null,draftId:draft.id};
+    const v1Match=job.v1Match as Record<string,any>|undefined;
+    if(v1Match && Number.isFinite(Number(v1Match.currentScore))) {
+      const current=Math.max(0,Math.min(100,Math.round(Number(v1Match.currentScore))));
+      const ceiling=Math.max(current,Math.min(100,Math.round(Number(v1Match.cvPotentialScore ?? current))));
+      const presentationGain=Math.max(0,Math.round(Number(draft.assessment?.delta ?? 0)));
+      v1Match.acceptedCvScore=Math.min(ceiling,current+presentationGain);
+      v1Match.displayScore=v1Match.acceptedCvScore;
+      v1Match.acceptedDraftId=draft.id;
+    }
     if(job.status==="À candidater")job.status="CV prêt";
     const cvTask=job.prepTasks?.find(task=>/adapter le cv|cv anglais|version ciblée du cv|cv quant/i.test(task.label));if(cvTask)cvTask.done=true;
   }

@@ -1,5 +1,14 @@
 # JobPilot Android — implementation handoff
 
+## 2026-09-10 V1 student match loop — branch only
+
+- Dedicated worktree: `C:\dev\jpilot-v1-student-20260910`; branch: `feature/v1-student-match-loop-20260910`, based on the then-current `origin/main@9c360e9`. This V1 is **not merged to main or deployed** by this handoff entry.
+- Android V1 is `0.4.0/code14` and changes the primary IA to **首页 / 机会 / 我的**. Existing legacy screens remain in source for saved historical objects and later stages, but new V1 saved roles use a three-tab detail: **匹配 / CV / 跟踪**.
+- Master CV confirmation/edit automatically starts silent profile analysis; explicit target roles remain authoritative. Analysis supplies career directions/search keywords, then a silent initial search. Every offer gets immediate deterministic 0–100 `fastMatch`; only the top five get read-only silent `deep_match` enrichment.
+- Opening a discovered offer is read-only. The primary explicit AI action is **查看我的 XX 分版本**; only that action saves the offer and generates a role-specific CV. Role CVs always branch from the frozen Master input version and never chain from another tailored CV.
+- Editing a tailored draft now triggers hidden `cv_review` automatically. Keep/reject remains explicit. Android task centre is secondary under “我的”; silent work never opens the old blocking launch overlay.
+- Full product/data contract: `V1_STUDENT_MATCH_LOOP_2026-09-10.md`. Web parity is implemented in the same branch as Web `0.6.0` / backend snapshot `0.4.0`.
+
 Updated: 2026-09-10 (Europe/Paris). Samsung physically upgraded in place to **Android 0.3.8/code12**, existing session/data retained; **Web/backend 0.5.1**, contract **0.3.8**. Two explicitly selected instrumented methods passed on the real phone; the second confirmed actual PDF bitmap rendering and keyboard-visible input. A shared tailored-PDF emphasis bug was fixed and deployed. Full scope, data preservation, test interruption and untested paths: `DEVICE_ACCEPTANCE_2026-09-10.md`. Earlier release evidence below is historical.
 
 **Repository authority:** `https://github.com/happyivanencoding/JPilot`. Android is the canonical frontend for JPilot product decisions. Web follows this native implementation; it is not a second desktop product. **Every Android UI/product update must ship and verify the equivalent Web behavior in the same development change/release; parity cannot be deferred and still be called complete.** Backend-only changes are the normal exception. `santifer/career-ops` is historical provenance only and its updater is no longer part of the JPilot development workflow. See `PROJECT_STRUCTURE.md`.

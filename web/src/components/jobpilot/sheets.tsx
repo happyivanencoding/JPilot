@@ -5,24 +5,44 @@ import { rows, texts, usePilot, type Json } from "./pilot-context";
 import { ACTIVE, centerTasks, destinationFor } from "./model.mjs";
 import { AiProgressButton, Button, Card, Check, Chip, Empty, EstimatedProgress, External, Hint, Input, Loading, Localization, Markdown, Pill, Score, Select, Sheet, Tabs, TextArea, Title, taskName } from "./ui";
 import { PracticeCard, PrepChecklist } from "./profile-prepare";
-import { SearchMetrics } from "./catalog";
+import { Match100, SearchMetrics } from "./catalog";
 
 export function TasksSheet() {
   const { data, tr, openTask } = usePilot();
   const tasks = centerTasks(rows(data.tasks)) as Json[];
   return <Sheet title={tr("后台任务", "Vos traitements", "Background tasks")} testId="tasks-sheet"><div className="jp-sheet-content"><Hint>{tr("已完成的结果，直接回到对应页面。", "Vos résultats, au bon endroit.", "Your results, where they belong.")}</Hint><Localization value={data.localization} />{!tasks.length && <Hint>{tr("当前没有任务。", "Aucun traitement pour ce profil.", "No tasks for this profile.")}</Hint>}{tasks.map(task => <button type="button" className="jp-task-row" key={task.id} data-testid={`task-${task.id}`} onClick={() => openTask(task.id)}><div className="jp-row">{task.status === "completed" ? <CheckCircle2 size={20} className="jp-accent" /> : ACTIVE.has(task.status) ? null : <CircleAlert size={20} />}<h3 className="jp-grow">{task.title || taskName(task.kind, tr)}</h3><ChevronRight size={18} /></div><Hint>{task.phase}</Hint>{ACTIVE.has(task.status) && <EstimatedProgress createdAt={task.createdAt} estimate={task.estimate} />}</button>)}</div></Sheet>;
 }
+
+export function OfferSheet({offer}:{offer:Json}) {
+  const {data,tr,product,tailorOffer,busy}=usePilot();
+  const deep=offer.deepMatch||{},fast=offer.fastMatch||{};
+  const current=deep.currentScore ?? fast.score;
+  const cvPotential=deep.cvPotentialScore ?? current;
+  const capabilityPotential=deep.capabilityPotentialScore ?? cvPotential;
+  const active=rows(data.tasks).some(task=>task.kind==="cv" && task.jobId===offer.jobId && ACTIVE.has(task.status));
+  const strengths=rows(deep.strengths).length?rows(deep.strengths):rows(fast.strengths).map(item=>({title:item.title,evidence:item.evidence}));
+  const capability=rows(deep.capabilityGaps).length?rows(deep.capabilityGaps):rows(fast.gaps).map(item=>({title:item.title,why:item.reason,nextAction:""}));
+  return <Sheet title={<><div className="jp-subtitle">{offer.company}</div><div className="jp-row"><span className="jp-grow">{offer.title}</span><Match100 value={current}/></div></>} testId="offer-detail">
+    <div className="jp-sheet-content">
+      <Hint>{[offer.location,offer.contractType!=="unknown"?product(offer.contractType):""].filter(Boolean).join(" · ")}</Hint>
+      <Card><h3>{tr("你现在离这个岗位多远？","Où en êtes-vous pour ce poste ?","How close are you to this role?")}</h3><div className="jp-v1-potential"><div><span>{tr("现在","Maintenant","Now")}</span><strong>{Math.round(Number(current)||0)}</strong></div><span>→</span><div><span>{tr("只优化现有 CV","CV mieux présenté","Better CV presentation")}</span><strong>{Math.round(Number(cvPotential)||0)}</strong></div><span>→</span><div><span>{tr("补齐真实能力","Compétences acquises","Build real capability")}</span><strong>{Math.round(Number(capabilityPotential)||0)}</strong></div></div><Hint>{tr("后两个分数是近似潜力，不是录用概率；CV 优化不会假装你掌握了不存在的技能。","Les deux scores suivants sont un potentiel indicatif, pas une probabilité d’embauche. Le CV n’invente aucune compétence.","The next two scores are approximate potential, not hiring probability. CV changes never invent skills.")}</Hint></Card>
+      <Card><h3>{tr("这个岗位到底做什么？","Que fait-on concrètement dans ce poste ?","What does this role actually do?")}</h3><p>{deep.roleSummary || offer.why}</p>{offer.deepMatchState==="loading"&&<Hint>{tr("正在后台补充更具体的职责和要求，你可以继续看。","Les responsabilités détaillées arrivent en arrière-plan.","Detailed responsibilities are being added in the background.")}</Hint>}{texts(deep.responsibilities).map((item,i)=><p className="jp-bullet" key={i}>{item}</p>)}</Card>
+      {!!strengths.length&&<Card><h3>{tr("你的加分点","Vos points forts","Your strengths")}</h3>{strengths.slice(0,5).map((item,i)=><div className="jp-v1-evidence" key={i}><strong>+ {item.title}</strong><p>{item.evidence}</p></div>)}</Card>}
+      {!!rows(deep.presentationGaps).length&&<Card><h3>{tr("只是没有写清楚的部分","Ce que votre CV montre mal","What your CV underplays")}</h3>{rows(deep.presentationGaps).slice(0,5).map((item,i)=><div className="jp-v1-evidence" key={i}><strong>+{item.potential} · {item.title}</strong><p>{item.why}</p></div>)}{deep.cvPotentialReason&&<Hint>{deep.cvPotentialReason}</Hint>}</Card>}
+      {!!capability.length&&<Card><h3>{tr("需要真的补齐的能力","Ce qu’il faut réellement acquérir","What you actually need to build")}</h3>{capability.slice(0,6).map((item,i)=><div className="jp-v1-evidence" key={i}><strong>− {item.title}</strong><p>{item.why}</p>{item.nextAction&&<Hint>{item.nextAction}</Hint>}</div>)}</Card>}
+      {!!rows(deep.requirements).length&&<Card><h3>{tr("岗位要求","Exigences du poste","Role requirements")}</h3>{rows(deep.requirements).slice(0,7).map((item,i)=><div className="jp-v1-evidence" key={i}><div className="jp-row"><strong className="jp-grow">{item.title}</strong><Pill>{item.kind==="must"?tr("核心","Essentiel","Core"):tr("加分","Bonus","Nice to have")}</Pill></div><p>{item.why}</p></div>)}{!!texts(deep.tools).length&&<div className="jp-chips">{texts(deep.tools).map((tool,i)=><Pill key={i}>{tool}</Pill>)}</div>}</Card>}
+      <External url={offer.url}>{tr("打开原始职位页","Ouvrir l’annonce officielle","Open original posting")}</External>
+      <Button data-testid="tailor-offer" disabled={busy||active} onClick={()=>tailorOffer(offer)}>{active?tr("正在准备，可以继续浏览","Préparation en cours · continuez à naviguer","Preparing · keep browsing"):Number(cvPotential)>Number(current)?tr(`查看我的 ${Math.round(Number(cvPotential))} 分版本`,`Voir ma version ~${Math.round(Number(cvPotential))}/100`,`See my ~${Math.round(Number(cvPotential))}/100 version`):tr("看看这份岗位版简历","Voir mon CV adapté à ce poste","See my tailored CV for this role")}</Button>
+      <Hint>{tr("只有点击这里，JobPilot 才会把这条岗位加入“我的”并生成独立版本；浏览本身不会创建投递记录。","Cette action seule enregistre l’offre dans « Moi » et crée une version indépendante ; consulter l’offre ne crée aucune candidature.","Only this action adds the role to My and creates an independent CV version; browsing alone never creates an application record.")}</Hint>
+    </div>
+  </Sheet>;
+}
 export function JobSheet({ job }: { job: Json }) {
   const { route, data, tr, product, navigate, startTask } = usePilot();
-  const tab = Math.min(3, Math.max(0, Number(route.jobTab) || 0));
-  const evaluating = rows(data.tasks).some(t => t.kind === "evaluate" && t.jobId === job.id && ACTIVE.has(t.status));
-  const cv = job.cv || {}, cvDraft = job.cvDraft || null, interview = job.interview || {};
-  const [question, setQuestion] = useState("");
-  const [planExpanded,setPlanExpanded]=useState(true);
-  const practiceRef=useRef<HTMLDivElement>(null);
-  const practice=(value:string)=>{setQuestion(value);requestAnimationFrame(()=>practiceRef.current?.scrollIntoView({behavior:"smooth",block:"center"}));};
-  return <Sheet title={<><div className="jp-subtitle">{job.company}</div><div className="jp-row"><span className="jp-grow">{job.role}</span><Score score={job.score} /></div></>} testId={`job-detail-${job.id}`}>
-    <Tabs labels={[tr("匹配", "Match", "Fit"), "CV", tr("面试", "Entretien", "Interview"), tr("跟踪", "Suivi", "Tracking")]} selected={tab} prefix="job-tab" onChange={i => navigate({ ...route, jobTab: String(i) }, true)} />
+  const tab = Math.min(2, Math.max(0, Number(route.jobTab) || 0));
+  const cv = job.cv || {}, cvDraft = job.cvDraft || null;
+  return <Sheet title={<><div className="jp-subtitle">{job.company}</div><div className="jp-row"><span className="jp-grow">{job.role}</span>{job.v1Match?<Match100 value={job.v1Match.displayScore ?? job.v1Match.currentScore}/>:<Score score={job.score} />}</div></>} testId={`job-detail-${job.id}`}>
+    <Tabs labels={[tr("匹配", "Match", "Fit"), "CV", tr("跟踪", "Suivi", "Tracking")]} selected={tab} prefix="job-tab" onChange={i => navigate({ ...route, jobTab: String(i) }, true)} />
     <div className="jp-sheet-content" data-testid="job-content"><Localization value={job.localization} />
       {tab === 0 && <>
         <div className="jp-row wrap"><Pill>{product(job.status)}</Pill>{job.lastChecked && <Pill>{job.lastChecked.slice(0, 10)}</Pill>}</div>
@@ -31,8 +51,7 @@ export function JobSheet({ job }: { job: Json }) {
         {!!texts(job.strengths).length && <Card><h3>{tr("优势与证据", "Vos atouts documentés", "Documented strengths")}</h3>{texts(job.strengths).map((s, i) => <p className="jp-bullet" key={i}>{s}</p>)}</Card>}
         {!!rows(job.gaps).length && <h3>{tr("需要准备的差距", "Les écarts à préparer", "Gaps to prepare")}</h3>}{rows(job.gaps).map((gap, i) => <Card key={i}><h4>{gap.title}</h4>{gap.severity && <Pill warm>{product(gap.severity)}</Pill>}<p>{gap.why}</p><Hint>{gap.positioning}</Hint></Card>)}
         {rows(job.match).map((match, i) => <Card key={i}><h4>{match.requirement}</h4><Pill>{product(match.fit)}</Pill><p>{match.evidence}</p><Hint>{match.action}</Hint></Card>)}
-        {job.evaluationState !== "evaluated" && <AiProgressButton taskKind="evaluate" jobId={job.id} data-testid="evaluate-job" disabled={evaluating} onClick={() => startTask({ kind: "evaluate", url: job.url })}>{tr("运行正式评估", "Évaluer ce poste", "Evaluate this role")}</AiProgressButton>}
-        <Hint>{tr("已保存的评估不会重复生成。评分不是录用概率。", "Les évaluations enregistrées ne sont pas régénérées. Le score n’est pas une probabilité d’embauche.", "Saved evaluations are not regenerated. Scores are not hiring probabilities.")}</Hint>
+        {job.v1Match&&<Card><h3>{tr("V1 匹配","Match V1","V1 match")}</h3><div className="jp-v1-potential"><div><span>{job.v1Match.acceptedCvScore!=null?tr("采用后的岗位版本","Version adoptée","Accepted role version"):tr("当前","Actuel","Current")}</span><strong>{Math.round(Number(job.v1Match.displayScore ?? job.v1Match.currentScore))}</strong></div><span>→</span><div><span>{tr("仅靠表达潜力","Potentiel de présentation","Presentation potential")}</span><strong>{Math.round(Number(job.v1Match.cvPotentialScore ?? job.v1Match.currentScore))}</strong></div><span>→</span><div><span>{tr("补真实能力","Compétences réelles","Real capability")}</span><strong>{Math.round(Number(job.v1Match.capabilityPotentialScore ?? job.v1Match.cvPotentialScore ?? job.v1Match.currentScore))}</strong></div></div><Hint>{tr("这里的 0–100 用于探索和行动规划，不是录用概率。","Ce score 0–100 sert à explorer et planifier, pas à prédire une embauche.","This 0–100 score is for exploration and planning, not hiring probability.")}</Hint></Card>}
         {job.reportNum && <Button kind="text" data-testid="view-report" onClick={() => navigate({ view: "report", report: job.id, job: job.id })}>{tr("查看完整评估报告", "Lire le rapport complet", "Read full report")}</Button>}
       </>}
       {tab === 1 && <>
@@ -44,20 +63,13 @@ export function JobSheet({ job }: { job: Json }) {
         {cvDraft && <TailoredCvDraftPanel job={job} />}
         {!!texts(cv.changes).length && <Card><h3>{tr("已保留版本的调整", "Adaptations de la version conservée", "Saved version changes")}</h3>{texts(cv.changes).map((s, i) => <p className="jp-bullet" key={i}>{s}</p>)}</Card>}{!!texts(cv.keywords).length && <Card><h3>{tr("岗位关键词", "Mots-clés du poste", "Role keywords")}</h3><p>{texts(cv.keywords).join(" · ")}</p></Card>}
       </>}
-      {tab === 2 && <>
-        {!job.mobilePlan?.markdown && <AiProgressButton taskKind="plan" jobId={job.id} onClick={() => startTask({ kind: "plan", jobId: job.id, minutesPerDay: 30 })}>{tr("制定针对性准备计划", "Créer un plan de préparation", "Create a preparation plan")}</AiProgressButton>}
-        {job.mobilePlan?.markdown && <Card className="jp-plan-card"><button type="button" className="jp-plan-toggle" data-testid="toggle-interview-plan" aria-expanded={planExpanded} onClick={()=>setPlanExpanded(value=>!value)}><strong>{tr("面试准备计划","Plan de préparation à l’entretien","Interview preparation plan")}</strong><span>{planExpanded?tr("收起","Réduire","Collapse"):tr("展开","Développer","Expand")}</span>{planExpanded?<ChevronUp size={20}/>:<ChevronDown size={20}/>}</button>{planExpanded&&<div data-testid="interview-plan-body"><Markdown text={job.mobilePlan.markdown} /></div>}<AiProgressButton taskKind="plan" jobId={job.id} kind="outline" onClick={() => startTask({ kind: "plan", jobId: job.id, minutesPerDay: 30, retry: true })}>{tr("更新准备计划","Actualiser le plan","Update preparation plan")}</AiProgressButton></Card>}<PrepChecklist job={job} />
-        {!!texts(interview.process).length && <Card><h3>{tr("面试流程", "Processus d’entretien", "Interview process")}</h3>{texts(interview.process).map((s, i) => <p className="jp-bullet" key={i}>{s}</p>)}{!interview.processKnown && <Pill warm>{tr("实际流程待确认", "À confirmer avec le recruteur", "Confirm with recruiter")}</Pill>}</Card>}
-        {interview.caseStudy && <Card><h3>{tr("针对性案例", "Cas à préparer", "Case preparation")}</h3><p>{interview.caseStudy}</p></Card>}
-        {rows(interview.questions).map((q, i) => <Card key={i}><h4>{q.question}</h4><p>{q.answer}</p><Hint>{q.proof}</Hint><Button kind="text" data-testid="practice-this-question" onClick={() => practice(q.question)}>{tr("练习这道题", "M’entraîner à cette question", "Practice this question")}</Button></Card>)}<div ref={practiceRef} data-testid="targeted-practice"><PracticeCard job={job} initialQuestion={question || undefined} /></div>
-      </>}
-      {tab === 3 && <Tracking job={job} />}
+      {tab === 2 && <Tracking job={job} />}
     </div>
   </Sheet>;
 }
 
 function TailoredCvDraftPanel({ job }: { job: Json }) {
-  const { tr, product, act, startTask, navigate, busy } = usePilot();
+  const { tr, product, act, navigate, busy } = usePilot();
   const draft=job.cvDraft || {}, assessment=draft.assessment || {};
   const [editing,setEditing]=useState(false),[payload,setPayload]=useState<Json>(()=>structuredClone(draft.payload || {}));
   useEffect(()=>{setPayload(structuredClone(draft.payload || {}));setEditing(false);},[draft.id,draft.revision]);
@@ -78,7 +90,7 @@ function TailoredCvDraftPanel({ job }: { job: Json }) {
       {rows(payload.skills).map((entry,i)=><TextArea key={`skills-${i}`} label={`${entry.category || tr("技能","Compétences","Skills")} · ${tr("逗号或换行分隔","virgules ou lignes","comma or newline separated")}`} rows={3} value={texts(entry.items).join(', ')} onChange={e=>updateSkill(i,e.target.value)} />)}
       <Button data-testid="save-tailored-draft-edit" disabled={busy} onClick={async()=>{if(await act({action:'updateTailoredCvDraft',draftId:draft.id,payload}))setEditing(false);}}>{tr("保存修改并重新生成 PDF","Enregistrer et régénérer le PDF","Save edits and regenerate PDF")}</Button><Button kind="text" onClick={()=>{setPayload(structuredClone(draft.payload || {}));setEditing(false);}}>{tr("取消编辑","Annuler les modifications","Cancel edits")}</Button>
     </div>}
-    {pending && !editing && <div className="jp-stack"><Button data-testid="preview-tailored-draft" kind="outline" onClick={()=>navigate({view:'pdf',job:job.id,draft:draft.id})}>{tr("预览真实 PDF","Prévisualiser le PDF réel","Preview actual PDF")}</Button><Button kind="outline" onClick={()=>setEditing(true)}>{tr("手动修改这个版本","Modifier manuellement cette version","Edit this version manually")}</Button><AiProgressButton taskKind="cv_review" jobId={job.id} data-testid="review-tailored-draft" disabled={busy} onClick={()=>startTask({kind:'cv_review',jobId:job.id,draftId:draft.id,revision:draft.revision,retry:true})}>{assessment.revision===draft.revision?tr("重新评估这个草稿","Réévaluer ce brouillon","Reassess this draft"):tr("评估修改后的草稿","Évaluer le brouillon modifié","Assess edited draft")}</AiProgressButton><div className="jp-row"><Button data-testid="accept-tailored-draft" disabled={busy} onClick={()=>act({action:'decideTailoredCvDraft',draftId:draft.id,decision:'accept'})}>{tr("保留这个版本","Conserver cette version","Keep this version")}</Button><Button kind="outline" data-testid="reject-tailored-draft" disabled={busy} onClick={()=>act({action:'decideTailoredCvDraft',draftId:draft.id,decision:'reject'})}>{tr("不要这个版本","Refuser cette version","Reject this version")}</Button></div></div>}
+    {pending && !editing && <div className="jp-stack"><Button data-testid="preview-tailored-draft" kind="outline" onClick={()=>navigate({view:'pdf',job:job.id,draft:draft.id})}>{tr("预览真实 PDF","Prévisualiser le PDF réel","Preview actual PDF")}</Button><Button kind="outline" onClick={()=>setEditing(true)}>{tr("手动修改这个版本","Modifier manuellement cette version","Edit this version manually")}</Button>{assessment.revision!==draft.revision&&<Hint>{tr("正在后台重新计算修改后的呈现分，你不需要再点一次评估。","Le score de présentation est recalculé automatiquement en arrière-plan.","The presentation score is recalculating automatically in the background; no extra evaluation click is needed.")}</Hint>}<div className="jp-row"><Button data-testid="accept-tailored-draft" disabled={busy||assessment.revision!==draft.revision} onClick={()=>act({action:'decideTailoredCvDraft',draftId:draft.id,decision:'accept'})}>{tr("保留这个版本","Conserver cette version","Keep this version")}</Button><Button kind="outline" data-testid="reject-tailored-draft" disabled={busy} onClick={()=>act({action:'decideTailoredCvDraft',draftId:draft.id,decision:'reject'})}>{tr("不要这个版本","Refuser cette version","Reject this version")}</Button></div></div>}
   </section>;
 }
 

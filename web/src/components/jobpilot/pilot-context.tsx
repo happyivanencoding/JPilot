@@ -7,7 +7,7 @@ import { ACTIVE, destinationFor, parseRoute, pendingDisplay, routeUrl } from "./
 // The existing mobile API is a versioned JSON projection, not a second browser database.
 export type Json = Record<string, any>;
 export type Locale = "zh" | "fr" | "en";
-export type Route = { tab: string; filter?: string; view?: string; job?: string; jobTab?: string; task?: string; draft?: string; report?: string; ids?: string };
+export type Route = { tab: string; filter?: string; view?: string; job?: string; offer?: string; jobTab?: string; task?: string; draft?: string; report?: string; ids?: string };
 export const rows = (value: unknown): Json[] => Array.isArray(value) ? value.filter(x => x && typeof x === "object") : [];
 export const texts = (value: unknown): string[] => Array.isArray(value) ? value.filter(x => typeof x === "string") : [];
 const empty = (): Json => ({ jobs: [], tasks: [], profiles: [], profile: {}, config: {}, dashboard: { actionSets: {} }, discovery: { offers: [] }, cv: "", cvState: {}, analysis: {} });
@@ -160,7 +160,7 @@ function useController(profileId: string) {
     const tick = async () => {
       const s = dataRef.current, d = detailRef.current;
       const ids = displayIdsRef.current.split(",");
-      const active = rows(s.tasks).some(t => ACTIVE.has(t.status)) || ACTIVE.has(d?.status) || pendingDisplay(s) || rows(s.jobs).some(j => ids.includes(j.id) && pendingDisplay(j)) || pendingDisplay(d) || pendingDisplay(d?.result);
+      const active = rows(s.tasks).some(t => ACTIVE.has(t.status)) || s.v1?.backgroundActive === true || ACTIVE.has(d?.status) || pendingDisplay(s) || rows(s.jobs).some(j => ids.includes(j.id) && pendingDisplay(j)) || pendingDisplay(d) || pendingDisplay(d?.result);
       // Check for newly active work every 2.5 s, but keep idle network reads at 15 s.
       // A task started during an idle interval must not inherit a 15-second UI delay.
       if (!document.hidden && (active || Date.now() - lastPoll >= 15000)) {
@@ -176,7 +176,8 @@ function useController(profileId: string) {
     return () => { disposed = true; clearTimeout(timer); controllers.current.forEach(c => c.abort()); controllers.current.clear(); window.removeEventListener("focus", visible); document.removeEventListener("visibilitychange", visible); };
   }, [ready, scope, refresh, refreshDetail]);
   const selectedJob = rows(data.jobs).find(j => j.id === route.job || String(j.reportNum) === route.job);
-  const displayIds = route.view === "compare" ? route.ids || "" : selectedJob && ["job", "report", "pdf"].includes(route.view || "") ? selectedJob.id : route.tab === "prepare" ? trainingJob || rows(data.jobs)[0]?.id || "" : "";
+  const selectedOffer = rows(data.discovery?.offers).find(offer => String(offer.url) === String(route.offer || ""));
+  const displayIds = route.view === "compare" ? route.ids || "" : selectedJob && ["job", "report", "pdf"].includes(route.view || "") ? selectedJob.id : "";
   useEffect(() => { if (displayIdsRef.current !== displayIds) { displayIdsRef.current = displayIds; if (ready && displayIds) void refresh(); } }, [displayIds, ready, refresh]);
   useEffect(() => { setDetail(null); if (ready) void refreshDetail(); }, [route.view, route.task, route.report, ready, scope, refreshDetail]);
   useEffect(() => { if (!notice) return; const id = setTimeout(() => setNotice(null), 3500); return () => clearTimeout(id); }, [notice]);
@@ -196,8 +197,10 @@ function useController(profileId: string) {
     await refresh(); navigate(destinationFor(task));
   }), [execute, request, refresh, navigate]);
   const startTask = useCallback(async (input: Json) => execute(async () => {
+    const silent=input.silent===true;
     const task = await request("/api/mobile", { method: "POST", body: JSON.stringify({ action: "task", profileId, input: { ...input, uiLocale: locale, language: locale } }) });
     await refresh();
+    if(silent) return task;
     if (task.status === "completed" || task.status === "failed") navigate(destinationFor(task));
     else if (AI_TASK_KINDS.has(String(input.kind))) setTaskLaunch({ ids: [task.id], title: task.title || String(input.kind), estimate: task.estimate || dataRef.current.flowEstimates?.[String(input.kind)] || { label: tr("正在估算耗时", "Estimation en cours", "Estimating duration") }, createdAt: task.createdAt || new Date().toISOString() });
     else notify(`${task.title} · ${task.estimate?.label || tr("可继续使用其他页面", "Vous pouvez continuer à naviguer", "You can keep browsing")}`, task.id);
@@ -220,6 +223,14 @@ function useController(profileId: string) {
     const result = await request("/api/mobile", { method: "POST", body: JSON.stringify({ action: "saveOffers", profileId, offers }) });
     await refresh(); notify(tr(`已收藏 ${offers.length} 个岗位`, `${offers.length} offres enregistrées`, `Saved ${offers.length} roles`)); return result;
   }), [execute, request, profileId, refresh, notify, tr]);
+  const tailorOffer = useCallback(async (offer: Json) => execute(async () => {
+    const result = await request("/api/mobile", { method: "POST", body: JSON.stringify({ action: "tailorOffer", profileId, uiLocale: locale, offer }) });
+    await refresh();
+    const task=result.task || {};
+    if(task.status==="completed") navigate({tab:"profile",view:"job",job:result.jobId,jobTab:"1"});
+    else notify(tr(`正在准备 ${offer.deepMatch?.cvPotentialScore ?? offer.fastMatch?.score ?? ""} 分版本，可继续浏览。`,`Préparation de votre version ciblée ; vous pouvez continuer à naviguer.`,`Preparing your targeted CV; you can keep browsing.`),task.id);
+    return result;
+  }), [execute, request, profileId, locale, refresh, navigate, notify, tr]);
   const upload = useCallback(async (file: File) => execute(async () => {
     if (!/\.(pdf|docx|txt|md)$/i.test(file.name) || !file.size || file.size > 12 * 1024 * 1024) throw new Error(tr("请选择 PDF、DOCX、TXT 或 MD，最大 12 MB。", "PDF, DOCX, TXT ou MD · 12 Mo maximum.", "Choose PDF, DOCX, TXT or MD, up to 12 MB."));
     const form = new FormData(); form.set("file", file);
@@ -232,9 +243,10 @@ function useController(profileId: string) {
   }), [execute, request]);
   const retryLocalization = useCallback(() => routeRef.current.view === "task" || routeRef.current.view === "report" ? refreshDetail(true) : refresh(true), [refresh, refreshDetail]);
   const openJob = useCallback((job: string, jobTab = 0) => navigate({ tab: routeRef.current.tab, view: "job", job, jobTab: String(jobTab) }), [navigate]);
-  return { profileId, locale, theme, ready, data, detail, route, selectedJob, loading, busy, error, expired, notice, taskLaunch,
+  const openOffer = useCallback((offer: string) => navigate({ tab: "offers", view: "offer", offer }), [navigate]);
+  return { profileId, locale, theme, ready, data, detail, route, selectedJob, selectedOffer, loading, busy, error, expired, notice, taskLaunch,
     tr, product, setLocale, setTheme, setError, setNotice, setTaskLaunch, setTrainingJob, request, documentBytes, apiUrl, fail, notify,
-    navigate, close, refresh, retryLocalization, act, startTask, startTasks, saveOffers, openTask, upload, switchProfile, openJob, execute };
+    navigate, close, refresh, retryLocalization, act, startTask, startTasks, saveOffers, tailorOffer, openTask, upload, switchProfile, openJob, openOffer, execute };
 }
 type PilotController = ReturnType<typeof useController>;
 const Context = createContext<PilotController | null>(null);

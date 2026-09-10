@@ -44,6 +44,8 @@ export function displaySlots(value,scope) {
     fields(a,['markdown','changeSummary','expressionMarkdown','actionMarkdown'],p,hint);
     rows(a,'expressionIssues',p,(r,q)=>fields(r,['title','detail','evidence'],q,hint));
     rows(a,'actionIssues',p,(r,q)=>fields(r,['title','detail','nextAction','evidence'],q,hint));
+    rows(a,'careerDirections',p,(r,q)=>{fields(r,['title','why'],q,hint);strings(r,'evidence',q,hint);});
+    // searchQuery/searchKeywords are execution inputs, not display prose; do not translate them.
     strings(a,'tasks',p,hint);strings(a,'questions',p,hint);
     const plan=a.globalLayout;
     if(plan){const q=[...p,'globalLayout'];fields(plan,['headline','languageNote'],q,hint);strings(plan,'overlooked',q,hint);strings(plan,'issues',q,'fr');
@@ -52,11 +54,25 @@ export function displaySlots(value,scope) {
       rows(plan,'changes',q,(r,s)=>fields(r,['reason'],s,hint));}
     rows(a,'history',p,(r,q)=>put(r,'changeSummary',q,detectedDocumentLanguage(r.changeSummary)||hint));
   }
-  function offer(o,p) {fields(o,['why'],p,detectedDocumentLanguage(o.why)||'fr');}
+  function deepMatch(m,p,hint='fr') {
+    if(!m)return;const mh=m.outputLocale || (/[\p{Script=Han}]/u.test(m.roleSummary||'')?'zh':detectedDocumentLanguage(m.roleSummary)||hint);
+    fields(m,['roleSummary','cvPotentialReason'],p,mh);strings(m,'responsibilities',p,mh);
+    rows(m,'requirements',p,(r,q)=>fields(r,['title','why'],q,mh));
+    rows(m,'strengths',p,(r,q)=>fields(r,['title','evidence'],q,mh));
+    rows(m,'presentationGaps',p,(r,q)=>fields(r,['title','why'],q,mh));
+    rows(m,'capabilityGaps',p,(r,q)=>fields(r,['title','why','nextAction'],q,mh));
+    // tools are search/domain terms and remain source-language tokens.
+  }
+  function fastMatch(f,p,hint='zh') {
+    if(!f)return;rows(f,'strengths',p,(r,q)=>put(r,'evidence',q,detectedDocumentLanguage(r.evidence)||hint));
+    rows(f,'gaps',p,(r,q)=>put(r,'reason',q,detectedDocumentLanguage(r.reason)||hint));
+  }
+  function offer(o,p) {fields(o,['why'],p,detectedDocumentLanguage(o.why)||'fr');deepMatch(o.deepMatch,[...p,'deepMatch']);fastMatch(o.fastMatch,[...p,'fastMatch']);}
   function job(j,p=[],detail=true) {
     const hint=j.outputLocale || (/[\p{Script=Han}]/u.test(j.summary||'')?'zh':detectedDocumentLanguage(j.summary)||'fr');
     if(j.followup?.nextActionSource!=='user') put(j.followup,'nextAction',[...p,'followup'],hint);
     if(!detail)return;
+    if(j.v1Match){deepMatch(j.v1Match.deepMatch,[...p,'v1Match','deepMatch'],hint);fastMatch(j.v1Match.fastMatch,[...p,'v1Match','fastMatch']);}
     fields(j,['summary','angle','recommendation'],p,hint);strings(j,'strengths',p,hint);
     rows(j,'gaps',p,(r,q)=>fields(r,['title','why','positioning','severity'],q,hint));
     rows(j,'match',p,(r,q)=>fields(r,['requirement','evidence','action','fit'],q,hint));

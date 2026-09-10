@@ -1,4 +1,13 @@
-# JobPilot Web 0.4.6 — Android-aligned product
+# JobPilot Web 0.6.0 — Android-aligned product
+
+## V1 student match loop parity — 2026-09-10 branch only
+
+- `feature/v1-student-match-loop-20260910` ships the same three primary surfaces on Android and Web: **首页 / 机会 / 我的**. It is branch-only here; production main is not changed by this entry.
+- Both clients render the same V1 0–100 exploration score and the same three-level contract: current match → truthful CV-presentation potential → genuine capability potential. The historical official 0–5 report remains a separate legacy object.
+- Both clients treat CV confirmation/edit as the trigger for silent analysis, use explicit target roles before inferred directions, expose editable career/search suggestions, and keep silent tasks out of the user task centre / blocking launch overlay.
+- Both clients open discovered offers read-only and expose the same primary explicit AI action: **查看我的 XX 分版本**. Only that action persists the offer and starts a Master-derived role CV.
+- Both clients show role-specific versions under “我的”; tailored versions never chain. Tailored draft edits trigger a background reassessment automatically; Keep/Reject remains explicit.
+- Detailed V1 architecture, scoring and data boundaries: `V1_STUDENT_MATCH_LOOP_2026-09-10.md`.
 
 ## Product decision — 2026-09-08
 

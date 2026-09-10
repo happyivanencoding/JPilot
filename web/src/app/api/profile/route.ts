@@ -5,6 +5,8 @@ import { profileFile } from "@/lib/profile-context";
 import { activeProfileId } from "@/lib/profile-request";
 import { currentCandidateVersion, historyDirectory } from "@/lib/mobile-history";
 import { CONTRACT_TYPES, withProfileLock } from "@/lib/mobile-state.mjs";
+import { startMobileTask } from "@/lib/mobile-engine";
+import { requestUiLocale } from "@/lib/language-contract.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,6 +54,7 @@ export async function POST(request: Request) {
   const profileId = await activeProfileId(new URL(request.url).searchParams.get("profileId"));
   const file = profileFile(profileId, "config");
   const seeded = !fs.existsSync(file);
+  const refreshV1=Boolean(changes.target_roles || changes.candidate?.location || changes.compensation?.location_flexibility);
   try {
     await withProfileLock(historyDirectory(profileId), () => {
       let previous: unknown;
@@ -64,7 +67,8 @@ export async function POST(request: Request) {
       if (JSON.stringify(previous) !== JSON.stringify(updated)) atomicWriteWithBackup(file, yaml.dump(updated, { lineWidth: 100, noRefs: true }));
       currentCandidateVersion(profileId);
     });
-    return Response.json({ ok: true, seeded });
+    const analysisTask=refreshV1?await startMobileTask(profileId,{kind:"analysis",silent:true,source:"v1-auto-after-intent-change",uiLocale:requestUiLocale(request)}):null;
+    return Response.json({ ok: true, seeded, analysisTaskId:analysisTask?.id || null, analysisState:analysisTask?.status || null });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "write failed" }, { status: error instanceof SyntaxError ? 409 : 500 });
   }

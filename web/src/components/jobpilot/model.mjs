@@ -1,6 +1,6 @@
 // Browser projections only. Business identity, scores, history and writes stay in the mobile backend.
 export const PHONE = Object.freeze({ width: 384, height: 832 }); // USB reference: 1440×3120, density 600.
-export const TABS = ['home', 'offers', 'applications', 'prepare', 'profile'];
+export const TABS = ['home', 'offers', 'profile'];
 export const ACTIVE = new Set(['queued', 'running', 'reconciling']);
 export function validScore(value) { return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 5 ? value : null; }
 export function filteredJobs(jobs = [], sets = {}, filter = '', query = '') {
@@ -26,16 +26,19 @@ export function safeExternalUrl(value) {
 }
 export function parseRoute(search = '') {
   const p = new URLSearchParams(search);
-  const route = { tab: TABS.includes(p.get('tab')) ? p.get('tab') : 'home', filter: p.get('filter') || '' };
-  for (const key of ['view', 'job', 'task', 'draft', 'report', 'jobTab', 'ids']) if (p.get(key)) route[key] = p.get(key);
+  const requestedTab=p.get('tab');
+  const tab=TABS.includes(requestedTab)?requestedTab:['applications','prepare'].includes(requestedTab)?'profile':'home';
+  const route = { tab, filter: p.get('filter') || '' };
+  for (const key of ['view', 'job', 'offer', 'task', 'draft', 'report', 'jobTab', 'ids']) if (p.get(key)) route[key] = p.get(key);
+  if (route.offer && !route.view) route.view = 'offer';
   if (route.job && !route.view) route.view = 'job';
   if (route.task && !route.view) route.view = 'task';
-  if (!['tasks', 'task', 'job', 'analysis', 'report', 'pdf', 'compare', 'edit-cv'].includes(route.view)) delete route.view;
+  if (!['tasks', 'task', 'offer', 'job', 'analysis', 'report', 'pdf', 'compare', 'edit-cv'].includes(route.view)) delete route.view;
   return route;
 }
 export function routeUrl(route) {
   const p = new URLSearchParams();
-  for (const key of ['tab', 'filter', 'view', 'job', 'jobTab', 'task', 'draft', 'report', 'ids']) {
+  for (const key of ['tab', 'filter', 'view', 'job', 'offer', 'jobTab', 'task', 'draft', 'report', 'ids']) {
     if (route[key] && !(key === 'tab' && route[key] === 'home')) p.set(key, route[key]);
   }
   return '/' + (p.size ? '?' + p.toString() : '');
@@ -46,10 +49,10 @@ export function destinationFor(task) {
   switch (task.kind) {
     case 'analysis': return { tab: 'profile', view: 'analysis' };
     case 'search': return { tab: 'offers' };
-    case 'evaluate': return job ? { tab: 'applications', view: 'job', job } : { tab: 'applications' };
-    case 'plan': return job ? { tab: 'prepare', view: 'job', job, jobTab: '2' } : { tab: 'prepare' };
-    case 'cv': return job ? { tab: 'applications', view: 'job', job, jobTab: '1' } : { tab: 'applications' };
-    case 'cv_review': return job ? { tab: 'applications', view: 'job', job, jobTab: '1' } : { tab: 'applications' };
+    case 'evaluate': return job ? { tab: 'profile', view: 'job', job } : { tab: 'profile' };
+    case 'plan': return { tab: 'profile', view: 'task', task: task.id };
+    case 'cv': return job ? { tab: 'profile', view: 'job', job, jobTab: '1' } : { tab: 'profile' };
+    case 'cv_review': return job ? { tab: 'profile', view: 'job', job, jobTab: '1' } : { tab: 'profile' };
     case 'rewrite': return { tab: 'profile', view: 'pdf', draft: task.result?.draftId || task.destination?.draftId };
     default: return { view: 'task', task: task.id };
   }
@@ -58,8 +61,8 @@ export function pendingDisplay(value) { return value?.localization?.pending === 
 export function desktopScale(width, height) { return Math.min(1, Math.max(0.1, (width - 32) / PHONE.width), Math.max(0.1, (height - 32) / PHONE.height)); }
 export function legacyDestination(path) {
   const parts = path.split('/').filter(Boolean);
-  const map = { explore: { tab: 'offers' }, pipeline: { tab: 'applications' }, candidatures: { tab: 'applications' }, apply: { tab: 'applications' }, followups: { tab: 'applications', filter: 'due' }, cv: { tab: 'profile' }, config: { tab: 'profile' }, portals: { tab: 'offers' }, analytics: { tab: 'home' }, jobs: { view: 'tasks' } };
-  if (parts[0] === 'pipeline' && parts[1]) return routeUrl({ tab: 'applications', view: 'job', job: parts[1] });
+  const map = { explore: { tab: 'offers' }, pipeline: { tab: 'profile' }, candidatures: { tab: 'profile' }, apply: { tab: 'profile' }, followups: { tab: 'profile', filter: 'due' }, cv: { tab: 'profile' }, config: { tab: 'profile' }, portals: { tab: 'offers' }, analytics: { tab: 'home' }, jobs: { view: 'tasks' } };
+  if (parts[0] === 'pipeline' && parts[1]) return routeUrl({ tab: 'profile', view: 'job', job: parts[1] });
   if (parts[0] === 'jobs' && parts[1]) return routeUrl({ view: 'task', task: parts[1] });
   return routeUrl(map[parts[0]] || { tab: 'home' });
 }

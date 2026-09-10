@@ -63,18 +63,23 @@ export async function GET(req: Request) {
     const restricted = requestHeaders.get("x-jobpilot-profiles")?.split(",").map(value=>value.trim()).filter(Boolean);
     const role=requestHeaders.get("x-jobpilot-role") || (restricted ? "user" : "admin");
     const profiles = listProfiles().filter(p => !restricted || restricted.includes(p.id)).map(({ id, name, shortName }) => ({ id, name, shortName }));
-    const latest = (kind: string) => tasks.find((t:MobileTask) => t.kind === kind && t.status === "completed");
     const projectedJobs=store.jobs.map(j=>({...evaluationProjection(j,tasks),stage:stageOf(j.status)}));
     const cv=read("cv");
+    const analysis=currentAnalysis(profileId,version,tasks);
+    const visibleTasks=tasks.filter((t:MobileTask)=>t.input?.silent!==true);
+    const latestAnalysis=tasks.find((t:MobileTask)=>t.kind==="analysis"&&t.inputVersionId===version.id);
+    const latestSearchTask=tasks.find((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id);
+    const latestSearch=tasks.find((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&t.result?.offers);
     const snapshot={
-      version: "0.3.9", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
+      version: "0.4.0", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
       access:{role,canSwitchProfiles:role!=="user"&&profiles.length>1,needsCv:role==="user"&&!cv.trim()},
       cv, cvState:{versionId:version.id,cvVersion:version.cvVersion,revision:version.revision,changedAt:version.createdAt},
       languageSettings:{uiLocale:locale,applicationLanguage:applicationLanguage(config || {},read("cv")),documentLanguage:documentLanguage(version)},
       config: config || {}, jobs: projectedJobs, dashboard: dashboardFor(projectedJobs), statuses: APPLICATION_STATUSES,
-      tasks: tasks.slice(0,60).map((t:MobileTask)=>taskView(t,projectedJobs,false,locale)),
-      analysis: currentAnalysis(profileId,version,tasks),
-      discovery: (()=>{const result=discoveryProjection(tasks.find((t:MobileTask)=>t.kind==="search" && t.result?.offers)?.result || null,projectedJobs,tasks);const eligible=result.offers.filter((o:any)=>contractMatches(o,(config as any)?.target_roles?.contract_types || []).matches);return {...result,offers:topDiscoveryOffers(eligible),displayLimit:DISCOVERY_OFFER_LIMIT,availableCount:eligible.length};})(),
+      tasks: visibleTasks.slice(0,60).map((t:MobileTask)=>taskView(t,projectedJobs,false,locale)),
+      analysis,
+      v1:{careerDirections:Array.isArray((analysis as any)?.careerDirections)?(analysis as any).careerDirections:[],searchKeywords:Array.isArray((analysis as any)?.searchKeywords)?(analysis as any).searchKeywords:[],analysisState:latestAnalysis?.status || (analysis?"ready":"pending"),searchState:latestSearchTask?.status || "pending",backgroundActive:tasks.some((t:MobileTask)=>t.input?.silent===true&&["queued","running","reconciling"].includes(t.status)),deepMatchPrefetchLimit:DISCOVERY_OFFER_LIMIT},
+      discovery: (()=>{const result=discoveryProjection(latestSearch?.result || null,projectedJobs,tasks);const eligible=result.offers.filter((o:any)=>contractMatches(o,(config as any)?.target_roles?.contract_types || []).matches);return {...result,offers:topDiscoveryOffers(eligible),displayLimit:DISCOVERY_OFFER_LIMIT,availableCount:eligible.length};})(),
       flowEstimates:Object.fromEntries(Object.entries(FLOW_DEFAULTS).map(([kind,choice])=>[kind,estimateView(flowEstimate(tasks,kind,choice.model,choice.reasoning),locale)])),
       updatedAt: store.updatedAt,
     };
@@ -119,16 +124,29 @@ export async function POST(req: Request) {
       return Response.json({ok:true,jobs});
     }
     if (body.action === "saveOffer") return Response.json({ ok: true, job: await saveMobileOffer(profileId, body.offer) });
+    if (body.action === "tailorOffer") {
+      const job=await saveMobileOffer(profileId,body.offer);
+      const task=await startMobileTask(profileId,{kind:"cv",jobId:job.id,retry:true,uiLocale:locale});
+      const view=taskView(task,readCandidatureStore(profileId).jobs,true,locale);
+      return Response.json({ok:true,jobId:job.id,task:view},{status:task.status==="completed"?200:202});
+    }
     if (body.action === "updateJob") return Response.json({ ok: true, job: updateMobileJob(profileId, String(body.id), body.change || {}) });
     if (body.action === "confirmCv") {
       const task = readMobileTask(profileId, String(body.taskId));
       if (task.kind !== "ingest" || task.status !== "completed" || body.confirmed !== true) throw new Error("Relire et confirmer l’aperçu avant d’enregistrer.");
       if (typeof body.content !== "string" || !body.content.trim()) throw new Error("CV vide.");
       const result = await saveCanonicalCv(profileId,body.content,body.expectedVersionId);
-      return Response.json(result);
+      const analysisTask=await startMobileTask(profileId,{kind:"analysis",silent:true,source:"v1-auto-after-cv",uiLocale:locale});
+      return Response.json({...result,analysisTaskId:analysisTask.id || null,analysisState:analysisTask.status});
     }
     if (body.action === "decideCvDraft") return Response.json(await decideCvDraft(profileId,String(body.draftId),String(body.decision)));
-    if (body.action === "updateTailoredCvDraft") return Response.json({ok:true,draft:await updateTailoredCvDraft(profileId,String(body.draftId),body.payload)});
+    if (body.action === "updateTailoredCvDraft") {
+      const draft=await updateTailoredCvDraft(profileId,String(body.draftId),body.payload);
+      const store=readCandidatureStore(profileId);
+      const job=store.jobs.find((item:any)=>item.cvDraft?.id===draft.id);
+      const reviewTask=job?await startMobileTask(profileId,{kind:"cv_review",jobId:job.id,draftId:draft.id,revision:draft.revision,retry:true,silent:true,source:"v1-auto-after-draft-edit",uiLocale:locale}):null;
+      return Response.json({ok:true,draft,reviewTaskId:reviewTask?.id || null,reviewState:reviewTask?.status || null});
+    }
     if (body.action === "decideTailoredCvDraft") return Response.json(await decideTailoredCvDraft(profileId,String(body.draftId),String(body.decision)));
     return Response.json({ error: publicError("Action inconnue.",locale) }, { status: 400 });
   } catch (e) { console.error("mobile action failed",e);return Response.json({ error: publicError(e,requestUiLocale(req)) }, { status: 400 }); }

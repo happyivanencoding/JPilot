@@ -31,7 +31,7 @@ fs.mkdirSync(path.join(root,'reports'));
 const history=await import('../src/lib/mobile-history.ts');
 const engine=await import('../src/lib/mobile-engine.ts');
 const {evaluationCandidateFiles}=await import('../src/lib/evaluation-transport.ts');
-const {decideTailoredCvDraft,floorTailoredPresentationScore}=await import('../src/lib/tailored-cv.ts');
+const {decideTailoredCvDraft,floorTailoredPresentationScore,tailoredJobContext}=await import('../src/lib/tailored-cv.ts');
 const {taskView}=await import('../src/lib/mobile-view.ts');
 const {findExistingCandidature}=await import('../src/lib/candidatures.ts');
 const p='fixture-a',q='fixture-b';
@@ -242,4 +242,12 @@ test('tailored CV remains a draft until explicit keep; reject never replaces the
 test('tailored CV presentation score never displays below the original baseline',()=>{
  const down=floorTailoredPresentationScore(60,49);assert.deepEqual(down,{baselineScore:60,rawDraftScore:49,draftScore:60,delta:0,needsSubstantiveImprovement:true});
  const up=floorTailoredPresentationScore(60,73);assert.deepEqual(up,{baselineScore:60,rawDraftScore:73,draftScore:73,delta:13,needsSubstantiveImprovement:false});
+});
+
+test('V1 tailored CV has full posting and deep-match context without requiring an official evaluation',()=>{
+ const context=tailoredJobContext({company:'Fixture',role:'Junior CRM Analyst',location:'Paris',sourceDescription:'Analyse CRM, segmentation, Excel et Power BI.',v1Match:{currentScore:64,cvPotentialScore:76,deepMatch:{roleSummary:'Analyse CRM',responsibilities:['Segment clients'],requirements:[{title:'Excel'}],tools:['Excel','Power BI'],strengths:[{title:'CRM'}],presentationGaps:[{title:'Résultats'}],capabilityGaps:[{title:'Power BI'}]}},cv:{},followup:{nextAction:'',dueDate:'',note:''}});
+ assert.match(context.posting_description,/segmentation/);
+ assert.equal(context.v1_match.current_score,64);
+ assert.deepEqual(context.v1_match.tools,['Excel','Power BI']);
+ assert.equal(context.summary,undefined);
 });

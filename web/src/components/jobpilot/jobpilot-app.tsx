@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ChevronDown, X } from "lucide-react";
-import { WorkOutline as BriefcaseBusiness, PendingActions as ClipboardClock, School as GraduationCap, Home as House, Search, PersonOutline as UserRound } from "./native-icons";
+import { PendingActions as ClipboardClock, Home as House, Search, PersonOutline as UserRound } from "./native-icons";
 import { PilotProvider, rows, usePilot } from "./pilot-context";
 import { ACTIVE, desktopScale, TABS } from "./model.mjs";
-import { ApplicationsPage, HomePage, OffersPage } from "./catalog";
-import { CvEditor, PreparePage, ProfilePage } from "./profile-prepare";
-import { AnalysisSheet, CompareSheet, JobSheet, ResultSheet, TasksSheet } from "./sheets";
+import { HomePage, OffersPage } from "./catalog";
+import { CvEditor, ProfilePage } from "./profile-prepare";
+import { AnalysisSheet, CompareSheet, JobSheet, OfferSheet, ResultSheet, TasksSheet } from "./sheets";
 import { PdfPreview } from "./pdf-preview";
 import { OnboardingOverlay, type GuideTab } from "./onboarding";
 import { Button, Empty, EstimatedProgress, Hint, IconButton, Loading, Localization, Sheet, Spinner } from "./ui";
@@ -25,7 +25,7 @@ function TaskLaunchOverlay() {
 
 function Phone() {
   const p = usePilot();
-  const { data, ready, loading, busy, route, selectedJob, notice, error, expired, tr, navigate, close, refresh } = p;
+  const { data, ready, loading, busy, route, selectedJob, selectedOffer, notice, error, expired, tr, navigate, close, refresh } = p;
   const [scale, setScale] = useState(1), [keyboard, setKeyboard] = useState(false), [refreshing, setRefreshing] = useState(false);
   const [onboarding, setOnboarding] = useState<{ mode: "welcome" | "tab"; tab?: GuideTab } | null>(null);
   const [onboardingReady, setOnboardingReady] = useState(false);
@@ -47,8 +47,8 @@ function Phone() {
     document.addEventListener("focusin", measure); document.addEventListener("focusout", measure);
     return () => { window.removeEventListener("resize", measure); window.visualViewport?.removeEventListener("resize", measure); document.removeEventListener("focusin", measure); document.removeEventListener("focusout", measure); };
   }, []);
-  const labels = [tr("首页", "Accueil", "Home"), tr("机会", "Offres", "Offers"), tr("投递", "Candidatures", "Applications"), tr("准备", "Préparer", "Prepare"), tr("档案", "Dossier", "Profile")];
-  const icons = [House, Search, BriefcaseBusiness, GraduationCap, UserRound];
+  const labels = [tr("首页", "Accueil", "Home"), tr("机会", "Offres", "Offers"), tr("我的", "Moi", "My")];
+  const icons = [House, Search, UserRound];
   const active = rows(data.tasks).filter(t => ACTIVE.has(t.status)).length;
   const canShowData = Boolean(data.profile?.id);
   const needsCv = Boolean(data.access?.needsCv), canSwitchProfiles = data.access?.canSwitchProfiles ?? rows(data.profiles).length > 1;
@@ -88,13 +88,13 @@ function Phone() {
   };
   const hasOverlay = Boolean(route.view || p.taskLaunch || onboarding);
   const reload = async () => { if (refreshing) return; setRefreshing(true); await refresh(); setRefreshing(false); };
-  const pages = [<HomePage key="home" />, <OffersPage key="offers" />, <ApplicationsPage key="applications" />, <PreparePage key="prepare" />, <ProfilePage key="profile" />];
+  const pages = [<HomePage key="home" />, <OffersPage key="offers" />, <ProfilePage key="profile" />];
   return <div className="jp-stage"><div className="jp-envelope" style={{ "--jp-scale": scale } as CSSProperties}><div className={`jp-phone${keyboard ? " jp-keyboard" : ""}`} data-testid="jobpilot-phone" data-reference-size="384x832">
     {expired ? <div className="jp-login"><img src="/jobpilot.svg" alt="" /><h1>JobPilot</h1><h2>{tr("你的下一步，值得认真准备。", "Votre prochain pas mérite le meilleur.", "Your next step deserves your best.")}</h2><Hint>{tr("请重新登录以访问你的档案。", "Reconnectez-vous pour accéder à votre profil.", "Sign in again to access your profile.")}</Hint><a href="/api/mobile-auth/login">{tr("登录", "Se connecter", "Sign in")}</a></div> : <>
       <div className="jp-underlay" inert={hasOverlay}>
         <header className="jp-top"><div className="jp-top-row"><button type="button" className="jp-brand" onClick={() => navigate({ tab: "home" })} aria-label="JobPilot"><img src="/jobpilot.svg" alt="" width={34} height={34} /><strong>JobPilot</strong></button>
           {canSwitchProfiles && <label className="jp-profile-switch"><select aria-label={tr("切换档案", "Changer de profil", "Switch profile")} data-testid="profile-switch" value={p.profileId} disabled={busy || !canShowData} onChange={e => void p.switchProfile(e.target.value)}>{rows(data.profiles).length ? rows(data.profiles).map(profile => <option key={profile.id} value={profile.id}>{String(profile.shortName || profile.name).split(" · ")[0]}</option>) : <option value={p.profileId}>…</option>}</select><ChevronDown size={18} /></label>}
-          <IconButton label={tr("后台任务", "Vos traitements", "Background tasks")} data-testid="open-tasks" onClick={() => navigate({ view: "tasks" })}><ClipboardClock size={25} />{active > 0 && <span className="jp-badge">{active}</span>}{busy && <span className="jp-busy-ring"><Spinner /></span>}</IconButton>
+          {route.tab==="profile"&&<IconButton label={tr("处理记录", "Traitements", "Activity")} data-testid="open-tasks" onClick={() => navigate({ tab:"profile",view: "tasks" })}><ClipboardClock size={25} />{active > 0 && <span className="jp-badge">{active}</span>}{busy && <span className="jp-busy-ring"><Spinner /></span>}</IconButton>}
         </div></header>
         {error && !hasOverlay && <div className="jp-error" role="alert"><p>{error}</p><IconButton label={tr("关闭提示", "Fermer le message", "Dismiss message")} onClick={() => p.setError(null)}><X size={18} /></IconButton></div>}
         <Localization value={data.localization} />
@@ -106,7 +106,8 @@ function Phone() {
       </div>
       {notice && !hasOverlay && <div className="jp-toast" role="status"><span>{p.product(notice.text)}</span>{notice.taskId && <button type="button" onClick={() => { const id = notice.taskId; p.setNotice(null); if (id) void p.openTask(id); }}>{tr("查看", "Voir", "View")}</button>}</div>}
       {route.view === "tasks" && <TasksSheet />}
-      {route.view === "job" && (selectedJob ? <JobSheet key={selectedJob.id} job={selectedJob} /> : <Sheet title={tr("岗位详情", "Détails du poste", "Job details")}>{loading ? <Loading /> : <div className="jp-sheet-content"><Hint>{tr("当前档案中没有这个岗位，或旧书签已失效。", "Ce poste n’est pas présent dans ce profil, ou ce favori est périmé.", "This role is not in the current profile, or this bookmark is outdated.")}</Hint><Button onClick={() => navigate({ tab: "applications" })}>{tr("查看我的投递", "Voir mes candidatures", "View my applications")}</Button></div>}</Sheet>)}
+      {route.view === "offer" && (selectedOffer ? <OfferSheet key={selectedOffer.url} offer={selectedOffer} /> : <Sheet title={tr("岗位详情", "Détails du poste", "Role details")}><div className="jp-sheet-content"><Hint>{tr("这条岗位不在当前这批搜索结果里，可以重新搜索该方向。","Cette offre n’est plus dans la sélection actuelle ; relancez la recherche.","This role is no longer in the current result set; search the direction again.")}</Hint><Button onClick={()=>navigate({tab:"offers"})}>{tr("返回机会","Retour aux offres","Back to opportunities")}</Button></div></Sheet>)}
+      {route.view === "job" && (selectedJob ? <JobSheet key={selectedJob.id} job={selectedJob} /> : <Sheet title={tr("岗位详情", "Détails du poste", "Job details")}>{loading ? <Loading /> : <div className="jp-sheet-content"><Hint>{tr("当前档案中没有这个岗位，或旧书签已失效。", "Ce poste n’est pas présent dans ce profil, ou ce favori est périmé.", "This role is not in the current profile, or this bookmark is outdated.")}</Hint><Button onClick={() => navigate({ tab: "profile" })}>{tr("返回我的", "Retour à Moi", "Back to My")}</Button></div>}</Sheet>)}
       {route.view === "analysis" && (loading && !data.analysis?.markdown ? <Sheet><Loading /></Sheet> : <AnalysisSheet key={data.analysis?.taskId || "empty"} />)}
       {route.view === "compare" && <CompareSheet />}
       {(route.view === "task" || route.view === "report") && <ResultSheet />}

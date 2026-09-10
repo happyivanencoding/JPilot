@@ -24,6 +24,8 @@ import { parseAnalysisResult } from "@/lib/analysis-result.mjs";
 import {preservePresentationLanguage} from "@/lib/cv-global-plan.mjs";
 import { FLOW_DEFAULTS, flowEstimate } from "@/lib/ai-metrics.mjs";
 import {uiLocale,applicationLanguage,explanationDirective} from "@/lib/language-contract.mjs";
+import { deepMatchPrompt, enrichOffersWithFastMatch, normalizeDeepMatch, searchQueryFromAnalysis, V1_DEEP_MATCH_PREFETCH_LIMIT } from "@/lib/v1-match.mjs";
+import { readJobIntelligence, writeJobIntelligence } from "@/lib/v1-job-intelligence";
 
 // Operational records only. CV/config/notes/candidatures remain the existing authority.
 export type MobileTask = {
@@ -40,7 +42,7 @@ type Job = Record<string, any>;
 const host = globalThis as typeof globalThis & { jobPilotRunning?: Map<string, Promise<void>> };
 const running = host.jobPilotRunning ??= new Map();
 const exec = promisify(execFile);
-const TASK_KINDS = new Set(["ingest", "search", "evaluate", "cv", "cv_review", "analysis", "plan", "practice", "compare", "coach", "rewrite"]);
+const TASK_KINDS = new Set(["ingest", "search", "deep_match", "evaluate", "cv", "cv_review", "analysis", "plan", "practice", "compare", "coach", "rewrite"]);
 
 export function mobileDirectory(profileId: string) {
   const profile=getProfile(profileId);
@@ -259,12 +261,27 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
       task.result={offers:structured.offers || [],searchedAt:new Date().toISOString(),contractTypes:request.contractTypes || [],searchMetrics:structured.metrics,partial:true,warning:"Résultats structurés reçus. JobPilot n’autorise plus un agent ACP à naviguer sur le web en secours."};
       task.metrics={...task.metrics,providers:structured.metrics.providers};saveTask(task);
       const combined = rankSearchResults(request,[...(structured.providerRuns || []).flatMap((r:any)=>r.offers || []),...fallbackOffers],structured.providerRuns || [],{limit:24});
-      const offers = combined.offers;
+      const offers = enrichOffersWithFastMatch(version,config,combined.offers);
       const originalStructured=structured.metrics;structured.metrics={...combined.metrics,wallMs:originalStructured.wallMs};
       const searchMetrics = finalSearchMetrics(offers,structured,fallbackMetrics,searchStarted);
       if (!fallbackMetrics) task.metrics={model:"structured-search",reasoning:"none",inputTokens:0,outputTokens:0,totalTokens:0,actualCostUsd:null,estimatedCostUsd:searchMetrics.estimatedApiCostUsd,costKind:"search-api-estimate",searchMode:"structured",providers:searchMetrics.providers};
       else task.metrics={...task.metrics,searchMode:"hybrid",estimatedApiCostUsd:searchMetrics.estimatedApiCostUsd,providers:searchMetrics.providers};
       task.result = { offers, searchedAt: new Date().toISOString(), contractTypes:request.contractTypes || [], searchMetrics };
+    } else if (task.kind === "deep_match") {
+      const version=loadCandidateVersion(mobileDirectory(task.profileId),task.inputVersionId);
+      const offer=(task.input.offer && typeof task.input.offer === "object" ? task.input.offer : {}) as Record<string,any>;
+      const fastMatch=(task.input.fastMatch && typeof task.input.fastMatch === "object" ? task.input.fastMatch : offer.fastMatch) as Record<string,any>;
+      if(!normalizeUrl(String(task.input.url || offer.url || "")) || !Number.isFinite(Number(fastMatch?.score))) throw new Error("Offre ou score rapide invalide pour l’analyse approfondie.");
+      task.phase="Compréhension du poste et des écarts, sans modifier la candidature";saveTask(task);
+      let output="";
+      await runModelTransport({cwd:workspaceRoot(),prompt:deepMatchPrompt({candidate:{id:version.id,cvVersion:version.cvVersion,sources:version.sources},offer,fastMatch,jobIntelligence:readJobIntelligence(String(task.input.url || offer.url || "")),language:uiLocale(task.input.uiLocale || task.input.language)}),model:defaultFlow.model as any,reasoning:defaultFlow.reasoning as any,timeoutMs:180_000,
+        onRun,onMetrics:metrics,onText:text=>{output+=text;},onFinalText:complete=>{output=complete;}});
+      const parsed=extractJsonObject(output);
+      if(parsed.truncated || !parsed.obj) throw new Error("L’analyse approfondie du poste n’a pas renvoyé un résultat structuré.");
+      const deepMatch=normalizeDeepMatch(parsed.obj,fastMatch);
+      writeJobIntelligence(String(task.input.url || offer.url || ""),deepMatch);
+      task.text=String(deepMatch.roleSummary || "");
+      task.result={url:String(task.input.url || offer.url || ""),deepMatch,outputLocale:task.input.uiLocale};
     } else if (task.kind === "evaluate") {
       task.phase = "Évaluation officielle et enregistrement du rapport"; saveTask(task);
       await consume(task, await executeTransportEvaluation({ profileId: task.profileId, url: String(task.input.url), inputVersionId: task.inputVersionId, locale: String(task.input.uiLocale), model: defaultFlow.model, reasoning: defaultFlow.reasoning }));
@@ -331,7 +348,32 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
     task.status = "failed";
     task.error = error instanceof Error ? error.message : String(error);
     task.phase = "Action interrompue — consulter le détail";
-  } finally { task.metrics={...task.metrics,wallMs:Date.now()-Date.parse(task.createdAt)};saveTask(task); }
+  } finally {
+    task.metrics={...task.metrics,wallMs:Date.now()-Date.parse(task.createdAt)};saveTask(task);
+    if(task.status==="completed") await queueV1FollowUps(task);
+  }
+}
+
+async function queueV1FollowUps(task:MobileTask) {
+  try {
+    if(task.kind==="analysis") {
+      const version=loadCandidateVersion(mobileDirectory(task.profileId),task.inputVersionId);
+      const config=(yaml.load(version.sources?.config?.text || readText(profileFile(task.profileId,"config"))) || {}) as any;
+      const query=searchQueryFromAnalysis(task.result || {},config);
+      if(query) await startMobileTask(task.profileId,{kind:"search",query,silent:true,source:"v1-auto-after-analysis",uiLocale:task.input.uiLocale || task.input.language});
+    }
+    if(task.kind==="search") {
+      const offers=Array.isArray(task.result?.offers)?task.result!.offers as Record<string,any>[]:[];
+      for(const offer of offers.slice(0,V1_DEEP_MATCH_PREFETCH_LIMIT)) {
+        if(!offer?.url || !Number.isFinite(Number(offer?.fastMatch?.score))) continue;
+        await startMobileTask(task.profileId,{kind:"deep_match",url:offer.url,offer,fastMatch:offer.fastMatch,silent:true,source:"v1-top-k-prefetch",uiLocale:task.input.uiLocale || task.input.language});
+      }
+    }
+  } catch(error) {
+    // Follow-up enrichment must never retroactively fail the user's completed
+    // analysis/search. Its own task, if created, remains the only failure record.
+    console.warn("JobPilot V1 follow-up skipped:",error instanceof Error?error.message:String(error));
+  }
 }
 
 export function prepareTaskHistory(profileId: string, version: Record<string, any>) {
@@ -351,6 +393,7 @@ export async function startMobileTask(profileId: string, input: Record<string, u
   if (!TASK_KINDS.has(kind)) throw new Error("Action inconnue.");
   if (kind === "ingest" && !uploadPath) throw new Error("Utiliser le sélecteur de document.");
   if (kind === "search" && (typeof input.query !== "string" || !input.query.trim())) throw new Error("Précisez votre recherche.");
+  if (kind === "deep_match" && (!normalizeUrl(String(input.url || (input.offer as any)?.url || "")) || !input.offer || typeof input.offer !== "object")) throw new Error("Offre requise pour l’analyse approfondie.");
   if (kind === "evaluate" && !normalizeUrl(String(input.url || ""))) throw new Error("URL du poste requise.");
   if(kind === "evaluate" && input.offer && typeof input.offer === "object") {
     const saved=await saveMobileOffer(profileId,input.offer);

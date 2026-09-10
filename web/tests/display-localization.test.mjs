@@ -120,3 +120,29 @@ test('a dirty French cache containing Chinese is invalidated and translated agai
   for(let n=0;n<200 && view.localization.pending && !view.localization.failed;n++){await new Promise(r=>setTimeout(r,10));view=await localizeDisplay('fixture-a','fr',job,'job',{schedule:false,identity:'dirty-fr-job'});}
   assert.equal(view.localization.pending,false);assert.equal(view.localization.failed,false);assert.ok(calls>count);assert.notEqual(view.cvDraft.assessment.summary,sourceText);assert.equal(translationLooksLikeTarget(view.cvDraft.assessment.summary,'fr'),true);
 });
+
+test('V1 career and deep-match explanations follow UI language without translating search/tool tokens',async()=>{
+  const snapshot={
+    analysis:{markdown:'Analyse de profil.',careerDirections:[{title:'Analyste CRM',why:'Le parcours marketing est cohérent.',evidence:['Expérience de campagne documentée.'],searchQuery:'CRM Analyst'}],searchKeywords:['CRM Analyst','Power BI']},
+    discovery:{offers:[{url:'https://example.test/v1-role',why:'Offre pertinente.',fastMatch:{strengths:[{title:'excel',evidence:'CV 中已出现 excel'}],gaps:[{title:'power bi',reason:'岗位描述提到 power bi，当前档案未发现明确证据'}]},deepMatch:{roleSummary:'Analyser les campagnes CRM et les segments clients.',responsibilities:['Construire des analyses de segmentation.'],requirements:[{title:'Analyse CRM',why:'Compétence centrale.'}],tools:['Salesforce','Power BI'],strengths:[{title:'Expérience marketing',evidence:'Une campagne est documentée.'}],presentationGaps:[{title:'Résultats peu visibles',why:'Les preuves sont trop tardives.'}],capabilityGaps:[{title:'Power BI',why:'Non démontré dans le dossier.',nextAction:'Construire un projet réel.'}],cvPotentialReason:'Les preuves existantes peuvent être mieux présentées.'}}]},
+    jobs:[],dashboard:{}
+  };
+  const original=structuredClone(snapshot);
+  const view=await finishedScope('fixture-a','zh',snapshot,'snapshot',{identity:'v1-snapshot'});
+  assert.equal(view.localization.pending,false);
+  assert.match(view.analysis.careerDirections[0].why,/^中文说明 /);
+  assert.match(view.discovery.offers[0].deepMatch.roleSummary,/^中文说明 /);
+  assert.match(view.discovery.offers[0].deepMatch.capabilityGaps[0].nextAction,/^中文说明 /);
+  assert.equal(view.discovery.offers[0].fastMatch.gaps[0].reason,'岗位描述提到 power bi，当前档案未发现明确证据');
+  assert.equal(view.analysis.careerDirections[0].searchQuery,'CRM Analyst');
+  assert.deepEqual(view.analysis.searchKeywords,['CRM Analyst','Power BI']);
+  assert.deepEqual(view.discovery.offers[0].deepMatch.tools,['Salesforce','Power BI']);
+  const french=await finishedScope('fixture-b','fr',snapshot,'snapshot',{identity:'v1-snapshot-fr'});
+  assert.equal(french.localization.pending,false);
+  assert.notEqual(french.discovery.offers[0].fastMatch.gaps[0].reason,'岗位描述提到 power bi，当前档案未发现明确证据');
+  assert.equal(translationLooksLikeTarget(french.discovery.offers[0].fastMatch.gaps[0].reason,'fr'),true);
+  assert.equal(french.analysis.careerDirections[0].searchQuery,'CRM Analyst');
+  assert.deepEqual(french.analysis.searchKeywords,['CRM Analyst','Power BI']);
+  assert.deepEqual(french.discovery.offers[0].deepMatch.tools,['Salesforce','Power BI']);
+  assert.deepEqual(snapshot,original);
+});

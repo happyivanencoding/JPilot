@@ -40,23 +40,21 @@ import kotlin.math.exp
 @Composable fun PilotApp(vm: JobPilotViewModel, state: PilotState) {
     if (!state.loggedIn) { LoginScreen(vm,state); return }
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    var filter by rememberSaveable(state.profileId) { mutableStateOf("") }
-    var filterRequest by rememberSaveable(state.profileId) { mutableIntStateOf(0) }
     var profileMenu by remember { mutableStateOf(false) }
     var taskCenter by remember { mutableStateOf(false) }
     val holder = rememberSaveableStateHolder()
-    val labels = listOf(tr("首页","Accueil","Home"),tr("机会","Offres","Offers"),tr("投递","Candidatures","Applications"),tr("准备","Préparer","Prepare"),tr("档案","Dossier","Profile"))
-    val icons = listOf(Icons.Rounded.Home,Icons.Rounded.Search,Icons.Rounded.WorkOutline,Icons.Rounded.School,Icons.Rounded.PersonOutline)
+    val labels = listOf(tr("首页","Accueil","Home"),tr("机会","Offres","Offers"),tr("我的","Moi","My"))
+    val icons = listOf(Icons.Rounded.Home,Icons.Rounded.Search,Icons.Rounded.PersonOutline)
     val tasks = state.snapshot.objects("tasks")
     val active = tasks.filter { it.text("status") in setOf("queued","running","reconciling") }
     val access = state.snapshot.child("access")
     val needsCv = access.optBoolean("needsCv")
     val canSwitchProfiles = if(access.has("canSwitchProfiles")) access.optBoolean("canSwitchProfiles") else state.snapshot.objects("profiles").size > 1
     val keyboard = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-    LaunchedEffect(state.destination) { state.destination?.let { tab = it.optInt("tab",tab); filter = it.text("filter"); filterRequest++; vm.consumeDestination() } }
+    LaunchedEffect(state.destination) { state.destination?.let { tab = it.optInt("tab",tab).coerceIn(0,2); vm.consumeDestination() } }
     LaunchedEffect(state.profileId) { taskCenter = false }
-    LaunchedEffect(needsCv) { if(needsCv) tab=4 }
-    BackHandler(tab != 0 && state.task == null && state.selectedJob == null && !state.analysisVisible && state.cvPreview == null) { tab = 0 }
+    LaunchedEffect(needsCv) { if(needsCv) tab=2 }
+    BackHandler(tab != 0 && state.task == null && state.selectedJob == null && state.selectedOffer == null && !state.analysisVisible && state.cvPreview == null) { tab = 0 }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -70,9 +68,9 @@ import kotlin.math.exp
                                 Text(state.snapshot.objects("profiles").find { it.text("id") == state.profileId }?.text("shortName")?.substringBefore(" ·") ?: tr("档案","Profil","Profile"),maxLines = 1)
                                 Icon(Icons.Rounded.ExpandMore,null,Modifier.size(18.dp))
                             }
-                            DropdownMenu(profileMenu,{ profileMenu = false }) { state.snapshot.objects("profiles").forEach { p -> DropdownMenuItem(modifier=Modifier.testTag("profile-${p.text("id")}"),text = { Text(p.text("name")) },onClick = { profileMenu = false; tab = 0; filter = ""; vm.selectProfile(p.text("id")) }) } }
+                            DropdownMenu(profileMenu,{ profileMenu = false }) { state.snapshot.objects("profiles").forEach { p -> DropdownMenuItem(modifier=Modifier.testTag("profile-${p.text("id")}"),text = { Text(p.text("name")) },onClick = { profileMenu = false; tab = 0; vm.selectProfile(p.text("id")) }) } }
                         }
-                        IconButton({ taskCenter = true },Modifier.testTag("task-center")) {
+                        if(tab==2) IconButton({ taskCenter = true },Modifier.testTag("task-center")) {
                             BadgedBox(badge = { if(active.isNotEmpty()) Badge { Text(active.size.toString()) } }) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(Icons.Rounded.PendingActions,tr("后台任务","Traitements en cours","Background tasks"),Modifier.size(25.dp))
@@ -90,7 +88,7 @@ import kotlin.math.exp
                 Column {
                     HorizontalDivider()
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha=.92f),tonalElevation = 1.dp) {
-                        labels.forEachIndexed { i,label -> NavigationBarItem(modifier=Modifier.testTag("nav-$i"),selected = tab == i,onClick = { tab = i; if(i == 2) filter = ""; vm.showTabGuide(i) },icon = { Icon(icons[i],label,Modifier.size(22.dp)) },label = { Text(label,fontSize = 10.sp,maxLines = 1) },colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer)) }
+                        labels.forEachIndexed { i,label -> NavigationBarItem(modifier=Modifier.testTag("nav-$i"),selected = tab == i,onClick = { tab = i; vm.showTabGuide(i) },icon = { Icon(icons[i],label,Modifier.size(22.dp)) },label = { Text(label,fontSize = 10.sp,maxLines = 1) },colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer)) }
                     }
                 }
             }
@@ -106,13 +104,11 @@ import kotlin.math.exp
                 }
                 LocalizationNotice(state.snapshot.child("localization"),vm::retryLocalization)
                 PullToRefreshBox(isRefreshing = state.loading,onRefresh = { vm.refresh() },modifier = Modifier.fillMaxSize()) {
-                    AnimatedContent(targetState = if(needsCv) 4 else tab,label = "destination",transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(100)) }) { page ->
+                    AnimatedContent(targetState = if(needsCv) 2 else tab,label = "destination",transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(100)) }) { page ->
                         holder.SaveableStateProvider("${state.profileId}:$page") {
                             when(page) {
-                                0 -> OverviewScreen(state,vm,onExplore = { tab = 1 },onPrepare = { tab = 3 },onProfile = { tab = 4 },onFilter = { filter = it; filterRequest++; tab = 2 })
-                                1 -> ExploreScreen(state,vm)
-                                2 -> ApplicationsScreen(state,vm,filter = filter,onFilter={filter=it},filterRequest = filterRequest)
-                                3 -> TrainingScreen(state,vm)
+                                0 -> V1OverviewScreen(state,vm,onExplore = { tab = 1 },onProfile = { tab = 2 })
+                                1 -> V1ExploreScreen(state,vm)
                                 else -> ProfileScreen(state,vm)
                             }
                         }
@@ -151,7 +147,8 @@ import kotlin.math.exp
         }
     }
     if(state.task != null) TaskSheet(state.task,state,vm)
-    else state.selectedJob?.let { id -> state.snapshot.objects("jobs").find { it.text("id") == id }?.let { JobDetailSheet(it,state,vm) } }
+    else state.selectedOffer?.let { url -> state.snapshot.child("discovery").objects("offers").find { it.text("url") == url }?.let { V1OfferDetailSheet(it,state,vm) } }
+    ?: state.selectedJob?.let { id -> state.snapshot.objects("jobs").find { it.text("id") == id }?.let { job -> if(job.child("v1Match").length()>0) V1SavedJobDetailSheet(job,state,vm) else JobDetailSheet(job,state,vm) } }
     if(state.analysisVisible && state.snapshot.has("analysis")) AnalysisSheet(state,vm)
     if(state.cvPreview != null || state.previewLoading) CvPreviewDialog(state,vm)
     state.taskLaunch?.let { BackgroundTaskLaunch(it,state,vm::clearTaskLaunch) }

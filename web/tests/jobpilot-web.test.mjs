@@ -9,7 +9,7 @@ test('desktop reference matches the USB Android display; a wide screen never wid
   assert.equal(PHONE.width / PHONE.height, 1440 / 3120);
   assert.equal(desktopScale(1440, 1000), 1);
   assert.equal(desktopScale(1024, 768), 736 / 832);
-  assert.deepEqual(TABS, ['home', 'offers', 'applications', 'prepare', 'profile']);
+  assert.deepEqual(TABS, ['home', 'offers', 'profile']);
 });
 test('only recorded numeric compatibility scores are rendered', () => {
   for (const v of [null, undefined, '', '4.5', -1, 6, NaN, Infinity]) assert.equal(validScore(v), null);
@@ -35,11 +35,11 @@ test('saved task results navigate to their product screen without re-running wor
     assert.equal(Object.hasOwn(route,'action'),false);
   }
   assert.deepEqual(destinationFor({id:'t',kind:'evaluate',status:'failed'}),{view:'task',task:'t'});
-  assert.deepEqual(destinationFor({id:'t',kind:'plan',status:'completed',destination:{jobId:'j'}}),{tab:'prepare',view:'job',job:'j',jobTab:'2'});
+  assert.deepEqual(destinationFor({id:'t',kind:'plan',status:'completed',destination:{jobId:'j'}}),{tab:'profile',view:'task',task:'t'});
 });
 test('deep links round trip; arbitrary overlay names are not enabled', () => {
-  const r={tab:'applications',filter:'Réponse reçue',view:'job',job:'test-123',jobTab:'3'};
-  assert.deepEqual(parseRoute(routeUrl(r).slice(1)),r);
+  const legacy={tab:'applications',filter:'Réponse reçue',view:'job',job:'test-123',jobTab:'3'};
+  assert.deepEqual(parseRoute(routeUrl(legacy).slice(1)),{...legacy,tab:'profile'});
   assert.equal(parseRoute('?view=legacy&tab=admin').view,undefined);
   assert.equal(parseRoute('?task=task-1').view,'task');
 });
@@ -54,7 +54,7 @@ test('old entry points only redirect into the single new product', () => {
     assert.ok(legacyDestination('/'+name).startsWith('/'));
     assert.doesNotMatch(source,/return\s*</);
   }
-  assert.equal(legacyDestination('/pipeline/123'),'/?tab=applications&view=job&job=123');
+  assert.equal(legacyDestination('/pipeline/123'),'/?tab=profile&view=job&job=123');
   const layout=fs.readFileSync(new URL('../src/app/layout.tsx',import.meta.url),'utf8');
   assert.doesNotMatch(layout,/AppShell|instrumentSerif/);
   assert.match(layout,/title: "JobPilot"/);

@@ -3,6 +3,8 @@ import fs from "node:fs";
 import { saveCanonicalCv } from "@/lib/mobile-history";
 import { profileFile } from "@/lib/profile-context";
 import { activeProfileId } from "@/lib/profile-request";
+import { startMobileTask } from "@/lib/mobile-engine";
+import { requestUiLocale } from "@/lib/language-contract.mjs";
 
 const MAX_CV_BYTES = 200_000;
 
@@ -35,7 +37,8 @@ export async function POST(req: Request) {
   // blind-overwrite — snapshot the prior CV to a .bak first, write atomically.
   try {
     const result = await saveCanonicalCv(profileId, body.content, body.expectedVersionId);
-    return NextResponse.json({ ...result, backedUp: result.changed });
+    const analysisTask=result.changed?await startMobileTask(profileId,{kind:"analysis",silent:true,source:"v1-auto-after-master-edit",uiLocale:requestUiLocale(req)}):null;
+    return NextResponse.json({ ...result, backedUp: result.changed, analysisTaskId:analysisTask?.id || null, analysisState:analysisTask?.status || null });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "write failed" }, { status: 409 });
   }

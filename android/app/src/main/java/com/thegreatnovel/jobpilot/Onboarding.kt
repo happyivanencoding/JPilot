@@ -7,9 +7,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.PersonOutline
-import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.WorkOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -24,25 +22,17 @@ import androidx.compose.ui.window.DialogProperties
 private data class GuideTab(val icon: ImageVector, val title: String, val summary: String, val details: List<String>)
 
 @Composable private fun guideTabs(): List<GuideTab> = listOf(
-    GuideTab(Icons.Rounded.Home, tr("首页", "Accueil", "Home"), tr("先看今天最值得推进的事。", "Commencez par l’action la plus utile aujourd’hui.", "Start with the most useful next action today."), listOf(
-        tr("查看待决定岗位、待跟进事项和最近回复。", "Voir les postes à décider, les relances et les réponses récentes.", "Review roles waiting for a decision, follow-ups and recent replies."),
-        tr("从首页快捷进入机会、投递和面试准备。", "Accéder rapidement aux offres, candidatures et préparations.", "Jump quickly to opportunities, applications and interview preparation.")
+    GuideTab(Icons.Rounded.Home, tr("首页", "Accueil", "Home"), tr("先看你适合什么，而不是先学会操作软件。", "Commencez par comprendre où votre profil peut aller.", "Start by seeing where your profile can go."), listOf(
+        tr("确认简历后，JobPilot 会自动理解你的经历并给出 3–5 个可探索方向。", "Après confirmation du CV, JobPilot comprend votre parcours et propose 3–5 directions à explorer.", "After you confirm your CV, JobPilot understands your experience and suggests 3–5 directions."),
+        tr("首页直接展示最值得先看的真实岗位和当前能力信号。", "L’accueil montre directement les offres les plus pertinentes et vos principaux signaux.", "Home shows the most useful real roles and your main profile signals.")
     )),
-    GuideTab(Icons.Rounded.Search, tr("机会", "Offres", "Offers"), tr("发现更适合你的岗位。", "Trouvez les opportunités qui vous correspondent.", "Find opportunities that fit you."), listOf(
-        tr("根据你的简历、目标和地点搜索岗位。", "Rechercher selon votre CV, vos objectifs et votre localisation.", "Search using your CV, goals and location."),
-        tr("保存岗位，或打开职位链接进行评估。", "Enregistrer une offre ou évaluer son annonce.", "Save a role or evaluate its job posting.")
+    GuideTab(Icons.Rounded.Search, tr("机会", "Offres", "Offers"), tr("先看即时匹配分，再决定要不要深入。", "Voyez d’abord le score de match, puis choisissez quoi approfondir.", "See the match score first, then decide what deserves a closer look."), listOf(
+        tr("所有结果先用快速 0–100 匹配排序，不需要逐个等待 AI。", "Toutes les offres reçoivent d’abord un score rapide sur 100, sans attente IA offre par offre.", "Every result gets an immediate 0–100 match before any deep AI work."),
+        tr("前几条岗位会在后台补充职责、要求、加分点、真实缺口和 CV 提升空间。", "Les premières offres sont enrichies en arrière-plan avec missions, exigences, forces, écarts réels et potentiel du CV.", "Top roles are enriched in the background with responsibilities, requirements, strengths, real gaps and CV upside.")
     )),
-    GuideTab(Icons.Rounded.WorkOutline, tr("投递", "Candidatures", "Applications"), tr("集中管理求职进展。", "Suivez toute votre recherche au même endroit.", "Keep your job search in one place."), listOf(
-        tr("查看已保存、已申请、面试和 Offer 中的岗位。", "Voir les offres enregistrées, postulées, en entretien ou avec offre.", "Track saved roles, applications, interviews and offers."),
-        tr("筛选待决定和待跟进事项，明确下一步。", "Filtrer les décisions et relances pour savoir quoi faire ensuite.", "Filter decisions and follow-ups to know what to do next.")
-    )),
-    GuideTab(Icons.Rounded.School, tr("准备", "Préparer", "Prepare"), tr("围绕真实岗位练习和准备。", "Préparez-vous autour d’un poste réel.", "Prepare around a real target role."), listOf(
-        tr("为具体岗位生成面试准备计划。", "Créer un plan de préparation pour une offre précise.", "Create a preparation plan for a specific role."),
-        tr("练习回答，获得逐项反馈，并查看你的优势。", "Pratiquer vos réponses, recevoir un retour précis et revoir vos forces.", "Practice answers, get detailed feedback and review your strengths.")
-    )),
-    GuideTab(Icons.Rounded.PersonOutline, tr("档案", "Dossier", "Profile"), tr("维护简历和求职偏好。", "Gérez votre CV et vos critères.", "Maintain your CV and job preferences."), listOf(
-        tr("导入、编辑和预览你的主简历。", "Importer, modifier et prévisualiser votre CV de référence.", "Import, edit and preview your master CV."),
-        tr("设置目标岗位、地点、合同类型和界面语言。", "Définir vos rôles, lieux, contrats et langue d’interface.", "Set target roles, locations, contract types and interface language.")
+    GuideTab(Icons.Rounded.PersonOutline, tr("我的", "Moi", "My"), tr("管理你的事实来源和每个岗位的独立简历版本。", "Gérez votre source de vérité et vos versions de CV par offre.", "Manage your source of truth and independent role-specific CVs."), listOf(
+        tr("Master Profile 是所有匹配与新简历的共同事实来源。", "Le Master Profile est la source commune de tous les matchs et nouveaux CV.", "The Master Profile is the shared fact source for every match and new CV."),
+        tr("每个岗位版本都独立从 Master 分叉，不会把上一份定制 CV 当作下一份输入。", "Chaque CV ciblé repart du Master ; une version d’offre ne devient jamais la source de la suivante.", "Every tailored CV branches from Master; one role CV never becomes the next role's input.")
     ))
 )
 

@@ -18,14 +18,13 @@ import org.json.JSONObject
 
 @Composable fun AnalysisEntry(state: PilotState,vm: JobPilotViewModel) {
     val analysis=state.snapshot.child("analysis")
-    val exists=analysis.text("markdown").isNotBlank();val stale=analysis.optBoolean("stale")
-    val running=state.snapshot.objects("tasks").any { it.text("kind")=="analysis" && it.text("status") in setOf("queued","running","reconciling") }
+    val exists=analysis.text("markdown").isNotBlank()
+    val background=state.snapshot.child("v1").optBoolean("backgroundActive")
     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-        Text(tr("让招聘方看到重点","Les bons signaux, au premier regard","The right signals, at first glance"),fontWeight=FontWeight.SemiBold,fontSize=18.sp)
-        Hint(tr("不是把每一段写满，而是让最有价值的证据占据正确的位置。","Pas davantage de texte : une place juste pour vos preuves les plus utiles.","Not more text: the right space for your strongest evidence."))
-        if(exists) Button({vm.showAnalysis()},Modifier.fillMaxWidth().testTag("view-analysis")) {Text(tr("查看分析","Voir mon analyse","View analysis"))}
-        if(!exists || stale) AiProgressButton(state,"analysis",label=if(stale)tr("更新分析","Mettre à jour l’analyse","Update analysis")else tr("分析整份简历","Analyser mon CV","Analyze my CV"),enabled=!running&&!state.working&&state.snapshot.text("cv").isNotBlank(),outlined=true,modifier=Modifier.testTag("update-analysis")) { vm.startTask(json("kind" to "analysis")) }
-        if(stale) Hint(tr("简历发生了真实变化。更新会保留上次结论和接受过的改进。","Votre CV a réellement changé. La mise à jour reprend les conclusions et améliorations précédentes.","Your CV changed. Updates retain prior conclusions and accepted improvements."))
+        Text(tr("JobPilot 对你的理解","Ce que JobPilot comprend de votre profil","How JobPilot understands your profile"),fontWeight=FontWeight.SemiBold,fontSize=18.sp)
+        Hint(tr("上传或修改主简历后会自动更新，不需要再手动点击 AI 分析。","L’analyse se met à jour automatiquement après une modification du CV de référence.","This updates automatically when your master CV changes; no separate AI button is needed."))
+        if(background) { LinearProgressIndicator(Modifier.fillMaxWidth());Hint(tr("正在后台更新职业方向和首批岗位…","Mise à jour des directions et des premières offres…","Updating directions and initial roles in the background…")) }
+        if(exists) OutlinedButton({vm.showAnalysis()},Modifier.fillMaxWidth().testTag("view-analysis")) {Text(tr("查看完整优势与真实行动","Voir les atouts et actions réelles","See strengths and real actions"))}
     }
 }
 @OptIn(ExperimentalMaterial3Api::class)

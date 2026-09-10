@@ -98,6 +98,7 @@ export function historicalEstimate(tasks, kind, model, reasoning) {
 export const FLOW_BASELINE_SECONDS = {
   search: [5,20],
   analysis: [20,45],
+  deep_match: [8,25],
   evaluate: [10,30],
   cv: [15,45],
   cv_review: [8,25],
@@ -117,6 +118,7 @@ export function flowEstimate(tasks, kind, model, reasoning) {
 export const FLOW_DEFAULTS = {
   search: { model: 'gpt-5.6-luna', reasoning: 'low' },
   analysis: { model: 'gpt-5.6-luna', reasoning: 'low' },
+  deep_match: { model: 'gpt-5.6-luna', reasoning: 'low' },
   evaluate: { model: 'gpt-5.6-luna', reasoning: 'low' },
   cv: { model: 'gpt-5.6-luna', reasoning: 'low' },
   cv_review: { model: 'gpt-5.6-luna', reasoning: 'low' },

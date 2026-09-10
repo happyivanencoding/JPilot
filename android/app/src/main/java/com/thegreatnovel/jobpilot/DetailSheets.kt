@@ -131,7 +131,7 @@ import org.json.JSONArray
 }
 
 
-@Composable private fun TailoredCvDraftCard(job:JSONObject,state:PilotState,vm:JobPilotViewModel) {
+@Composable fun TailoredCvDraftCard(job:JSONObject,state:PilotState,vm:JobPilotViewModel) {
     val draft=job.child("cvDraft");val assessment=draft.child("assessment");val pending=draft.text("status")=="pending"
     var editing by remember(draft.text("id"),draft.optInt("revision")) { mutableStateOf(false) }
     var payload by remember(draft.text("id"),draft.optInt("revision")) { mutableStateOf(JSONObject(draft.child("payload").toString())) }
@@ -160,8 +160,9 @@ import org.json.JSONArray
         } else if(pending) {
             OutlinedButton({vm.openCvPreview(job=job,tailoredDraftId=draft.text("id"))},Modifier.fillMaxWidth().testTag("preview-tailored-draft"),enabled=!state.working){Text(tr("预览真实 PDF","Prévisualiser le PDF réel","Preview actual PDF"))}
             OutlinedButton({editing=true},Modifier.fillMaxWidth(),enabled=!state.working){Text(tr("手动修改这个版本","Modifier manuellement cette version","Edit this version manually"))}
-            AiProgressButton(state,"cv_review",job.text("id"),if(assessment.optInt("revision",-1)==draft.optInt("revision"))tr("重新评估这个草稿","Réévaluer ce brouillon","Reassess this draft")else tr("评估修改后的草稿","Évaluer le brouillon modifié","Assess edited draft"),!state.working,outlined=true,modifier=Modifier.testTag("review-tailored-draft")){vm.startTask(json("kind" to "cv_review","jobId" to job.text("id"),"draftId" to draft.text("id"),"revision" to draft.optInt("revision"),"retry" to true))}
-            Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){Button({vm.decideTailoredDraft(draft.text("id"),"accept")},Modifier.weight(1f).testTag("accept-tailored-draft"),enabled=!state.working){Text(tr("保留这个版本","Conserver","Keep"))};OutlinedButton({vm.decideTailoredDraft(draft.text("id"),"reject")},Modifier.weight(1f).testTag("reject-tailored-draft"),enabled=!state.working){Text(tr("不要这个版本","Refuser","Reject"))}}
+            val reassessing=assessment.optInt("revision",-1)!=draft.optInt("revision")
+            if(reassessing) Hint(tr("正在后台重新计算修改后的呈现分，你不需要再点一次评估。","Le score de présentation est recalculé automatiquement en arrière-plan.","The presentation score is recalculating automatically in the background; no extra evaluation click is needed."))
+            Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){Button({vm.decideTailoredDraft(draft.text("id"),"accept")},Modifier.weight(1f).testTag("accept-tailored-draft"),enabled=!state.working&&!reassessing){Text(tr("保留这个版本","Conserver","Keep"))};OutlinedButton({vm.decideTailoredDraft(draft.text("id"),"reject")},Modifier.weight(1f).testTag("reject-tailored-draft"),enabled=!state.working){Text(tr("不要这个版本","Refuser","Reject"))}}
         }
     }
 }

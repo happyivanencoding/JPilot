@@ -38,17 +38,33 @@ export function updateMobileJob(profileId: string, id: string, change: Record<st
   return store.jobs[index];
 }
 
+function v1MatchFromRaw(raw:any) {
+  const fast=raw?.fastMatch,deep=raw?.deepMatch;
+  const current=Number(deep?.currentScore ?? fast?.score);
+  if(!Number.isFinite(current))return null;
+  const cvPotential=Math.max(current,Number(deep?.cvPotentialScore ?? current));
+  const capabilityPotential=Math.max(cvPotential,Number(deep?.capabilityPotentialScore ?? cvPotential));
+  return {currentScore:Math.max(0,Math.min(100,Math.round(current))),displayScore:Math.max(0,Math.min(100,Math.round(current))),cvPotentialScore:Math.max(0,Math.min(100,Math.round(cvPotential))),capabilityPotentialScore:Math.max(0,Math.min(100,Math.round(capabilityPotential))),deepMatch:deep||null,fastMatch:fast||null,source:"v1-student-match"};
+}
+
 export async function saveMobileOffer(profileId: string, raw: unknown) {
   const offer = normalizeOffer(raw);
+  const v1Match=v1MatchFromRaw(raw);
   let store = readCandidatureStore(profileId);
   const existing = store.jobs.find(j => normalizeUrl(j.url) === normalizeUrl(offer.url));
-  if (existing) return existing;
+  if (existing) {
+    if(v1Match){existing.v1Match=v1Match;if(!existing.sourceDescription&&offer.description)existing.sourceDescription=offer.description;writeCandidatureStore(profileId,store);}
+    return existing;
+  }
   // Persist through the shared writer in this runtime root, not another HTTP server.
   const result = await addOffersToPipeline([offer], profileId);
   if (result.error) throw new Error(result.error);
   store = readCandidatureStore(profileId);
   const saved = store.jobs.find(j => normalizeUrl(j.url) === normalizeUrl(offer.url));
-  if (saved) return saved;
+  if (saved) {
+    if(v1Match){saved.v1Match=v1Match;if(!saved.sourceDescription&&offer.description)saved.sourceDescription=offer.description;writeCandidatureStore(profileId,store);}
+    return saved;
+  }
   const job: Job = {
     id: "saved-" + randomUUID(), company: offer.company, role: offer.title, url: offer.url,
     location: offer.location, contract: (offer as any).contractType || "À confirmer", score: null, priority: "À évaluer", recommendation: "Évaluation officielle nécessaire",
@@ -58,6 +74,7 @@ export async function saveMobileOffer(profileId: string, raw: unknown) {
     strengths: [], gaps: [], match: [], prepTasks: [], replies: [],
     cv: { file: "", changes: [], keywords: [] }, interview: { process: [], questions: [] },
     followup: { nextAction: "Évaluer la compatibilité avant de candidater", dueDate: "", note: "" },
+    ...(v1Match?{v1Match}:{}),
   };
   store.jobs.push(job);
   writeCandidatureStore(profileId, store);

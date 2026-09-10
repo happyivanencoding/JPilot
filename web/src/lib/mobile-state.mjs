@@ -84,6 +84,7 @@ export function operationKey(kind, input, version, jobs, day = new Date().toISOS
   const job = jobs.find(j => j.id === input.jobId);
   const evidence = j => j ? [j.id, normalizeUrl(j.url), j.reportNum || null, j.score ?? null, j.summary || '', j.match || [], j.gaps || []] : null;
   if (kind === 'evaluate') return JSON.stringify([kind, normalizeUrl(input.url)]);
+  if (kind === 'deep_match') return JSON.stringify([kind, 'v1', version.id, normalizeUrl(input.url || input.offer?.url)]);
   if (kind === 'analysis') return JSON.stringify([kind, version.id]);
   if (kind === 'search') return JSON.stringify([kind, SEARCH_OPERATION_VERSION, version.id, clean(input.query), day]);
   if (kind === 'cv') return JSON.stringify([kind, version.id, evidence(job), ...(input.applicationLanguage ? [input.applicationLanguage] : [])]);
@@ -120,7 +121,10 @@ export function discoveryProjection(discovery, jobs, tasks) {
     const completed = tasks.find(t => t.kind === 'evaluate' && normalizeUrl(t.input?.url) === key && t.status === 'completed' && t.result?.done);
     if (persistedJobEvaluation(job) || completed) return [];
     const task = tasks.find(t => t.kind === 'evaluate' && normalizeUrl(t.input?.url) === key && ['queued','running','reconciling'].includes(t.status));
-    return [{ ...offer, lifecycle: task ? 'evaluating' : 'discovered', taskId: task?.id || null, jobId: job?.id || null }];
+    const deepCompleted=tasks.find(t=>t.kind==='deep_match' && normalizeUrl(t.input?.url || t.input?.offer?.url)===key && t.status==='completed' && t.result?.deepMatch);
+    const deepActive=tasks.find(t=>t.kind==='deep_match' && normalizeUrl(t.input?.url || t.input?.offer?.url)===key && ['queued','running','reconciling'].includes(t.status));
+    return [{ ...offer, lifecycle: task ? 'evaluating' : 'discovered', taskId: task?.id || null, jobId: job?.id || null,
+      deepMatch:deepCompleted?.result?.deepMatch || null,deepMatchState:deepCompleted?'ready':deepActive?'loading':'pending',deepMatchTaskId:deepCompleted?.id || deepActive?.id || null }];
   }) };
 }
 

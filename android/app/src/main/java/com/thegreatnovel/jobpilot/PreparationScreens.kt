@@ -110,8 +110,10 @@ import java.time.ZoneOffset
     var preferences by remember { mutableStateOf(false) }
     var contracts by remember(state.profileId) { mutableStateOf(config.child("target_roles").strings("contract_types").toSet()) }
     val needsCv=state.snapshot.child("access").optBoolean("needsCv")
+    val jobs=state.snapshot.objects("jobs")
+    val directions=state.snapshot.child("v1").objects("careerDirections")
     LazyColumn(Modifier.fillMaxSize().imePadding().testTag("profile-content"),contentPadding = PaddingValues(22.dp),verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        item { SectionTitle(if(needsCv)tr("从你的简历开始","Commençons par votre CV","Start with your CV")else tr("我的档案","Votre profil, vos preuves.","Your profile. Your evidence."),if(needsCv)tr("先上传一份简历，JobPilot 才能建立你的个人档案。","Importez d’abord votre CV pour créer votre dossier personnel.","Upload a CV first so JobPilot can build your personal profile.")else state.snapshot.child("profile").text("name")) }
+        item { SectionTitle(if(needsCv)tr("从你的简历开始","Commençons par votre CV","Start with your CV")else tr("我的","Moi","My"),if(needsCv)tr("先上传一份简历，JobPilot 才能建立你的个人档案。","Importez d’abord votre CV pour créer votre dossier personnel.","Upload a CV first so JobPilot can build your personal profile.")else state.snapshot.child("profile").text("name")) }
         item { GlassCard(accent = true) {
             Icon(Icons.Rounded.Description,null,Modifier.size(34.dp),tint = MaterialTheme.colorScheme.primary)
             Text(tr("让简历成为起点","Le CV comme point de départ","Start with your CV"),fontSize = 22.sp,fontWeight = FontWeight.SemiBold)
@@ -123,6 +125,31 @@ import java.time.ZoneOffset
             }
         } }
         item { GlassCard { AnalysisEntry(state,vm) } }
+        if(!needsCv) item { GlassCard {
+            Row(verticalAlignment=Alignment.CenterVertically) { Text(tr("我的岗位版本","Mes versions par offre","My role-specific versions"),Modifier.weight(1f),fontWeight=FontWeight.SemiBold);Hint(jobs.size.toString()) }
+            Hint(tr("每个岗位版本都从最新 Master Profile 独立分叉，不会拿另一份岗位 CV 当输入。","Chaque version repart du Master Profile ; une version ciblée ne devient jamais la source d’une autre.","Every role version branches from the latest Master Profile; one tailored CV never becomes another's source."))
+            if(jobs.isEmpty()) Hint(tr("当你在岗位页点击“查看我的 XX 分版本”，它会出现在这里。","Une offre apparaîtra ici lorsque vous demanderez votre version ciblée.","A role appears here after you request its tailored version."))
+            jobs.take(12).forEach { job ->
+                val hasRoleCv = job.child("cvDraft").text("id").isNotBlank() || job.child("cv").text("file").isNotBlank()
+                Column(
+                    Modifier.fillMaxWidth().clickable { vm.selectJob(job.text("id"), if (hasRoleCv) 1 else 0) }.padding(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) { Text(job.text("company"), fontWeight = FontWeight.SemiBold); Text(job.text("role"), fontSize = 14.sp) }
+                        val match = job.child("v1Match")
+                        if (match.has("displayScore")) Text("${match.optInt("displayScore")}/100", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    }
+                    Hint(when { job.child("cvDraft").text("status") == "pending" -> tr("候选 CV 等待你确认", "Brouillon à confirmer", "CV draft awaiting your decision"); job.child("cv").text("file").isNotBlank() -> tr("已有岗位版 CV", "CV adapté conservé", "Tailored CV saved"); else -> tr("已保存岗位", "Offre enregistrée", "Role saved") })
+                    HorizontalDivider()
+                }
+            }
+        } }
+        if(!needsCv && directions.isNotEmpty()) item { GlassCard {
+            Text(tr("AI 建议的探索方向","Directions suggérées","Suggested directions"),fontWeight=FontWeight.SemiBold)
+            Hint(tr("这些是建议，不会覆盖你明确填写的目标。点击一个方向会填入编辑框，由你决定是否保存。","Ce sont des suggestions ; elles ne remplacent pas vos objectifs explicites.","These are suggestions and never override your explicit goals."))
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { directions.forEach { direction -> FilterChip(false,{roles=direction.text("title");preferences=true},label={Text(direction.text("title"),maxLines=1)}) } }
+        } }
         item { GlassCard {
             Text(tr("默认简历语言","Langue par défaut du CV","Default CV language"),fontWeight=FontWeight.SemiBold)
             Hint(tr("用于新生成的求职材料，与软件显示语言无关。更改默认值不会翻译或替换现有简历；原文改写继续保持当前文档语言。","Pour les nouveaux documents de candidature, indépendamment de l’application. Le CV existant n’est ni traduit ni remplacé ; les retouches gardent sa langue.","For new application documents, independently of the app. Existing CVs are not translated or replaced; edits preserve the document language."))
@@ -153,11 +180,13 @@ import java.time.ZoneOffset
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("zh" to "中文","fr" to "Français","en" to "English").forEach { (key,label) -> FilterChip(state.language == key,{ vm.appearance(language = key) },modifier=Modifier.testTag("ui-language-$key"),label = { Text(label) }) } }
         } }
         item { GlassCard {
-            Text(tr("连接","Connexion","Connection"),fontWeight = FontWeight.SemiBold)
-            Hint(tr("电脑、JobPilot 和 AgentDock 需要保持运行。","Votre PC, JobPilot et AgentDock doivent rester allumés.","Your PC, JobPilot and AgentDock must remain running."))
-            OutlinedTextField(server,{ server = it },Modifier.fillMaxWidth(),label = { Text(tr("服务器地址","Adresse du serveur","Server address")) },singleLine = true,shape = RoundedCornerShape(18.dp))
-            OutlinedButton({ vm.useServer(server) },Modifier.fillMaxWidth()) { Text(tr("连接并刷新","Connecter et actualiser","Connect and refresh")) }
-            if(state.server != BuildConfig.API_BASE_URL) TextButton({ server = BuildConfig.API_BASE_URL; vm.useServer(server) }) { Text(tr("切换到 Cloudflare 远程连接","Passer à la connexion distante","Switch to remote connection")) }
+            Text(tr("账号与连接","Compte et connexion","Account and connection"),fontWeight = FontWeight.SemiBold)
+            Hint(tr("你的 JobPilot 数据通过服务器与网页版同步；普通使用不依赖电脑或 AgentDock 保持在线。","Vos données JobPilot sont synchronisées avec le Web via le serveur ; l’usage normal ne dépend pas de votre PC ni d’AgentDock.","Your JobPilot data syncs with the web app through the server; normal use does not require your PC or AgentDock to stay online."))
+            if(BuildConfig.DEBUG) {
+                OutlinedTextField(server,{ server = it },Modifier.fillMaxWidth(),label = { Text(tr("开发服务器地址","Adresse du serveur de développement","Development server address")) },singleLine = true,shape = RoundedCornerShape(18.dp))
+                OutlinedButton({ vm.useServer(server) },Modifier.fillMaxWidth()) { Text(tr("连接并刷新","Connecter et actualiser","Connect and refresh")) }
+                if(state.server != BuildConfig.API_BASE_URL) TextButton({ server = BuildConfig.API_BASE_URL; vm.useServer(server) }) { Text(tr("切换到默认远程连接","Revenir à la connexion distante","Switch to default remote connection")) }
+            }
             TextButton(vm::logout) { Text(tr("退出登录","Se déconnecter","Sign out")) }
             Hint("JobPilot Android ${BuildConfig.VERSION_NAME} · " + tr("与网页版共享数据","Données partagées avec le Web","Shared data with the Web"))
         } }

@@ -21,5 +21,8 @@ export function parseAnalysisResult(output) {
   // not missing content: preserve the exact supplied fields without inventing any.
   for(const key of ['expressionIssues','actionIssues','tasks','questions'])if(!result[key]&&result.globalPlan?.[key])result[key]=result.globalPlan[key];
   if(typeof result.markdown!=='string'||!result.markdown.trim()||!result.globalPlan||!Array.isArray(result.globalPlan.targetBlocks)||!Array.isArray(result.expressionIssues)||!Array.isArray(result.actionIssues))throw new Error('L’analyse ne contient pas le plan global et les actions attendus. Le résultat doit être récupéré ou corrigé, pas masqué par un résumé.');
-  return {...result,formatRepair:repaired?'local-json-syntax':'none'};
+  const clean=value=>String(value??'').replace(/\s+/g,' ').trim();
+  const careerDirections=(Array.isArray(result.careerDirections)?result.careerDirections:[]).filter(x=>x&&typeof x==='object').map(x=>({title:clean(x.title),why:clean(x.why),evidence:Array.isArray(x.evidence)?x.evidence.map(clean).filter(Boolean).slice(0,3):[],searchQuery:clean(x.searchQuery)})).filter(x=>x.title).slice(0,5);
+  const searchKeywords=(Array.isArray(result.searchKeywords)?result.searchKeywords:[]).map(clean).filter(Boolean).slice(0,8);
+  return {...result,careerDirections,searchKeywords,formatRepair:repaired?'local-json-syntax':'none'};
 }

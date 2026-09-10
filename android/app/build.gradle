@@ -3,13 +3,14 @@ android {
     namespace 'com.thegreatnovel.jobpilot'
     compileSdk 36
     defaultConfig {
-        applicationId 'com.thegreatnovel.jobpilot'
+        applicationId 'com.thegreatnovel.jobpilot.v1'
         minSdk 26
         targetSdk 36
-        versionCode 13
-        versionName '0.3.9'
+        versionCode 14
+        versionName '0.4.0'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
-        buildConfigField 'String', 'API_BASE_URL', '"https://jobs.thegreatnovel.com"'
+        buildConfigField 'String', 'API_BASE_URL', '"https://jobs-v1.thegreatnovel.com"'
+        buildConfigField 'String', 'PREVIEW_PROFILE', '"louis"'
     }
     sourceSets.main.assets.srcDirs += ['../../web/shared']
     buildFeatures { compose true; buildConfig true }

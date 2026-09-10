@@ -1,41 +1,29 @@
 "use client";
-import { Home as HomeIcon, PersonOutline as ProfileIcon, School as PrepareIcon, Search as OffersIcon, WorkOutline as ApplicationsIcon } from "./native-icons";
+import { Home as HomeIcon, PersonOutline as ProfileIcon, Search as OffersIcon } from "./native-icons";
 import { usePilot } from "./pilot-context";
 import { Button, Hint } from "./ui";
 
-export type GuideTab = "home" | "offers" | "applications" | "prepare" | "profile";
+export type GuideTab = "home" | "offers" | "profile";
 type GuideItem = { icon: typeof HomeIcon; title: [string, string, string]; summary: [string, string, string]; details: [string, string, string][] };
 
 const GUIDE_ITEMS: Record<GuideTab, GuideItem> = {
   home: {
     icon: HomeIcon,
     title: ["首页", "Accueil", "Home"],
-    summary: ["先看今天最值得推进的事。", "Commencez par l’action la plus utile aujourd’hui.", "Start with the most useful next action today."],
-    details: [["查看待决定岗位、待跟进事项和最近回复。", "Voir les postes à décider, les relances et les réponses récentes.", "Review roles waiting for a decision, follow-ups and recent replies."], ["从首页快捷进入机会、投递和面试准备。", "Accéder rapidement aux offres, candidatures et préparations.", "Jump quickly to opportunities, applications and interview preparation."]]
+    summary: ["先看你适合什么，而不是先学会操作软件。", "Commencez par comprendre où votre profil peut aller.", "Start by seeing where your profile can go."],
+    details: [["确认简历后，JobPilot 会自动理解你的经历并给出 3–5 个可探索方向。", "Après confirmation du CV, JobPilot comprend votre parcours et propose 3–5 directions à explorer.", "After you confirm your CV, JobPilot understands your experience and suggests 3–5 directions."], ["首页直接展示最值得先看的真实岗位和当前能力信号。", "L’accueil montre directement les offres les plus pertinentes et vos principaux signaux.", "Home shows the most useful real roles and your main profile signals."]]
   },
   offers: {
     icon: OffersIcon,
     title: ["机会", "Offres", "Offers"],
-    summary: ["发现更适合你的岗位。", "Trouvez les opportunités qui vous correspondent.", "Find opportunities that fit you."],
-    details: [["根据你的简历、目标和地点搜索岗位。", "Rechercher selon votre CV, vos objectifs et votre localisation.", "Search using your CV, goals and location."], ["保存岗位，或打开职位链接进行评估。", "Enregistrer une offre ou évaluer son annonce.", "Save a role or evaluate its job posting."]]
-  },
-  applications: {
-    icon: ApplicationsIcon,
-    title: ["投递", "Candidatures", "Applications"],
-    summary: ["集中管理求职进展。", "Suivez toute votre recherche au même endroit.", "Keep your job search in one place."],
-    details: [["查看已保存、已申请、面试和 Offer 中的岗位。", "Voir les offres enregistrées, postulées, en entretien ou avec offre.", "Track saved roles, applications, interviews and offers."], ["筛选待决定和待跟进事项，明确下一步。", "Filtrer les décisions et relances pour savoir quoi faire ensuite.", "Filter decisions and follow-ups to know what to do next."]]
-  },
-  prepare: {
-    icon: PrepareIcon,
-    title: ["准备", "Préparer", "Prepare"],
-    summary: ["围绕真实岗位练习和准备。", "Préparez-vous autour d’un poste réel.", "Prepare around a real target role."],
-    details: [["为具体岗位生成面试准备计划。", "Créer un plan de préparation pour une offre précise.", "Create a preparation plan for a specific role."], ["练习回答，获得逐项反馈，并查看你的优势。", "Pratiquer vos réponses, recevoir un retour précis et revoir vos forces.", "Practice answers, get detailed feedback and review your strengths."]]
+    summary: ["先看即时匹配分，再决定要不要深入。", "Voyez d’abord le score de match, puis choisissez quoi approfondir.", "See the match score first, then decide what deserves a closer look."],
+    details: [["所有结果先用快速 0–100 匹配排序，不需要逐个等待 AI。", "Toutes les offres reçoivent d’abord un score rapide sur 100, sans attente IA offre par offre.", "Every result gets an immediate 0–100 match before any deep AI work."], ["前几条岗位会在后台补充职责、要求、加分点、真实缺口和 CV 提升空间。", "Les premières offres sont enrichies en arrière-plan avec missions, exigences, forces, écarts réels et potentiel du CV.", "Top roles are enriched in the background with responsibilities, requirements, strengths, real gaps and CV upside."]]
   },
   profile: {
     icon: ProfileIcon,
-    title: ["档案", "Dossier", "Profile"],
-    summary: ["维护简历和求职偏好。", "Gérez votre CV et vos critères.", "Maintain your CV and job preferences."],
-    details: [["导入、编辑和预览你的主简历。", "Importer, modifier et prévisualiser votre CV de référence.", "Import, edit and preview your master CV."], ["设置目标岗位、地点、合同类型和界面语言。", "Définir vos rôles, lieux, contrats et langue d’interface.", "Set target roles, locations, contract types and interface language."]]
+    title: ["我的", "Moi", "My"],
+    summary: ["管理你的事实来源和每个岗位的独立简历版本。", "Gérez votre source de vérité et vos versions de CV par offre.", "Manage your source of truth and independent role-specific CVs."],
+    details: [["Master Profile 是所有匹配与新简历的共同事实来源。", "Le Master Profile est la source commune de tous les matchs et nouveaux CV.", "The Master Profile is the shared fact source for every match and new CV."], ["每个岗位版本都独立从 Master 分叉，不会把上一份定制 CV 当作下一份输入。", "Chaque CV ciblé repart du Master ; une version d’offre ne devient jamais la source de la suivante.", "Every tailored CV branches from Master; one role CV never becomes the next role's input."]]
   }
 };
 
