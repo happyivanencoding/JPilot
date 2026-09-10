@@ -32,6 +32,29 @@ success. A failed cutover restores the previous image reference; data snapshots
 are retained separately for deliberate recovery. Busy model tasks postpone the
 cutover rather than being killed.
 
+## Yifeng staging
+
+Yifeng's collaboration branch has a separate deployment path. A push to `Yifeng`
+can deploy only to the isolated JobPilot staging stack; it does not deploy or
+restart production. The staging server account is `jobpilot-staging-deploy` and
+its forced command accepts only the current `origin/Yifeng` full SHA (plus a
+read-only `status` request). A current `main` SHA and arbitrary shell command were
+both explicitly rejected during installation.
+
+Staging runs under `/srv/apps/jobpilot-staging` with its own Docker Compose
+project/network and a synthetic `Louis` data root. It mounts no production
+Candidate directory, no production sessions and no OpenAI/DeepSeek key. It also
+publishes no VPS host port. Once the dedicated Cloudflare staging tunnel is
+configured, the intended review URL is `https://staging.jobs.thegreatnovel.com`.
+
+The staging deployment gate is deliberately smaller than the production merge
+gate: the exact Yifeng revision must complete the production Web build and then
+pass a live synthetic root/API smoke. A staging preview may therefore exist while
+branch tests are still red; those tests must be reconciled before the code is
+eligible for `main`. `main` remains owner-reviewed through CODEOWNERS and branch
+protection, and the existing production deployment continues to accept only
+current `main`.
+
 Android 0.3.9/code13 and Web/backend 0.5.2 keep the same public domain. The
 authenticated gateway now supports Google Identity Services plus the existing
 Cloudflare Access bridge. Google configuration stays in the private mounted

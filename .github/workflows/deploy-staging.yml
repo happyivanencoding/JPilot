@@ -1,0 +1,38 @@
+name: Deploy Yifeng staging
+
+on:
+  push:
+    branches: [Yifeng]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jobpilot-staging
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/Yifeng'
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Deploy exact Yifeng revision to isolated staging
+        env:
+          DEPLOY_KEY: ${{ secrets.VPS_STAGING_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$DEPLOY_KEY"
+          test -n "$KNOWN_HOSTS"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          trap 'rm -f ~/.ssh/id_ed25519' EXIT
+          ssh -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
+            jobpilot-staging-deploy@141.95.18.14 "$REVISION"
+          printf '### JobPilot staging\n\nDeployed `%s` from `Yifeng`.\n\nhttps://staging.jobs.thegreatnovel.com\n' "$REVISION" >> "$GITHUB_STEP_SUMMARY"
