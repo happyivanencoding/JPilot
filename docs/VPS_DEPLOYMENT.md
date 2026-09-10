@@ -24,12 +24,12 @@ also be dispatched manually on `main`. The deployment account accepts only a ful
 current-main commit SHA or a read-only status request. It cannot open a shell or
 forward ports. Production application API keys never live in GitHub Actions.
 
-During the 2026-09-10 staging-permission cutover, the repository-wide production
-`VPS_DEPLOY_KEY` secret was deliberately removed before Yifeng retained branch
-write access. Production runtime is unaffected, but new production deployments
-are intentionally paused until the owner copies that same restricted key into the
-`production` GitHub Environment and binds the production workflow to that
-environment. Do not recreate a repository-wide production deploy key as a shortcut.
+The 2026-09-10 Environment migration is complete. The production deploy job is
+bound to `environment: production`; that environment contains `VPS_DEPLOY_KEY`
+and `VPS_KNOWN_HOSTS` and only permits `main`. The staging environment contains
+`VPS_STAGING_DEPLOY_KEY` and `VPS_KNOWN_HOSTS` and only permits `Yifeng`.
+Repository Secrets are empty. Production run `34485270711` succeeded using the
+Environment credentials, followed by a passing VPS health check.
 
 The server fetches that exact public repository revision, builds a clean Linux
 image, runs Node tests and deterministic PDF checks, takes a consistent backup,
@@ -50,8 +50,23 @@ both explicitly rejected during installation.
 Staging runs under `/srv/apps/jobpilot-staging` with its own Docker Compose
 project/network and a synthetic `Louis` data root. It mounts no production
 Candidate directory, no production sessions and no OpenAI/DeepSeek key. It also
-publishes no VPS host port. Once the dedicated Cloudflare staging tunnel is
-configured, the intended review URL is `https://staging.jobs.thegreatnovel.com`.
+publishes no VPS host port. The dedicated Cloudflare tunnel
+`vps-jobpilot-staging` (`da4ff730-4fdb-4d1b-8961-fe49f063dea7`) is Healthy and routes
+`staging.jobs.thegreatnovel.com` to `http://localhost:3000` in the staging Web
+network namespace. Its token is a separate file owned by 1000:1000, mode 0400.
+
+Staging run `34485410457` succeeded for Yifeng revision
+`2b54b237870064db54c0d9f9372bac823841e0ab`; the deployed-SHA marker matches.
+Internal synthetic API returns HTTP 200 / profile id `louis`, and the connector
+readiness endpoint returns 200. Production container IDs did not change during
+staging deployment.
+
+**Public HTTPS remains blocked:** the existing Universal SSL certificate covers
+only `thegreatnovel.com` and `*.thegreatnovel.com`, not the requested two-level
+hostname. Both Windows and VPS HTTPS probes fail during TLS negotiation. The
+owner must choose a covered one-level hostname such as `jobs-staging.thegreatnovel.com`
+or authorize the dashboard's $10/month Advanced Certificate Manager option.
+No subscription was purchased; public staging browser/API acceptance is pending.
 
 The staging deployment gate is deliberately smaller than the production merge
 gate: the exact Yifeng revision must complete the production Web build and then
