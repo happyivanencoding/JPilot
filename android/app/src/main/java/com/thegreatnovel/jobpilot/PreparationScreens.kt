@@ -109,8 +109,9 @@ import java.time.ZoneOffset
     var remote by remember(state.profileId) { mutableStateOf(config.child("compensation").text("location_flexibility")) }
     var preferences by remember { mutableStateOf(false) }
     var contracts by remember(state.profileId) { mutableStateOf(config.child("target_roles").strings("contract_types").toSet()) }
+    val needsCv=state.snapshot.child("access").optBoolean("needsCv")
     LazyColumn(Modifier.fillMaxSize().imePadding().testTag("profile-content"),contentPadding = PaddingValues(22.dp),verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        item { SectionTitle(tr("我的档案","Votre profil, vos preuves.","Your profile. Your evidence."),state.snapshot.child("profile").text("name")) }
+        item { SectionTitle(if(needsCv)tr("从你的简历开始","Commençons par votre CV","Start with your CV")else tr("我的档案","Votre profil, vos preuves.","Your profile. Your evidence."),if(needsCv)tr("先上传一份简历，JobPilot 才能建立你的个人档案。","Importez d’abord votre CV pour créer votre dossier personnel.","Upload a CV first so JobPilot can build your personal profile.")else state.snapshot.child("profile").text("name")) }
         item { GlassCard(accent = true) {
             Icon(Icons.Rounded.Description,null,Modifier.size(34.dp),tint = MaterialTheme.colorScheme.primary)
             Text(tr("让简历成为起点","Le CV comme point de départ","Start with your CV"),fontSize = 22.sp,fontWeight = FontWeight.SemiBold)

@@ -1,6 +1,6 @@
 {
   "name": "jobpilot",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "description": "JobPilot Android-first application with its own local-first backend and phone-first Web client",
   "license": "AGPL-3.0-only",

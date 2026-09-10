@@ -59,13 +59,17 @@ export async function GET(req: Request) {
       return {version,tasks:prepareTaskHistory(profileId,version)};
     });
     store=reconcileCompletedEvaluationCards(profileId,tasks,store);
-    const restricted = (await headers()).get("x-jobpilot-profiles")?.split(",");
+    const requestHeaders=await headers();
+    const restricted = requestHeaders.get("x-jobpilot-profiles")?.split(",").map(value=>value.trim()).filter(Boolean);
+    const role=requestHeaders.get("x-jobpilot-role") || (restricted ? "user" : "admin");
     const profiles = listProfiles().filter(p => !restricted || restricted.includes(p.id)).map(({ id, name, shortName }) => ({ id, name, shortName }));
     const latest = (kind: string) => tasks.find((t:MobileTask) => t.kind === kind && t.status === "completed");
     const projectedJobs=store.jobs.map(j=>({...evaluationProjection(j,tasks),stage:stageOf(j.status)}));
+    const cv=read("cv");
     const snapshot={
-      version: "0.3.8", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
-      cv: read("cv"), cvState:{versionId:version.id,cvVersion:version.cvVersion,revision:version.revision,changedAt:version.createdAt},
+      version: "0.3.9", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
+      access:{role,canSwitchProfiles:role!=="user"&&profiles.length>1,needsCv:role==="user"&&!cv.trim()},
+      cv, cvState:{versionId:version.id,cvVersion:version.cvVersion,revision:version.revision,changedAt:version.createdAt},
       languageSettings:{uiLocale:locale,applicationLanguage:applicationLanguage(config || {},read("cv")),documentLanguage:documentLanguage(version)},
       config: config || {}, jobs: projectedJobs, dashboard: dashboardFor(projectedJobs), statuses: APPLICATION_STATUSES,
       tasks: tasks.slice(0,60).map((t:MobileTask)=>taskView(t,projectedJobs,false,locale)),

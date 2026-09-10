@@ -32,8 +32,11 @@ success. A failed cutover restores the previous image reference; data snapshots
 are retained separately for deliberate recovery. Busy model tasks postpone the
 cutover rather than being killed.
 
-Android 0.3.8/code12 continues to use the same domain and contract 0.3.8, so a
-server-only move does not require reinstalling the application.
+Android 0.3.9/code13 and Web/backend 0.5.2 keep the same public domain. The
+authenticated gateway now supports Google Identity Services plus the existing
+Cloudflare Access bridge. Google configuration stays in the private mounted
+JobPilot access file (or `JOBPILOT_GOOGLE_CLIENT_ID`), never in Git. See
+`GOOGLE_LOGIN_AND_ACCOUNT_ISOLATION.md` for admin/user Profile grants and first-CV onboarding.
 
 The old Windows scheduled tasks and data are retained for recovery. The ignored
 marker `.career-ops-web/production-migrated-to-vps` prevents both Windows start

@@ -49,9 +49,13 @@ import kotlin.math.exp
     val icons = listOf(Icons.Rounded.Home,Icons.Rounded.Search,Icons.Rounded.WorkOutline,Icons.Rounded.School,Icons.Rounded.PersonOutline)
     val tasks = state.snapshot.objects("tasks")
     val active = tasks.filter { it.text("status") in setOf("queued","running","reconciling") }
+    val access = state.snapshot.child("access")
+    val needsCv = access.optBoolean("needsCv")
+    val canSwitchProfiles = if(access.has("canSwitchProfiles")) access.optBoolean("canSwitchProfiles") else state.snapshot.objects("profiles").size > 1
     val keyboard = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     LaunchedEffect(state.destination) { state.destination?.let { tab = it.optInt("tab",tab); filter = it.text("filter"); filterRequest++; vm.consumeDestination() } }
     LaunchedEffect(state.profileId) { taskCenter = false }
+    LaunchedEffect(needsCv) { if(needsCv) tab=4 }
     BackHandler(tab != 0 && state.task == null && state.selectedJob == null && !state.analysisVisible && state.cvPreview == null) { tab = 0 }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -61,7 +65,7 @@ import kotlin.math.exp
                     Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp,vertical = 8.dp),verticalAlignment = Alignment.CenterVertically) {
                         Image(painterResource(R.drawable.ic_jobpilot),null,Modifier.size(34.dp))
                         Text("JobPilot",Modifier.padding(start = 8.dp).weight(1f),fontSize = 21.sp,letterSpacing=(-.6).sp,fontWeight = FontWeight.SemiBold)
-                        Box {
+                        if(canSwitchProfiles) Box {
                             TextButton({ profileMenu = true },modifier=Modifier.testTag("profile-switch"),contentPadding = PaddingValues(horizontal = 8.dp)) {
                                 Text(state.snapshot.objects("profiles").find { it.text("id") == state.profileId }?.text("shortName")?.substringBefore(" ·") ?: tr("档案","Profil","Profile"),maxLines = 1)
                                 Icon(Icons.Rounded.ExpandMore,null,Modifier.size(18.dp))
@@ -82,7 +86,7 @@ import kotlin.math.exp
             }
         },
         bottomBar = {
-            AnimatedVisibility(!keyboard) {
+            AnimatedVisibility(!keyboard && !needsCv) {
                 Column {
                     HorizontalDivider()
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha=.92f),tonalElevation = 1.dp) {
@@ -102,7 +106,7 @@ import kotlin.math.exp
                 }
                 LocalizationNotice(state.snapshot.child("localization"),vm::retryLocalization)
                 PullToRefreshBox(isRefreshing = state.loading,onRefresh = { vm.refresh() },modifier = Modifier.fillMaxSize()) {
-                    AnimatedContent(targetState = tab,label = "destination",transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(100)) }) { page ->
+                    AnimatedContent(targetState = if(needsCv) 4 else tab,label = "destination",transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(100)) }) { page ->
                         holder.SaveableStateProvider("${state.profileId}:$page") {
                             when(page) {
                                 0 -> OverviewScreen(state,vm,onExplore = { tab = 1 },onPrepare = { tab = 3 },onProfile = { tab = 4 },onFilter = { filter = it; filterRequest++; tab = 2 })
@@ -151,8 +155,8 @@ import kotlin.math.exp
     if(state.analysisVisible && state.snapshot.has("analysis")) AnalysisSheet(state,vm)
     if(state.cvPreview != null || state.previewLoading) CvPreviewDialog(state,vm)
     state.taskLaunch?.let { BackgroundTaskLaunch(it,state,vm::clearTaskLaunch) }
-    if(state.showWelcome) OnboardingDialog(welcome = true, tab = null, onDismiss = vm::dismissWelcome, onSkip = vm::skipOnboarding)
-    else state.walkthroughTab?.let { OnboardingDialog(welcome = false, tab = it, onDismiss = vm::dismissTabGuide, onSkip = vm::skipOnboarding) }
+    if(!needsCv && state.showWelcome) OnboardingDialog(welcome = true, tab = null, onDismiss = vm::dismissWelcome, onSkip = vm::skipOnboarding)
+    else if(!needsCv) state.walkthroughTab?.let { OnboardingDialog(welcome = false, tab = it, onDismiss = vm::dismissTabGuide, onSkip = vm::skipOnboarding) }
 }
 
 @Composable private fun BackgroundTaskLaunch(feedback: TaskLaunchFeedback,state:PilotState,onDone: () -> Unit) {
@@ -249,7 +253,7 @@ import kotlin.math.exp
         Text(tr("为下一份工作，做好决定。","Votre prochain poste.\nDes décisions éclairées.","Your next role.\nBetter-informed decisions."),Modifier.padding(vertical = 16.dp),fontSize = 25.sp,lineHeight = 32.sp,fontWeight = FontWeight.SemiBold)
         Hint(tr("你的简历、岗位判断和投递进展。档案保存在电脑上，分析使用你配置的 AI 服务。","Votre CV, vos opportunités et vos candidatures. Dossiers sur votre ordinateur ; analyses via votre service IA configuré.","Your CV, opportunities and applications. Records stay on your computer; analysis uses your configured AI service."))
         Spacer(Modifier.height(30.dp))
-        PrimaryButton(if(state.loginPending) tr("等待浏览器确认","Confirmez dans le navigateur","Confirm in your browser") else tr("安全登录","Se connecter","Sign in"),!state.working && !state.loginPending) { vm.beginLogin { context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(it))) } }
+        PrimaryButton(if(state.loginPending) tr("等待浏览器确认","Confirmez dans le navigateur","Confirm in your browser") else tr("登录","Se connecter","Sign in"),!state.working && !state.loginPending) { vm.beginLogin { context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(it))) } }
         if(state.loginPending || state.working) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
         state.error?.let { Text(product(it),Modifier.padding(vertical = 12.dp),color = MaterialTheme.colorScheme.error) }
         if(BuildConfig.DEBUG) TextButton(vm::usbLogin,enabled = !state.working) { Icon(Icons.Rounded.Usb,null,Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(tr("通过 USB 连接电脑","Connexion USB au PC","Connect through USB")) }

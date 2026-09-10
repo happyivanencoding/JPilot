@@ -70,3 +70,14 @@ test('translation polling stops on success or a failed display job', () => {
   assert.equal(pendingDisplay({localization:{pending:true,failed:true}}),false);
   assert.equal(pendingDisplay({localization:{pending:false}}),false);
 });
+test('shared access is profile-scoped and a first-time ordinary user is held on CV setup', () => {
+  const request=fs.readFileSync(new URL('../src/lib/profile-request.ts',import.meta.url),'utf8');
+  const profiles=fs.readFileSync(new URL('../src/app/api/profiles/route.ts',import.meta.url),'utf8');
+  const mobile=fs.readFileSync(new URL('../src/app/api/mobile/route.ts',import.meta.url),'utf8');
+  const app=fs.readFileSync(new URL('../src/components/jobpilot/jobpilot-app.tsx',import.meta.url),'utf8');
+  assert.match(request,/x-jobpilot-profiles/);
+  assert.match(profiles,/allowedProfileIds/);
+  assert.match(mobile,/needsCv:role==="user"&&!cv\.trim\(\)/);
+  assert.match(app,/data-testid="cv-required-screen"/);
+  assert.match(app,/!needsCv && <nav className="jp-nav"/);
+});

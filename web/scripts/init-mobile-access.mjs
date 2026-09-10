@@ -17,26 +17,18 @@ const sharedEmail = shareIndex >= 0 ? String(process.argv[shareIndex + 1] || '')
 if (shareIndex >= 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sharedEmail)) throw new Error('Pass a valid email after --share-with.');
 if (fs.existsSync(destination)) {
   const data=JSON.parse(fs.readFileSync(destination,'utf8'));
-  const grants = registry.profiles.map(p=>p.id);
   if (sharedEmail) {
-    if (!Array.isArray(data.accounts?.[email])) throw new Error('The configured owner account does not match the default profile.');
-    if (Object.keys(data.accounts).length > 1 && data.workspaceMode !== 'shared') throw new Error('Existing multi-account configuration is not an explicit shared workspace.');
-    const updated={...data,workspaceMode:'shared',accounts:{...data.accounts,[email]:grants,[sharedEmail]:grants}};
-    fs.copyFileSync(destination,destination+'.before-share.bak');
+    const updated={...data,workspaceMode:'shared',accounts:{...data.accounts,[email]:{role:'admin'},[sharedEmail]:{role:'admin'}}};
     fs.writeFileSync(destination+'.tmp',JSON.stringify(updated,null,2)+'\n',{mode:0o600});fs.renameSync(destination+'.tmp',destination);
-    console.log('Shared workspace member granted; profile count='+grants.length);
+    console.log('Shared workspace admin granted.');
   } else if(process.argv.includes('--sync-owner-profiles')) {
-    if(Object.keys(data.accounts || {}).length!==1 && data.workspaceMode !== 'shared')throw new Error('Only the existing owner or an explicit shared workspace may synchronize profile grants.');
-    if (!Array.isArray(data.accounts?.[email])) throw new Error('The configured owner account does not match the default profile.');
-    const updated={...data,accounts:Object.fromEntries(Object.keys(data.accounts).map(accountEmail=>[accountEmail,grants]))};
-    fs.copyFileSync(destination,destination+'.before-profile-sync.bak');
+    const updated={...data,accounts:{...data.accounts,[email]:{role:'admin'}}};
     fs.writeFileSync(destination+'.tmp',JSON.stringify(updated,null,2)+'\n',{mode:0o600});fs.renameSync(destination+'.tmp',destination);
-    console.log('Profile grants synchronized; profile count='+grants.length);
+    console.log('Owner migrated to dynamic admin access. Other accounts were not widened.');
   } else console.log('Existing mobile access configuration preserved.');
 } else {
-  // This release is the owner's private workspace, NOT a multi-tenant hosting service.
-  const data = { host: 'jobs.thegreatnovel.com', accounts: { [email]: registry.profiles.map(p => p.id) } };
+  const data = { host: 'jobs.thegreatnovel.com', accounts: { [email]: {role:'admin'} } };
   fs.mkdirSync(path.dirname(destination),{recursive:true});
   fs.writeFileSync(destination,JSON.stringify(data,null,2)+'\n',{mode:0o600});
-  console.log('Owner-only mobile access initialized; profile count=' + registry.profiles.length);
+  console.log('Owner-only mobile access initialized as admin.');
 }

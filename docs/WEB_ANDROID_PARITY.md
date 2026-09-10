@@ -8,6 +8,13 @@ The Web client is now JobPilot, not a separate upstream Career-Ops workbench. Th
 
 **Hard parity release gate:** every Android UI/product behavior change must include and verify its equivalent phone-first Web behavior in the same development change/release. An Android release is not complete while the Web version is intentionally left behind. Backend-only changes are the normal exception.
 
+## 0.5.2 parity delta — Android 0.3.9
+
+- Web and Android use the same gateway login route. Once the private Google Web Client ID is configured, both flows open Google Identity Services in the system/browser surface; Cloudflare Access remains a compatibility fallback.
+- `admin` accounts may switch across the current Profile registry. Ordinary `user` accounts receive exactly one Profile grant; Web and Android hide the Profile switch for them.
+- If an ordinary user's canonical CV is empty, both clients keep that user on the Profile/CV screen and hide normal navigation until the existing upload/preview/confirm flow saves a canonical CV.
+- The gateway and Web API both enforce Profile scope. `/api/profiles` is filtered as well, so unshared Profile names are not exposed to ordinary users.
+
 ## 0.4.6 parity delta — Android 0.3.8
 
 - Web and Android both ship the same first-use welcome plus one-time five-tab onboarding. Web persists it in `localStorage`; Android uses app preferences.
