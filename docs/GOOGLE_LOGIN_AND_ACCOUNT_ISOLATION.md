@@ -1,5 +1,19 @@
 # Google login and per-user Profile isolation
 
+## Production continuation check — 2026-09-10
+
+Google production activation remains **BLOCKED**. The signed-in Google Cloud account has no clearly identified JobPilot project in its All projects list; New project displays **Increase Project Limit**. No other Google project was changed, no JobPilot client was created, and the earlier Project OS client must not be reused for JobPilot. No Firebase, Identity Platform, extra API scopes, publication or OAuth verification was configured.
+
+The VPS private configuration was read without exposing account emails or session tokens: two admins, one ordinary user bound to `youness`, empty `googleClientId`, uid/gid `1000:1000`, mode `0400`. The browser owner matches a production admin. The other admin has not been matched to Yifeng through a real Google account; this is unverified, not a proven mismatch. Do not activate Google until that identity is confirmed.
+
+Both existing admin sessions returned HTTP 200, `role=admin` and four Profiles through the public `/api/mobile` endpoint. These are existing sessions, **not Google-login evidence**. The ordinary user has no active production session. Production ordinary-user Google login and data isolation remain pending that user's own sign-in.
+
+Unauthenticated `/api/mobile` returns 401; `/api/mobile-auth/login` redirects to the retained bridge; the bridge responds with 302; pairing start returns 200 with `provider=cloudflare` and the real production host. VPS health passed at 07:51 UTC: gateway/Web healthy, Tunnel ready, backup fresh. No production configuration, containers, Candidate data or AI tasks were changed by this check.
+
+Targeted local tests (`node --test tests/mobile-gateway.test.mjs tests/jobpilot-web.test.mjs`) passed 14/14 using isolated fixtures. Source inspection also confirms allowlist-only Google access, one-Profile user grants, query/body/header scope rejection, filtered `/api/profiles`, and CV onboarding with `needsCv=true`. Default `invite-user` creates an independent profile without canonical `cv.md`; retain that path for new testers. Do not mistake regression/source checks for live Google or personal-data isolation acceptance.
+
+ADB reported no connected devices. Existing APK metadata is 0.3.9/code13; no installation or Android login was performed. Google Web login, owner Google login, Yifeng identity, ordinary-user production Google isolation and Android pairing: **BLOCKED**. Cloudflare fallback and VPS health: **PASS**. Resume after project quota and real-account/device prerequisites are available; preserve fallback and the single-file bind-mount precautions below.
+
 ## Product contract
 
 JobPilot has two account roles at the authenticated gateway:
