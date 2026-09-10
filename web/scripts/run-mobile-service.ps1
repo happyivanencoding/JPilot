@@ -1,6 +1,10 @@
 param([ValidateSet('web','gateway')][string]$Service, [switch]$UsbDebug)
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+if (Test-Path (Join-Path $Root '.career-ops-web\production-migrated-to-vps')) {
+    Write-Output 'Production runs on the VPS. This local service is retained for deliberate recovery only; see docs/VPS_DEPLOYMENT.md.'
+    exit 0
+}
 Set-Location (Join-Path $Root 'web')
 $env:CAREER_OPS_ROOT = $Root
 $env:JOBPILOT_USB_LOGIN = if ($UsbDebug) { '1' } else { '0' }

@@ -1,6 +1,9 @@
 param([switch]$RestartWeb, [switch]$RestartGateway, [switch]$UsbDebug)
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+if (Test-Path (Join-Path $Root '.career-ops-web\production-migrated-to-vps')) {
+    throw 'Production has moved to the VPS. Follow the recovery procedure before restarting this old local data copy.'
+}
 $Runner = Join-Path $PSScriptRoot 'run-mobile-service.ps1'
 $Shell = (Get-Command powershell.exe -ErrorAction Stop).Source
 $User = [Security.Principal.WindowsIdentity]::GetCurrent().Name
