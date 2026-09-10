@@ -35,4 +35,4 @@ jobs:
           trap 'rm -f ~/.ssh/id_ed25519' EXIT
           ssh -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
             jobpilot-staging-deploy@141.95.18.14 "$REVISION"
-          printf '### JobPilot staging\n\nDeployed `%s` from `Yifeng`.\n\nhttps://staging.jobs.thegreatnovel.com\n' "$REVISION" >> "$GITHUB_STEP_SUMMARY"
+          printf '### JobPilot staging\n\nDeployed `%s` from `Yifeng`.\n\nhttps://jobs-staging.thegreatnovel.com\n' "$REVISION" >> "$GITHUB_STEP_SUMMARY"
