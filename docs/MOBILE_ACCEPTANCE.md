@@ -1,6 +1,6 @@
 # JobPilot mobile — acceptance record
 
-Date: 2026-09-09, Europe/Paris. Current source/APK: **Android 0.3.7/code11**; the Samsung was not connected to ADB at this release check, so the latest physically verified installed build remains **0.3.6/code10**. Production backend build is **0.3.7** and Web is **0.4.5**. Language-specific acceptance and historical limits remain in `ANDROID_LANGUAGE_SEPARATION.md`; earlier release evidence below is retained. Private evidence remains in ignored `.career-ops-web/mobile-qa/` directories.
+Latest physical acceptance: **2026-09-10**, Samsung SM-S928U1, installed **Android 0.3.8/code12**, authenticated remote backend with no ADB reverse. Web/backend **0.5.1** includes the PDF emphasis fix discovered on the device. Two composite instrumented methods passed (56.179 s and 9.985 s); one fictional new tailored-CV task completed in 21.066 s and was rejected without changing the master CV. Detailed current evidence and limits: `DEVICE_ACCEPTANCE_2026-09-10.md`. All subsequent version-specific records below remain historical.
 
 ## 0.3.7 collapsible interview plan / inline AI progress acceptance
 

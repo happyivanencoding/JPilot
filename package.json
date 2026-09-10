@@ -1,10 +1,12 @@
 {
   "name": "jobpilot",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "JobPilot Android-first application with its own local-first backend and phone-first Web client",
   "license": "AGPL-3.0-only",
-  "engines": { "node": ">=22.0.0" },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "npm --prefix web run dev",
     "build": "npm --prefix web run build",
@@ -13,5 +15,8 @@
     "typecheck": "npm --prefix web run typecheck",
     "qa:backend": "npm --prefix web run qa:backend"
   },
-  "repository": { "type": "git", "url": "https://github.com/happyivanencoding/JPilot" }
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happyivanencoding/JPilot"
+  }
 }

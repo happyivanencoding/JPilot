@@ -83,14 +83,14 @@ export function tailoredHtml(
     body ? `<section><h2>${labels[name]}</h2>${body}</section>` : "";
   content += section(
     "summary",
-    payload.summary ? `<p>${escape(payload.summary)}</p>` : "",
+    payload.summary ? `<p>${inline(payload.summary)}</p>` : "",
   );
   content += section(
     "experience",
     (payload.experience || [])
       .map(
         (item) =>
-          `<div class="experience"><h3 class="entry-heading"><span>${escape(item.company)}</span><span>${escape(item.dates)}</span></h3><p class="position">${escape(item.role)}${item.location ? ` — ${escape(item.location)}` : ""}</p><ul>${(item.bullets || []).map((text) => `<li>${escape(text)}</li>`).join("")}</ul></div>`,
+          `<div class="experience"><h3 class="entry-heading"><span>${escape(item.company)}</span><span>${escape(item.dates)}</span></h3><p class="position">${escape(item.role)}${item.location ? ` — ${escape(item.location)}` : ""}</p><ul>${(item.bullets || []).map((text) => `<li>${inline(text)}</li>`).join("")}</ul></div>`,
       )
       .join(""),
   );
@@ -99,7 +99,7 @@ export function tailoredHtml(
     (payload.projects || [])
       .map(
         (item) =>
-          `<h3>${escape(item.name)}</h3><p>${escape(item.description)}</p>${item.tech ? `<p>${escape(item.tech)}</p>` : ""}`,
+          `<h3>${escape(item.name)}</h3><p>${inline(item.description)}</p>${item.tech ? `<p>${inline(item.tech)}</p>` : ""}`,
       )
       .join(""),
   );
@@ -108,7 +108,7 @@ export function tailoredHtml(
     (payload.education || [])
       .map(
         (item) =>
-          `<h3 class="entry-heading"><span>${escape(item.title)}</span><span>${escape(item.year)}</span></h3><p>${escape(item.org)}</p>${item.description ? `<p>${escape(item.description)}</p>` : ""}`,
+          `<h3 class="entry-heading"><span>${escape(item.title)}</span><span>${escape(item.year)}</span></h3><p>${escape(item.org)}</p>${item.description ? `<p>${inline(item.description)}</p>` : ""}`,
       )
       .join(""),
   );

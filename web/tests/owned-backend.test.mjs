@@ -261,3 +261,13 @@ test("malformed existing preferences are rejected rather than seeded or overwrit
   assert.equal(response.status, 409);
   assert.equal(fs.readFileSync(file, "utf8"), "candidate: [broken");
 });
+
+test("tailored PDF prose renders emphasis without leaking Markdown markers", async () => {
+  const {tailoredHtml}=await import("../src/lib/backend/cv-document.mjs");
+  const html=tailoredHtml({candidate:{name:"Synthetic candidate"},summary:"**Research** & analysis",experience:[{company:"Demo",bullets:["**Trésorerie :** suivi des encaissements.","Literal <b>input</b> stays text."]}],projects:[{name:"Project",description:"**Python** evidence"}],education:[{title:"Degree",description:"**Statistics** training"}]},{language:"fr"});
+  assert.match(html,/<strong>Trésorerie :<\/strong> suivi des encaissements\./);
+  assert.match(html,/<strong>Research<\/strong> &amp; analysis/);
+  assert.match(html,/<strong>Python<\/strong>/);
+  assert.doesNotMatch(html,/\*\*/);
+  assert.match(html,/Literal &lt;b&gt;input&lt;\/b&gt; stays text\./);
+});

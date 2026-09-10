@@ -166,3 +166,8 @@ This is **not deployed** and **not merged into main**. The user explicitly put m
 The Web/backend runtime is now JobPilot-owned: the root CLI/provider/mode/template execution engine has been removed after replacement and acceptance. Android remains 0.3.8/code12 and its source is unchanged; all 0.4.6 main product interactions are retained. The contract remains 0.3.8, so the installed app does not require replacement for this backend-only release.
 
 Current evidence: 165 Node tests, production build, Chromium/WebKit each 25 UI checks and seven actual-backend browser checks, four deterministic PDF scenarios and eight real-model functional flows passed. Android packaging succeeded with up-to-date tasks; unit tests were NO-SOURCE. No phone installation or device test was performed. Details and data/ownership limitations: `OWNED_CORE.md`.
+
+
+## Physical Android follow-up — 2026-09-10
+
+The existing APK is now physically installed as 0.3.8/code12. Native navigation, language separation, saved-report reuse, one new assessed PDF draft, reject, profile isolation and interview controls were exercised. A literal-Markdown-emphasis issue found in the real tailored PDF is corrected by the shared renderer in Web/backend 0.5.1; both clients consume the corrected PDF. No Android/Web interface change was necessary. Current backend regression: 166/166 and production build passed. See `DEVICE_ACCEPTANCE_2026-09-10.md` for the exact physical evidence, interrupted intermediate run and untested boundaries.

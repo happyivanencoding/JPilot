@@ -82,3 +82,8 @@ Main was fast-forwarded from `1c3ebb3` to source commit `7501b9f` after acceptan
 The installed main directory completed `npm ci` and a fresh Web 0.5.0 production build. Web and gateway were restarted: local Web returned HTTP 200 with the JobPilot page, and the unauthenticated gateway returned its expected HTTP 302 login redirect. This is a backend deployment, not an Android installation or an authenticated phone acceptance claim.
 
 A private before/after comparison confirmed that 50 existing canonical/profile/ledger/report files across four profiles retained their contents through the cutover. No Candidate data was committed. An orphaned old gateway process was explicitly verified and stopped during maintenance; stopping the scheduled task alone is not proof that its listener has gone away.
+
+
+## Physical Android follow-up — 2026-09-10
+
+The existing APK is now physically installed as 0.3.8/code12. Native navigation, language separation, saved-report reuse, one new assessed PDF draft, reject, profile isolation and interview controls were exercised. A literal-Markdown-emphasis issue found in the real tailored PDF is corrected by the shared renderer in Web/backend 0.5.1; both clients consume the corrected PDF. No Android/Web interface change was necessary. Current backend regression: 166/166 and production build passed. See `DEVICE_ACCEPTANCE_2026-09-10.md` for the exact physical evidence, interrupted intermediate run and untested boundaries.
