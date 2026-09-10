@@ -52,21 +52,25 @@ project/network and a synthetic `Louis` data root. It mounts no production
 Candidate directory, no production sessions and no OpenAI/DeepSeek key. It also
 publishes no VPS host port. The dedicated Cloudflare tunnel
 `vps-jobpilot-staging` (`da4ff730-4fdb-4d1b-8961-fe49f063dea7`) is Healthy and routes
-`staging.jobs.thegreatnovel.com` to `http://localhost:3000` in the staging Web
+`jobs-staging.thegreatnovel.com` to `http://localhost:3000` in the staging Web
 network namespace. Its token is a separate file owned by 1000:1000, mode 0400.
 
-Staging run `34485410457` succeeded for Yifeng revision
-`2b54b237870064db54c0d9f9372bac823841e0ab`; the deployed-SHA marker matches.
+Push-triggered staging run `34486795708` succeeded for Yifeng revision
+`7d0f6d48011971a6f97d66f425711580813c6f27`; the deployed-SHA marker matches.
 Internal synthetic API returns HTTP 200 / profile id `louis`, and the connector
 readiness endpoint returns 200. Production container IDs did not change during
 staging deployment.
 
-**Public HTTPS remains blocked:** the existing Universal SSL certificate covers
-only `thegreatnovel.com` and `*.thegreatnovel.com`, not the requested two-level
-hostname. Both Windows and VPS HTTPS probes fail during TLS negotiation. The
-owner must choose a covered one-level hostname such as `jobs-staging.thegreatnovel.com`
-or authorize the dashboard's $10/month Advanced Certificate Manager option.
-No subscription was purchased; public staging browser/API acceptance is pending.
+**Public HTTPS acceptance passed on 2026-09-10:** the first-level hostname uses
+the existing free Universal SSL certificate. The public root and
+`/api/mobile?profileId=louis` return HTTP 200; the snapshot profile id is `louis`,
+and `/api/profiles` lists only `louis`. Chrome opens the current Yifeng branch's
+PRIVATE BETA invitation entry page. Invitation/onboarding product behavior was
+not changed or separately accepted in this infrastructure task.
+
+The former two-level hostname was replaced with the owner's approval. No ACM
+subscription was purchased. Production HTTPS and health remain passing, with
+production container IDs and start times unchanged.
 
 The staging deployment gate is deliberately smaller than the production merge
 gate: the exact Yifeng revision must complete the production Web build and then
