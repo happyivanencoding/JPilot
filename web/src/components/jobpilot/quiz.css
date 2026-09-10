@@ -1,0 +1,50 @@
+/* The app shell intentionally locks its body scroll; the standalone quiz is a public landing page. */
+.jp-quiz-shell{min-height:100dvh;overflow-y:auto;padding-bottom:clamp(50px,8vw,100px)}
+.jp-quiz-intro{max-width:640px;margin:48px auto 0;background:#fff;border:1px solid #dde9e2;border-radius:24px;padding:clamp(25px,6vw,52px);box-shadow:0 20px 70px #2f574616}
+.jp-quiz-intro-icon{width:58px;height:58px;display:flex;align-items:center;justify-content:center;margin-bottom:20px;border-radius:18px;background:#dff1e7;color:#286b53}
+.jp-quiz-intro h1{font-size:34px;line-height:1.15;letter-spacing:-.04em;margin:12px 0}
+.jp-quiz-intro-lead{color:#667c72;line-height:1.75;margin:0 0 24px}
+.jp-quiz-intro-points{display:flex;flex-direction:column;gap:11px;padding:17px;border:1px solid #e2ebe6;border-radius:14px;background:#f8fbf9}
+.jp-quiz-intro-points div{display:flex;align-items:center;gap:10px;color:#315b4b;font-size:14px;line-height:20px}
+.jp-quiz-intro-points svg{color:#286b53;flex:none}
+.jp-quiz-start{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:50px;margin-top:24px;border:0;border-radius:10px;background:#286b53;color:#fff;font:inherit;font-weight:800;cursor:pointer}
+.jp-quiz-intro-note,.jp-quiz-intro-disclaimer{font-size:12px;line-height:1.55;text-align:center;color:#84958d}
+.jp-quiz-intro-note{margin:14px 0 0;color:#58776a;font-weight:600}
+.jp-quiz-intro-disclaimer{margin:18px 0 0}
+.jp-quiz-card>.jp-quiz-eyebrow{margin-top:24px}
+.jp-quiz-card h1{margin-top:9px}
+.jp-quiz-options button{min-height:70px}
+.jp-quiz-option-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}
+.jp-quiz-option-copy strong{font-size:15px;line-height:21px;font-weight:700}
+.jp-quiz-option-copy span{color:#6d8177;font-size:12px;line-height:18px}
+.jp-quiz-options--multi{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.jp-quiz-options--multi button{align-items:flex-start;min-height:94px;padding:14px}
+.jp-quiz-check{display:flex;align-items:center;justify-content:center;width:22px;height:22px;border:1px solid #b8cdc1;border-radius:7px;color:#fff;font-size:14px;font-weight:800;flex:none}
+.jp-quiz-options--multi button.selected .jp-quiz-check{border-color:#286b53;background:#286b53}
+.jp-quiz-continue{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:48px;margin-top:18px;border:0;border-radius:9px;background:#286b53;color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.jp-quiz-continue:disabled{cursor:not-allowed;opacity:.42}
+.jp-quiz-result{margin-bottom:30px;text-align:left;overflow:visible}
+.jp-quiz-result-icon{margin-left:0}
+.jp-quiz-result h1{margin-top:9px}
+.jp-quiz-result-lead{margin-left:0}
+.jp-quiz-score{justify-content:flex-start;margin-left:0}
+.jp-quiz-type-card{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:24px 0 16px;padding:18px;border:1px solid #cfe4d8;border-radius:15px;background:#f2faf5}
+.jp-quiz-type-card>div{min-width:0}
+.jp-quiz-card-label{margin:0 0 7px;color:#59806e;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.jp-quiz-type-card strong{display:block;color:#214c3b;font-size:19px;line-height:25px}
+.jp-quiz-type-card p:last-child{margin-top:7px;color:#5c7568;font-size:13px;line-height:20px}
+.jp-quiz-type-mark{display:flex;align-items:center;justify-content:center;width:65px;height:65px;border-radius:18px;background:#286b53;color:#fff;font-size:15px;font-weight:800;letter-spacing:.08em;flex:none}
+.jp-quiz-result-section{margin-top:16px;padding:18px;border:1px solid #e2ebe6;border-radius:14px;text-align:left}
+.jp-quiz-result-section h2,.jp-quiz-result-grid h2{font-size:15px;margin:0 0 13px;color:#244238}
+.jp-quiz-signal-list{display:flex;flex-wrap:wrap;gap:9px}
+.jp-quiz-signal-list span{display:inline-flex;align-items:center;gap:6px;padding:8px 10px;border-radius:8px;background:#edf7f1;color:#35644f;font-size:13px;line-height:18px}
+.jp-quiz-signal-list svg{color:#286b53}
+.jp-quiz-result-grid{margin-top:16px}
+.jp-quiz-tag-list{display:flex;flex-wrap:wrap;gap:7px}
+.jp-quiz-tag-list span{padding:7px 9px;border-radius:7px;background:#f3f6f4;color:#526d60;font-size:12px;line-height:17px}
+.jp-quiz-next-steps p{display:flex;gap:9px;align-items:flex-start;margin:10px 0;color:#526d60;font-size:13px;line-height:20px}
+.jp-quiz-next-steps p:last-child{margin-bottom:0}
+.jp-quiz-cta{grid-template-columns:1fr auto}
+.jp-quiz-cta>div{min-width:0}
+.jp-quiz-cta a{white-space:nowrap}
+@media(max-width:720px){.jp-quiz-intro{margin-top:24px;padding:26px 20px;border-radius:18px}.jp-quiz-intro h1{font-size:29px}.jp-quiz-options--multi{grid-template-columns:1fr}.jp-quiz-type-card{align-items:flex-start}.jp-quiz-type-mark{width:58px;height:58px}.jp-quiz-cta{display:block}.jp-quiz-cta a{margin-top:15px}.jp-quiz-cta small{display:block;margin-top:12px}}
