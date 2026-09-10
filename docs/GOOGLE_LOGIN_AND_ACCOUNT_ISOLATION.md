@@ -1,5 +1,11 @@
 # Google login and per-user Profile isolation
 
+## Partner administrator update — 2026-09-10
+
+The user supplied and explicitly authorized the partner's Google email. That exact email was absent from the production allowlist, so it was added as `admin` without removing or changing the two existing admins or the ordinary user's single-Profile binding. The current total is **3 admins + 1 ordinary user**. Do not continue assuming that the previously inferred second admin is the partner: they are distinct allowlist entries.
+
+A private backup preceded an in-place write preserving the access file inode, uid/gid `1000:1000` and mode `0400`. The running gateway's mounted configuration was read back and confirmed the new admin. No other config fields, production data or containers were changed. Google Client ID remains unset while the official project quota request is pending. The partner's actual Google sign-in is still unverified; user confirmation of the email is not an OAuth login test.
+
 ## Production continuation check — 2026-09-10
 
 Google production activation remains **BLOCKED**. The signed-in Google Cloud account has no clearly identified JobPilot project in its All projects list; New project displays **Increase Project Limit**. No other Google project was changed, no JobPilot client was created, and the earlier Project OS client must not be reused for JobPilot. No Firebase, Identity Platform, extra API scopes, publication or OAuth verification was configured.
