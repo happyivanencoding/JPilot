@@ -68,7 +68,7 @@ This layer is an implementation dependency, **not** a product/upstream authority
 
 Current product AI does not delegate business work to a coding agent. `web/src/lib/model-transport.ts` is the replaceable model transport boundary used by formal evaluation, candidate coaching/CV analysis, display localization and tailored-CV generation. The backend owns prompts, candidate evidence loading, structured job retrieval, task state, report/CV persistence and rendering.
 
-Production is currently configured for `direct-openai` with `gpt-5.6-luna / low`. The API key is read from a local ignored key-file path configured in `web/.env.local`; neither the key nor a machine-specific path belongs in Git. AgentDock/ACP remains only as a transport fallback/legacy compatibility path and must remain transport-only if used.
+Production is currently configured for `direct-openai` with `gpt-5.6-luna / low`. The API key is read from a local ignored key-file path configured in `web/.env.local`; neither the key nor a machine-specific path belongs in Git. For new fallback work, **Runtime ACP** is the preferred transport-only adapter. AgentDock-named transport code remains legacy compatibility/history and is not the development execution layer.
 
 The loopback `/api/internal/prewarm` endpoint now validates/prepares the selected model transport. Direct OpenAI requires no ACP session creation, so service startup must not block on `acp_session/new`.
 

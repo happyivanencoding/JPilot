@@ -4,6 +4,8 @@ Updated: 2026-09-10 (Europe/Paris). Samsung physically upgraded in place to **An
 
 **Repository authority:** `https://github.com/happyivanencoding/JPilot`. Android is the canonical frontend for JPilot product decisions. Web follows this native implementation; it is not a second desktop product. **Every Android UI/product update must ship and verify the equivalent Web behavior in the same development change/release; parity cannot be deferred and still be called complete.** Backend-only changes are the normal exception. `santifer/career-ops` is historical provenance only and its updater is no longer part of the JPilot development workflow. See `PROJECT_STRUCTURE.md`.
 
+**Current execution layer (2026-09-11):** development/maintenance now uses **Runtime MCP directly** for files, commands, Git, LSP, browser and Windows UI Automation. AgentDock is legacy compatibility/fallback only. Runtime ACP stays dormant unless the user explicitly asks for an independent ACP/Codex/model run. Older AgentDock references below are historical/product-transport evidence, not current development instructions.
+
 ## Android 0.3.8 / Web 0.4.6 — onboarding + hide internal usage metrics
 
 - Merged Yifeng's first-use onboarding on top of the current Android/Web product rather than replacing current main. Welcome + one-time guides cover Home, Offers, Applications, Prepare and Profile in zh/fr/en.

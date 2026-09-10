@@ -8,6 +8,12 @@ Before modifying this repository, read and follow:
 
 That handoff is the single project authority. Then inspect the actual files relevant to the task; do not infer current behavior from historical Career-Ops documentation.
 
+### Runtime execution layer
+
+All new development and maintenance execution uses **Runtime MCP directly**. For files, shell/commands, Git, LSP, browser automation and Windows UI Automation, use Runtime native tools rather than routing normal work through AgentDock. AgentDock is legacy compatibility/fallback only and must not be chosen as the primary execution layer when Runtime is available. Runtime ACP remains dormant by default; `acp_start` / `acp_resume` are allowed only after an explicit user request for an independent ACP agent/model experiment.
+
+Historical benchmark/audit text and legacy filenames containing `agentdock` remain factual history/compatibility names; do not mechanically rename them unless the underlying product code is actually migrated. They are not current development instructions.
+
 ## 2. Repository authority
 
 The only development repository is:
@@ -41,7 +47,7 @@ See `docs/OWNED_CORE.md` for the replacement scope, public protocol support and 
 
 ## 5. AI runtime architecture
 
-All product model calls go through the replaceable JobPilot model transport boundary. Production currently uses **direct OpenAI API**; ACP/AgentDock is a fallback/legacy transport and, whenever used, must remain **transport-only** rather than acting as a coding-agent runtime for JPilot business flows.
+All product model calls go through the replaceable JobPilot model transport boundary. Production currently uses **direct OpenAI API**; if an ACP fallback is used for new work, prefer the **Runtime ACP adapter** and keep it **transport-only** rather than acting as a coding-agent runtime for JPilot business flows. AgentDock-named adapters/files are legacy compatibility and historical evidence, not the preferred runtime.
 
 - Business orchestration, search, file access, persistence, browser actions and prompt assembly belong to JPilot backend code.
 - Model transports receive explicit bounded inputs and return model output.
