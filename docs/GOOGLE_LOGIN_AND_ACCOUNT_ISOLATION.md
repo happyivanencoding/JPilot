@@ -24,6 +24,10 @@ node web/scripts/manage-access.mjs set-google-client --client-id GOOGLE_WEB_CLIE
 
 `invite-user` creates an empty, isolated Profile if needed. It creates minimal private config/notes/candidature files but deliberately does not create a CV, so first login enters CV onboarding. Existing Candidate Profiles are not deleted by `revoke`.
 
+Current production status (2026-09-10): the three pre-existing legacy grants have been migrated to two `admin` accounts and one `user` bound to a single existing Profile. Both admin accounts have been verified through existing authenticated production sessions; the ordinary-user mapping is present in the production config but that account had no active session during this migration. The Google Web Client ID is still unset, so production login still falls back to the Cloudflare bridge.
+
+The current VPS mounts `mobile-access.json` into the gateway as a single read-only bind-mounted file. If host-side tooling updates that file by atomic rename, the running container can keep the old inode even though the gateway code rereads its path for every request. In that case preserve the production file ownership/mode required by the non-root container and recreate the gateway container after the write. Server-specific commands belong in the private `server-infra` handoff rather than this repository.
+
 ## Google browser configuration
 
 The gateway uses Google Identity Services in the browser and verifies the returned Google ID Token itself. It does not need a Google Client Secret and Android does not embed a Google SDK or secret.
@@ -32,7 +36,7 @@ Create a Google **Web application** OAuth client for JobPilot and authorize this
 
 `https://jobs.thegreatnovel.com`
 
-Then save the returned Web Client ID with `manage-access.mjs set-google-client`. The gateway reloads this private access file on requests, so account grants, revocations and the Client ID take effect without restarting the gateway. Once configured, `/api/mobile-auth/login` and Android's existing browser-pairing flow use Google. The previous Cloudflare Access bridge remains available as a compatibility fallback and should not be deleted until Google login has been verified with both an admin and an ordinary test user.
+Then save the returned Web Client ID with `manage-access.mjs set-google-client`. The gateway reloads the private access file on every request when the mounted path resolves to the updated file. On the current VPS, follow the bind-mount caveat above if the host update replaces the inode. Once configured, `/api/mobile-auth/login` and Android's existing browser-pairing flow use Google. The previous Cloudflare Access bridge remains available as a compatibility fallback and should not be deleted until Google login has been verified with both an admin and an ordinary test user.
 
 ## Invariants
 
