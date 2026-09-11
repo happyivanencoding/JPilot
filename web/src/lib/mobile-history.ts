@@ -137,6 +137,14 @@ export async function decideCvDraft(profileId: string, id: string, decision: str
     return {ok:true,draft,canonicalChanged:true,cvVersion:after.cvVersion};
   });
 }
+export async function originalCvLayoutSource(profileId:string,version:Record<string,any>) {
+  const directory=historyDirectory(profileId),taskFolder=path.join(directory,"tasks");
+  const imports=fs.existsSync(taskFolder)?fs.readdirSync(taskFolder).filter(name=>name.endsWith(".json")).map(name=>readJson(path.join(taskFolder,name))).filter(task=>task?.kind==="ingest"&&task?.status==="completed"&&task.result?.versionId&&task.uploadSource?.endsWith(".pdf")&&fs.existsSync(task.uploadSource)):[];
+  const source=imports.find(task=>loadCandidateVersion(directory,task.result.versionId).sources.cv.text===version.sources.cv.text);
+  if(!source)return null;
+  const out=await promisify(execFile)(process.env.JOBPILOT_PYTHON || "python",[path.resolve(process.cwd(),"scripts/cv-layout.py"),source.uploadSource],{timeout:30000,encoding:"utf8",maxBuffer:1024*1024,env:{...process.env,PYTHONIOENCODING:"utf-8"}});
+  return JSON.parse(out.stdout);
+}
 export async function renderCvPreview(profileId: string, draftId?: string, versionId?: string) {
   const directory=historyDirectory(profileId);
   const draft = draftId ? readCvDraft(profileId,draftId) : null;
@@ -148,15 +156,7 @@ export async function renderCvPreview(profileId: string, draftId?: string, versi
     fs.mkdirSync(folder,{recursive:true});
     let layoutSource=null;
     const professional=process.env.JOBPILOT_V1_PREVIEW==="1" && !draft;
-    if(professional) {
-      const taskFolder=path.join(directory,"tasks");
-      const imports=fs.existsSync(taskFolder)?fs.readdirSync(taskFolder).filter(name=>name.endsWith(".json")).map(name=>readJson(path.join(taskFolder,name))).filter(task=>task?.kind==="ingest"&&task?.status==="completed"&&task.result?.versionId&&task.uploadSource?.endsWith(".pdf")&&fs.existsSync(task.uploadSource)):[];
-      const source=imports.find(task=>loadCandidateVersion(directory,task.result.versionId).sources.cv.text===version.sources.cv.text);
-      if(source){
-        const out=await promisify(execFile)(process.env.JOBPILOT_PYTHON || "python",[path.resolve(process.cwd(),"scripts/cv-layout.py"),source.uploadSource],{timeout:30000,encoding:"utf8",maxBuffer:1024*1024,env:{...process.env,PYTHONIOENCODING:"utf-8"}});
-        layoutSource=JSON.parse(out.stdout);
-      }
-    }
+    if(professional) layoutSource=await originalCvLayoutSource(profileId,version);
     await renderReferenceCv({content:draft?.content || version.sources.cv.text,language:draft?.documentLanguage || documentLanguage(version),globalPlan:!!draft?.globalPlan,professional,layoutSource},folder);
   }
   return { pdf, ...readJson(meta), draft, versionId:version.id, cvVersion:version.cvVersion };

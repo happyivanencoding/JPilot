@@ -1,6 +1,7 @@
 import {roleCvOutcome} from './onward-cv.mjs';
 import {MATCH_METHOD,ANCHORED_INSTRUCTIONS,anchoredBreakdown} from "./match-rubric.mjs";
 import {normalizeUrl} from "./posting-url.mjs";
+import {repairOfferText} from './text-repair.mjs';
 // V1 student-facing match layer. This is deliberately separate from the legacy
 // 0-5 official evaluation: fastMatch is immediate guidance, while deep_match is
 // a read-only explanation. Neither one writes an application or official report.
@@ -183,6 +184,7 @@ export function matchScoreView(value={}) {
  return {current,potential:forecast,baseline,forecast,reviewed,reviewedScore};
 }
 export function projectV1JobScores(job,tasks=[],versionId='') {
+ job=repairOfferText(job);
  if(!job.v1Match)return job;
  const frozen=(job.cvDraft?.status==='pending'?job.cvDraft.matchBasis:null) || job.cv?.matchBasis;
  if(frozen) job={...job,v1Match:{...frozen,displayScore:job.v1Match.displayScore ?? frozen.currentScore}};
@@ -207,6 +209,7 @@ export function friendlyGapTitle(value) {
  return text;
 }
 export function friendlyOffer(offer) {
- if(!offer.deepMatch)return offer;
- return {...offer,deepMatch:{...offer.deepMatch,capabilityGaps:(offer.deepMatch.capabilityGaps || []).map(g=>({...g,title:friendlyGapTitle(g.title)}))}};
+ const repaired=repairOfferText(offer);
+ if(!repaired.deepMatch)return repaired;
+ return {...repaired,deepMatch:{...repaired.deepMatch,capabilityGaps:(repaired.deepMatch.capabilityGaps || []).map(g=>({...g,title:friendlyGapTitle(g.title)}))}};
 }

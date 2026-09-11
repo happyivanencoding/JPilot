@@ -80,23 +80,39 @@ export async function localizeDisplay(profileId:string,target:unknown,value:any,
 async function executeLocalization(directory:string,operation:any,entries:Entry[]) {
   const file=path.join(directory,'operations',operation.key+'.json');
   const save=()=>{operation.updatedAt=new Date().toISOString();writeJson(file,operation);writeJson(path.join(directory,'active.json'),operation);};
-  try {
+  const cache=(entry:Entry,text:string)=>writeJson(path.join(directory,'segments',entry.key+'.json'),{locale:operation.locale,source:entry.text,translation:text,operationId:operation.key,createdAt:new Date().toISOString()});
+  const translate=async(batch:Entry[],repair=false)=>{
     let output='';
-    await runTranslationTransport({cwd:workspaceRoot(),prompt:translationPrompt(entries,operation.locale),timeoutMs:120000,
-      onRun:run=>{Object.assign(operation,{sessionId:run.sessionId,runId:run.runId,remoteSessionId:run.remoteSessionId,transport:run.transport,status:'running'});save();},
-      onMetrics:metrics=>{operation.metrics=metrics;save();},
+    await runTranslationTransport({cwd:workspaceRoot(),prompt:translationPrompt(batch,operation.locale,repair),timeoutMs:120000,
+      onRun:run=>{if(repair)Object.assign(operation,{repairRunId:run.runId,repairSessionId:run.sessionId});else Object.assign(operation,{sessionId:run.sessionId,runId:run.runId,remoteSessionId:run.remoteSessionId,transport:run.transport,status:'running'});save();},
+      onMetrics:metrics=>{if(repair)operation.repairMetrics=metrics;else operation.metrics=metrics;save();},
       onText:text=>{output+=text;},onFinalText:text=>{output=text;},
     });
-    // Retain the exact translation response for recovery/QA; never touch source results.
-    fs.writeFileSync(path.join(directory,'operations',operation.key+'.output.txt'),output,'utf8');
-    const parsed=extractJsonObject(output);
-    const rows=(parsed.obj as any)?.translations;
-    if(parsed.truncated || !Array.isArray(rows) || rows.length!==entries.length || new Set(rows.map((r:any)=>r.id)).size!==entries.length) throw new Error('Localization response has missing or duplicate segments');
-    const translations=entries.map(entry=>({entry,text:restoreTranslation(rows.find((r:any)=>r.id===entry.id)?.text,entry.packed.protectedValues)}));
-    const invalid=translations.filter(({text})=>!translationLooksLikeTarget(text,operation.locale));
-    if(invalid.length)throw new Error(`Localization output is not in target locale ${operation.locale}: ${invalid.length} segment(s)`);
-    for(const {entry,text} of translations)writeJson(path.join(directory,'segments',entry.key+'.json'),{locale:operation.locale,source:entry.text,translation:text,operationId:operation.key,createdAt:new Date().toISOString()});
-    operation.status='completed';operation.completedAt=new Date().toISOString();
+    fs.writeFileSync(path.join(directory,'operations',operation.key+(repair?'.repair':'')+'.output.txt'),output,'utf8');
+    const parsed=extractJsonObject(output),rows=(parsed.obj as any)?.translations;
+    if(parsed.truncated || !Array.isArray(rows) || rows.length!==batch.length || new Set(rows.map((r:any)=>r.id)).size!==batch.length)
+      return {valid:[] as Array<{entry:Entry,text:string}>,invalid:[...batch]};
+    const valid:Array<{entry:Entry,text:string}>=[],invalid:Entry[]=[];
+    for(const entry of batch) {
+      try {
+        const text=restoreTranslation(rows.find((r:any)=>r.id===entry.id)?.text,entry.packed.protectedValues);
+        if(translationLooksLikeTarget(text,operation.locale))valid.push({entry,text});else invalid.push(entry);
+      } catch { invalid.push(entry); }
+    }
+    return {valid,invalid};
+  };
+  try {
+    const first=await translate(entries,false);
+    first.valid.forEach(({entry,text})=>cache(entry,text));
+    let invalid=first.invalid;
+    if(invalid.length) {
+      operation.repairSegments=invalid.length;save();
+      const repaired=await translate(invalid,true);
+      repaired.valid.forEach(({entry,text})=>cache(entry,text));
+      invalid=repaired.invalid;
+    }
+    if(invalid.length)throw new Error(`Localization output is not in target locale ${operation.locale}: ${invalid.length} segment(s) after repair`);
+    operation.status='completed';operation.completedAt=new Date().toISOString();operation.error=undefined;
   } catch(error) {operation.status='failed';operation.error=error instanceof Error?error.message:String(error);}
   finally {operation.wallMs=Date.now()-Date.parse(operation.createdAt);save();}
 }

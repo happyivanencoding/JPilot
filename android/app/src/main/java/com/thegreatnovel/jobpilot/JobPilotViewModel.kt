@@ -47,7 +47,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     private val previewMode = BuildConfig.APPLICATION_ID.endsWith(".v1")
     private fun deviceLanguage()=onwardSystemLanguage(getApplication<Application>().resources.configuration.locales[0].language)
     private val initialLanguage=if(prefs.getBoolean("languageExplicit",false))prefs.getString("language","en")?:"en" else deviceLanguage()
-    private val mutable = MutableStateFlow(PilotState(loggedIn = api.token != null, profileId = prefs.getString("profile", "") ?: "", language = initialLanguage, analysisLanguage=prefs.getString("analysisLanguage",initialLanguage) ?: initialLanguage, cvLanguage=prefs.getString("cvLanguage","en") ?: "en", theme = prefs.getString("theme", "system") ?: "system", server = if (previewMode) BuildConfig.API_BASE_URL else api.base, showV1FirstRun=previewMode))
+    private val mutable = MutableStateFlow(PilotState(loggedIn = api.token != null, profileId = prefs.getString("profile", "") ?: "", language = initialLanguage, analysisLanguage=initialLanguage, cvLanguage=prefs.getString("cvLanguage","en") ?: "en", theme = prefs.getString("theme", "system") ?: "system", server = if (previewMode) BuildConfig.API_BASE_URL else api.base, showV1FirstRun=previewMode))
     val state = mutable.asStateFlow()
     private var foreground = true
     private var generation = 0
@@ -114,28 +114,13 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
             } catch(e:Exception) { if(epoch==generation) failure(e) }
         }
     }
-    fun journeyLanguages(cvLanguage:String=mutable.value.cvLanguage, analysisLanguage:String=mutable.value.analysisLanguage) {
-        prefs.edit().putString("cvLanguage",cvLanguage).putString("analysisLanguage",analysisLanguage).apply()
-        mutable.update { it.copy(cvLanguage=cvLanguage,analysisLanguage=analysisLanguage) }
+    fun journeyLanguages(cvLanguage:String=mutable.value.cvLanguage) {
+        val language=mutable.value.language
+        prefs.edit().putString("cvLanguage",cvLanguage).putString("analysisLanguage",language).apply()
+        mutable.update { it.copy(cvLanguage=cvLanguage,analysisLanguage=language) }
     }
     fun experienceLanguage(language:String) {
-        prefs.edit().putBoolean("languageExplicit",true).apply()
-        prefs.edit().putString("language",language).apply()
-        mutable.update {it.copy(language=language)}
-        changeAnalysisLanguage(language)
-    }
-    fun changeAnalysisLanguage(language:String) {
-        generation++;refreshJob?.cancel();refreshJob=null;detailJob?.cancel();reportJob?.cancel()
-        val prior=mutable.value;val profile=prior.profileId;val epoch=generation
-        val snapshot=JSONObject(prior.snapshot.toString()).put("analysis",JSONObject.NULL).put("discovery",json("offers" to JSONArray(),"history" to JSONArray()))
-        snapshot.put("v1",JSONObject(prior.snapshot.child("v1").toString()).put("analysisReady",false).put("offersReady",false).put("careerDirections",JSONArray()))
-        mutable.update { it.copy(working=true,error=null,analysisLanguage=language,snapshot=snapshot) }
-        viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) {api.request("/api/profile",profile,json("analysisLanguage" to language))}
-                if(epoch==generation) {prefs.edit().putString("analysisLanguage",language).apply();mutable.update {it.copy(working=false)};refresh(silent=true)}
-            } catch(e:Exception) {if(epoch==generation)failure(e)}
-        }
+        appearance(language=language)
     }
     fun retryV1() {
         val profile=mutable.value.profileId; val epoch=generation
@@ -207,7 +192,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
                 prefs.edit().putString("profile", actual).apply()
                 if(data.text("cv").isNotBlank()) {
                     val settings=data.child("languageSettings")
-                    val insights=settings.text("analysisLanguage",mutable.value.analysisLanguage)
+                    val insights=mutable.value.language
                     val cvLanguage=settings.text("documentLanguage",mutable.value.cvLanguage)
                     prefs.edit().putString("analysisLanguage",insights).putString("cvLanguage",cvLanguage).apply()
                     mutable.update {it.copy(analysisLanguage=insights,cvLanguage=cvLanguage)}
@@ -251,14 +236,14 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         val previous=mutable.value
         val changed=language!=previous.language
         if(!automatic && (changed||theme==previous.theme))prefs.edit().putBoolean("languageExplicit",true).apply()
-        prefs.edit().putString("language", language).putString("theme", theme).apply()
-        if(!changed) { mutable.update { it.copy(theme=theme) };return }
+        prefs.edit().putString("language", language).putString("analysisLanguage",language).putString("theme", theme).apply()
+        if(!changed) { mutable.update { it.copy(theme=theme,analysisLanguage=language) };return }
         generation++;refreshJob?.cancel();refreshJob=null;detailJob?.cancel();detailJob=null;reportJob?.cancel();reportJob=null
         previewMetaJob?.cancel();previewMetaJob=null
         // Keep source material and navigation, not prose in the old locale. No POST,
         // business operation or CV version is created by this transition.
         val loading=json("profile" to previous.snapshot.child("profile"),"profiles" to previous.snapshot.optJSONArray("profiles"),"cv" to previous.snapshot.text("cv"),"cvState" to previous.snapshot.child("cvState"),"config" to previous.snapshot.child("config"),"languageSettings" to previous.snapshot.child("languageSettings"))
-        mutable.update { it.copy(language=language,theme=theme,snapshot=loading,error=null,notice=null,noticeTaskId=null,task=null,working=false,loading=previous.loggedIn) }
+        mutable.update { it.copy(language=language,analysisLanguage=language,theme=theme,snapshot=loading,error=null,notice=null,noticeTaskId=null,task=null,working=false,loading=previous.loggedIn) }
         if(previous.loggedIn) {
             refresh(silent=true)
             if(previous.cvPreview!=null) refreshPreviewMetadata()

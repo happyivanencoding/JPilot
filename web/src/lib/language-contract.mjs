@@ -6,7 +6,7 @@ export const LANGUAGE_NAMES = {zh:'Simplified Chinese',fr:'French',en:'English'}
 // UI locale is a client preference. Never read it from Candidate/CV/market config.
 export function uiLocale(value) {
   const code=String(value || '').toLowerCase().split(/[-_,;]/)[0];
-  return UI_LOCALES.includes(code) ? code : 'fr';
+  return UI_LOCALES.includes(code) ? code : 'en';
 }
 export function requestUiLocale(request, explicit) {
   return uiLocale(request.headers.get('x-jobpilot-locale') || explicit);

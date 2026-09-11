@@ -5,6 +5,7 @@ import {projectV1JobScores,matchScoreView,v1CvAssessment,deepMatchPrompt} from '
 import {buildProviderInput,rankSearchResults} from '../src/lib/job-search/index.mjs';
 import {searchRequestFromConfig} from '../src/lib/job-search/mobile-context.mjs';
 import {detectedDocumentLanguage} from '../src/lib/language-contract.mjs';
+import {professionalReferenceHtml,professionalTailoredHtml} from '../src/lib/backend/reference-template.mjs';
 const basis={currentScore:31,cvPotentialScore:43,deepMatch:{scoringVersion:'role-fit-2',capabilityGaps:[{title:'C# experience',why:'C# projects are not in the CV'}]}};
 test('a forecast of 43 does not force a reviewed draft of 39 upward',()=>{
  const review=normalizeRoleCvReview(basis,{raw_draft_score:39,improvements:['A concrete project is now in the summary'],remaining_gaps:['C# experience']});
@@ -41,4 +42,17 @@ test('French and English titles share recall while a known wrong contract is exc
  assert.deepEqual(new Set(result.offers.map(x=>x.company)),new Set(['fr','en']));assert.equal(result.offers[0].searchRelevance,result.offers[1].searchRelevance);
  const alternance=rankSearchResults({...req,contractTypes:['Alternance']},[offer('alt','Alternant developpeur backend Python','unknown')],[],{now:Date.parse('2026-09-11')});
  assert.equal(alternance.offers[0].contractType,'Alternance');
+});
+test('V1 tailored CV keeps the original identity/contact/layout family while replacing wording',()=>{
+ const layout={name:'Thomas Nguyen',headline:'Ingénieur énergie',sections:[
+  {kind:'contact',blocks:[{kind:'text',text:'thomas@example.com · +33 6 12 34 56 78 · Lyon'}]},
+  {kind:'profile',blocks:[{kind:'text',text:'Profil original.'}]},
+  {kind:'experience',blocks:[{kind:'entry',text:'ENGIE — 2026'},{kind:'bullet',text:'Analyse énergétique.'}]},
+  {kind:'languages',blocks:[{kind:'text',text:'Français C1, Anglais C1'}]},
+ ],footer:[]};
+ const source=professionalReferenceHtml({content:'',layoutSource:layout,language:'fr'});
+ const tailored=professionalTailoredHtml({content:'',layoutSource:layout,language:'fr',tailoredPayload:{summary:'Profil ciblé.',experience:[{company:'ENGIE',dates:'2026',role:'Stagiaire',location:'Lyon',bullets:['Analyse de 14 bâtiments.']}],skills:[{category:'Outils',items:['Python','Excel']}]}});
+ for(const expected of ['Thomas Nguyen','thomas@example.com','+33 6 12 34 56 78','Français C1, Anglais C1'])assert.match(tailored,new RegExp(expected.replace(/[+.*?^${}()|[\]\\]/g,'\\$&')));
+ assert.match(tailored,/Profil ciblé/);assert.match(tailored,/Analyse de 14 bâtiments/);assert.doesNotMatch(tailored,/Profil original/);
+ assert.equal(tailored.match(/font:10pt\/1\.24 Georgia/g)?.length,source.match(/font:10pt\/1\.24 Georgia/g)?.length);
 });

@@ -1,6 +1,6 @@
 {
   "name": "@jobpilot/web",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "license": "AGPL-3.0-only",
   "description": "JobPilot phone-first Web client, sharing the native Android product and backend.",

@@ -65,12 +65,12 @@ test('the same source in another profile cannot read the first profile cache',as
 test('changed source gets a new operation; malformed evidence is not cached or auto-retried',async()=>{
   const changed={...source,markdown:'Un nouvel écart documenté : 3.1/5 et niveau B2.'};
   broken=true;const count=calls;const failed=await finished('fixture-a',changed);
-  assert.equal(failed.localization.failed,true);assert.equal(calls,count+1);
-  await finished('fixture-a',changed);assert.equal(calls,count+1,'failure requires an explicit retry');
+  assert.equal(failed.localization.failed,true);assert.equal(calls,count+2,'one bounded repair pass is attempted inside the same operation');
+  await finished('fixture-a',changed);assert.equal(calls,count+2,'failure still requires an explicit user retry');
   const operation=readJson(path.join(historyDirectory('fixture-a'),'localizations/zh/active.json'));
-  assert.equal(operation.status,'failed');
+  assert.equal(operation.status,'failed');assert.ok(operation.repairSegments>=1);
   broken=false;const recovered=await finished('fixture-a',changed,{retry:true});
-  assert.equal(recovered.localization.pending,false);assert.match(recovered.markdown,/3\.1\/5/);assert.equal(calls,count+2);
+  assert.equal(recovered.localization.pending,false);assert.match(recovered.markdown,/3\.1\/5/);assert.equal(calls,count+3);
 });
 test('French wrappers around Chinese facts still require localization',()=>{
   assert.equal(alreadyLocalized('Mettre en avant : 已核实的营销实习。','zh'),false);

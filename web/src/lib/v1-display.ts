@@ -72,8 +72,9 @@ export async function prepareV1Display(profileId:string, locale:string, snapshot
     const saved=(snapshot.jobs || []).find((job:any)=>job.url===offer.url && job.v1Match);
     const match=saved?matchScoreView(saved):matchScoreView(offer);
     const roleCv=saved?.cvDraft?.status==='pending' ? {jobId:saved.id,status:"pending",draftId:saved.cvDraft.id} : saved?.cv?.file ? {jobId:saved.id,status:"accepted"} : saved && tasks.some(t=>t.kind==='cv'&&t.input?.jobId===saved.id&&['queued','running','reconciling'].includes(t.status)) ? {jobId:saved.id,status:"generating"} : null;
-    return {...friendlyOffer(offer),matchScore:match,cvOutcome:roleCvOutcome(saved || offer),roleCv,
-      deepMatch:offer.deepMatch?{...friendlyOffer(offer).deepMatch,currentScore:match.baseline,cvPotentialScore:match.forecast}:offer.deepMatch};
+    const friendly:any=friendlyOffer(offer);
+    return {...friendly,matchScore:match,cvOutcome:roleCvOutcome(saved || offer),roleCv,
+      deepMatch:offer.deepMatch?{...friendly.deepMatch,currentScore:match.baseline,cvPotentialScore:match.forecast}:offer.deepMatch};
   };
   result.discovery.offers=result.discovery.offers.map(format).sort((a:any,b:any)=>b.matchScore.current-a.matchScore.current);
   result.discovery.history=result.discovery.history.map((group:any)=>({...group,offers:group.offers.map(format)}));

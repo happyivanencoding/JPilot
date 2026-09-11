@@ -120,7 +120,6 @@ import java.time.ZoneOffset
         (it.text("company")+" "+it.text("role")).contains(applicationQuery.trim(),ignoreCase=true) }
         .sortedByDescending { it.text("updatedAt",it.text("createdAt")) }
     val directions=state.snapshot.child("v1").objects("careerDirections")
-    var separateInsights by remember(state.profileId) { mutableStateOf(state.analysisLanguage!=state.language) }
     LazyColumn(Modifier.fillMaxSize().imePadding().testTag("profile-content"),state=analyticsListState(vm),contentPadding = PaddingValues(22.dp),verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item {
             TabRow(profileTab) {
@@ -190,13 +189,9 @@ import java.time.ZoneOffset
             Text(tr("语言","Langues","Languages"),fontWeight=FontWeight.SemiBold,fontSize=18.sp)
             Text(tr("界面与分析","Application et conseils","App and insights"),fontWeight=FontWeight.Medium)
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) { listOf("zh" to "中文","fr" to "Français","en" to "English").forEach { (key,label) ->
-                FilterChip(state.language==key,{if(separateInsights)vm.appearance(language=key) else vm.experienceLanguage(key)},enabled=!state.working,modifier=Modifier.testTag("ui-language-$key"),label={Text(label)})
+                FilterChip(state.language==key,{vm.experienceLanguage(key)},enabled=!state.working,modifier=Modifier.testTag("ui-language-$key"),label={Text(label)})
             } }
-            TextButton({separateInsights=!separateInsights;if(!separateInsights)vm.changeAnalysisLanguage(state.language)},enabled=!state.working) {Text(tr("单独设置分析语言","Choisir une autre langue de conseils","Use a different insights language"))}
-            if(separateInsights) {
-                Hint(tr("分析与建议用这种语言，菜单保持不变。","Les conseils dans cette langue, sans changer les menus.","Your insights in this language, without changing menus."))
-                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf("en" to "English","fr" to "Français","zh" to "中文").forEach {(code,label)->FilterChip(state.analysisLanguage==code,{vm.changeAnalysisLanguage(code)},enabled=!state.working,label={Text(label)})}}
-            }
+            Hint(tr("分析、岗位详情和公司信息始终跟随界面语言；未识别系统语言时使用 English。","Les analyses, les offres et les informations sur les entreprises suivent toujours la langue de l’application ; English est utilisé si la langue système n’est pas reconnue.","Analysis, role details and company information always follow the app language; English is used when the system language is not recognised."))
             HorizontalDivider()
             Text(tr("求职简历","CV de candidature","Application CV"),fontWeight=FontWeight.Medium)
             val material=state.snapshot.child("languageSettings").text("applicationLanguage",config.child("cv").text("language","fr"))

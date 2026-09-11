@@ -18,8 +18,40 @@ export function textCvLayout(text){
  }
  return {name,headline,sections,footer:[]};
 }
-export function professionalReferenceHtml(payload) {
- const layout=payload.layoutSource || textCvLayout(payload.content);
+const clean=text=>String(text??'').replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,'$1 ($2)').trim();
+function tailoredSections(payload={}) {
+ const sections=new Map();
+ if(clean(payload.summary))sections.set('profile',{kind:'profile',title:'',blocks:[{kind:'text',text:clean(payload.summary)}]});
+ if(Array.isArray(payload.experience)&&payload.experience.length)sections.set('experience',{kind:'experience',title:'',blocks:payload.experience.flatMap(item=>[
+  {kind:'entry',text:[clean(item.company),clean(item.dates)].filter(Boolean).join(' — ')},
+  ...([clean(item.role),clean(item.location)].filter(Boolean).length?[{kind:'text',text:[clean(item.role),clean(item.location)].filter(Boolean).join(' — ')}]:[]),
+  ...(item.bullets||[]).map(text=>({kind:'bullet',text:clean(text)})),
+ ])});
+ if(Array.isArray(payload.projects)&&payload.projects.length)sections.set('projects',{kind:'projects',title:'',blocks:payload.projects.flatMap(item=>[
+  {kind:'entry',text:clean(item.name)},
+  ...(clean(item.description)?[{kind:'text',text:clean(item.description)}]:[]),
+  ...(clean(item.tech)?[{kind:'text',text:clean(item.tech)}]:[]),
+ ])});
+ if(Array.isArray(payload.education)&&payload.education.length)sections.set('education',{kind:'education',title:'',blocks:payload.education.flatMap(item=>[
+  {kind:'entry',text:[clean(item.title),clean(item.year)].filter(Boolean).join(' — ')},
+  ...(clean(item.org)?[{kind:'text',text:clean(item.org)}]:[]),
+  ...(clean(item.description)?[{kind:'text',text:clean(item.description)}]:[]),
+ ])});
+ if(Array.isArray(payload.skills)&&payload.skills.length)sections.set('skills',{kind:'skills',title:'',blocks:payload.skills.map(item=>({kind:'text',text:`${clean(item.category)||'Skills'}: ${(item.items||[]).map(clean).filter(Boolean).join(', ')}`}))});
+ return sections;
+}
+function mergeTailoredLayout(layout,payload) {
+ const generated=tailoredSections(payload),used=new Set(),sections=[];
+ for(const section of layout.sections||[]) {
+  const replacement=generated.get(section.kind);
+  if(replacement&&!used.has(section.kind)){sections.push(replacement);used.add(section.kind);}
+  else if(!replacement || !['profile','experience','projects','education','skills'].includes(section.kind))sections.push(section);
+ }
+ for(const [kind,section] of generated)if(!used.has(kind))sections.push(section);
+ return {...layout,sections};
+}
+function professionalHtml(layout,language) {
+ const payload={language};
  const fr=payload.language==='fr';
  const labels=fr?{profile:'Profil',education:'Formation',experience:'Expérience professionnelle',projects:'Projets et engagements',skills:'Compétences',tools:'Outils',languages:'Langues',interests:'Centres d’intérêt',other:'Informations complémentaires'}:{profile:'Profile',education:'Education',experience:'Experience',projects:'Projects & activities',skills:'Skills',tools:'Tools',languages:'Languages',interests:'Interests',other:'Additional information'};
  const sections=(layout.sections||[]).filter(s=>s.blocks?.length);
@@ -46,4 +78,11 @@ export function professionalReferenceHtml(payload) {
  return `<!doctype html><html lang="${fr?'fr':'en'}"><head><meta charset="utf-8"><title>${escape(layout.name)} — CV</title><style>
  @page{size:A4;margin:13mm 16mm}*{box-sizing:border-box}body{font:10pt/1.24 Georgia,"Times New Roman",serif;color:#19262e;margin:0;width:178mm;overflow-wrap:break-word}header{text-align:center;margin-bottom:8pt}h1{font-size:21pt;line-height:1.1;margin:0 0 5pt;color:#162f40}.contact{font:8.5pt/1.35 Arial,sans-serif;margin:0}.headline{font-size:9.5pt;margin:6pt 0 0}h2{font:700 10pt/1.1 Arial,sans-serif;text-transform:uppercase;letter-spacing:.5pt;color:#162f40;border-bottom:.65pt solid #426070;margin:9pt 0 5pt;padding-bottom:3pt;break-after:avoid}h3{font-size:10pt;margin:6pt 0 2pt;break-after:avoid}p{margin:2pt 0;orphans:2;widows:2}.meta{font-size:9pt;font-style:italic;margin:1pt 0 3pt}ul{padding-left:13pt;margin:3pt 0 5pt}li{margin:2pt 0;break-inside:avoid}footer{font:6.5pt/1.2 Arial,sans-serif;color:#687781;margin-top:10pt}strong{font-weight:700}
  </style></head><body>${content}</body></html>`;
+}
+export function professionalReferenceHtml(payload) {
+ return professionalHtml(payload.layoutSource || textCvLayout(payload.content),payload.language);
+}
+export function professionalTailoredHtml(payload) {
+ const original=payload.layoutSource || textCvLayout(payload.content);
+ return professionalHtml(mergeTailoredLayout(original,payload.tailoredPayload || {}),payload.language);
 }

@@ -34,8 +34,10 @@ export async function GET(req: Request) {
     const profileId = await activeProfileId(url.searchParams.get("profileId"));
     const locale=requestUiLocale(req,url.searchParams.get("uiLocale"));
     const preview=process.env.JOBPILOT_V1_PREVIEW === "1";
-    const profileConfig=(yaml.load(fs.readFileSync(profileFile(profileId,"config"),"utf8")) || {}) as any;
-    const analysisLocale=String(req.headers.get("x-jobpilot-analysis-locale") || profileConfig.display?.analysis_language || locale);
+    // V1 explanations, company/job detail and saved-result localization follow
+    // the visible app language. Legacy profile.display.analysis_language is kept
+    // only for backward-compatible files and no longer overrides the device/UI.
+    const analysisLocale=locale;
     const journey=(readJson(path.join(mobileDirectory(profileId),"journey.json")) || {});
     const localizationOptions={retry:url.searchParams.get("retryLocalization")==="1"};
     // Translate only job prose currently exposed by training/comparison.
@@ -105,7 +107,7 @@ export async function GET(req: Request) {
       return [{taskId:task.id,query:String(task.input?.query || ""),searchedAt:task.updatedAt || task.createdAt || "",offers}];
     });
     const snapshot={
-      version: "0.5.0", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
+      version: "0.5.1", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
       access:{role,canSwitchProfiles:role!=="user"&&profiles.length>1,needsCv:role==="user"&&!cv.trim()},
       cv, cvState:{versionId:version.id,cvVersion:version.cvVersion,revision:version.revision,changedAt:version.createdAt},
       languageSettings:{uiLocale:locale,analysisLanguage:analysisLocale,applicationLanguage:applicationLanguage(config || {},read("cv")),documentLanguage:documentLanguage(version)},

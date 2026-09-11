@@ -1,6 +1,8 @@
-# Onward V1 0.5.0 language defaults
+# Onward V1 0.5.1 language contract
 
-New users follow the device/browser language: French -> fr, Chinese -> zh, all other locales -> en. A manual UI override remains explicit. First upload defaults sourceLanguage to auto; the backend detects actual extracted CV text and initializes material language from it. Insights default to the UI language. Optional first-run language choices are collapsed; later manual material/insight choices remain independent of UI language. Existing explicit preferences are preserved.
+The visible app language is the single authority for V1 analysis, job-detail explanations and company-related prose. On Android/Web it starts from the device/browser language: French -> `fr`, Chinese -> `zh`, every unsupported/unknown locale -> `en`. A manual **UI** override remains available, but V1 no longer exposes an independent insights-language selector and stale `display.analysis_language` / Android `analysisLanguage` preferences cannot override the visible UI locale. First upload keeps `sourceLanguage=auto`; application-CV material language remains an independent French/English choice and never changes because the UI locale changes.
+
+This 0.5.1 rule supersedes the older V1 paragraphs below wherever they describe an independently selectable insight language. Those sections remain as historical delivery records only.
 
 # JobPilot 0.3.2 — display language and application documents
 

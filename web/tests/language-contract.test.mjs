@@ -8,6 +8,7 @@ import {candidateVersion,operationKey} from '../src/lib/mobile-state.mjs';
 import {cvAnalysisPrompt} from '../src/lib/cv-analysis-prompt.mjs';
 import {preservePresentationLanguage,cvBlocks} from '../src/lib/cv-global-plan.mjs';
 import {displaySlots,setDisplaySlot,protectTranslation,restoreTranslation,translationKey,productText,reportForDisplay} from '../src/lib/localization-core.mjs';
+import {repairMojibake} from '../src/lib/text-repair.mjs';
 
 const english='# TEST CANDIDATE\n\n## EDUCATION\n\nStudent seeking a first role in marketing.\n\n## EXPERIENCE\n\nSupported campaign reporting and prepared presentations for the marketing team.\n\n## SKILLS\n\nEnglish C1, French B1.\n';
 const french='# PROFIL FICTIF\n\n## FORMATION\n\nÉtudiant à la recherche de sa première expérience pour les marchés financiers.\n\n## EXPÉRIENCE\n\nSuivi de la trésorerie et préparation des tableaux pour les équipes.\n';
@@ -16,10 +17,16 @@ function candidate(cv=english,config='language:\n  output: fr\ncv:\n  language: 
 test('UI locale comes only from the client, never the CV or legacy language.output',()=>{
   assert.equal(requestUiLocale(new Request('https://example.invalid',{headers:{'X-JobPilot-Locale':'zh-CN'}}),'fr'),'zh');
   assert.equal(uiLocale('en-GB'),'en');
+  assert.equal(uiLocale('de-DE'),'en');
+  assert.equal(uiLocale(''),'en');
   assert.equal(applicationLanguage({language:{output:'zh'},cv:{language:'en'}},french),'en');
   assert.equal(applicationLanguage({language:{output:'en'}},french),'fr');
   assert.equal(documentLanguage(candidate()),'en');
   assert.equal(documentLanguage(candidate(french,'language:\n  output: zh\n')),'fr');
+});
+test('provider mojibake is repaired without changing correct Unicode names',()=>{
+  assert.equal(repairMojibake('VINCI Energies SÃ©nÃ©gal'),'VINCI Energies Sénégal');
+  assert.equal(repairMojibake('VINCI Energies Sénégal'),'VINCI Energies Sénégal');
 });
 test('Chinese analysis explicitly requires English CV fragments and preserves original evidence',()=>{
   const prompt=cvAnalysisPrompt({candidate:candidate(),language:'zh'});

@@ -1,4 +1,4 @@
-import {professionalReferenceHtml} from "./reference-template.mjs";
+import {professionalReferenceHtml,professionalTailoredHtml} from "./reference-template.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { chromium } from "playwright-core";
@@ -341,12 +341,12 @@ export function auditCvDocument({ text, headings, layout }, keywords = []) {
   };
 }
 
-/** @param {any} payload @param {{htmlPath:string,pdfPath:string,language:string,template:string,maxPages?:number,keywords?:string[]}} options */
+/** @param {any} payload @param {{htmlPath:string,pdfPath:string,language:string,template:string,maxPages?:number,keywords?:string[],referenceContent?:string,layoutSource?:any,tailoredPayload?:any}} options */
 export async function renderTailoredCv(
   payload,
-  { htmlPath, pdfPath, language, template, maxPages = 1, keywords = [] },
+  { htmlPath, pdfPath, language, template, maxPages = 1, keywords = [], referenceContent="", layoutSource=null, tailoredPayload=null },
 ) {
-  const html = tailoredHtml(payload, { language, template });
+  const html = referenceContent ? professionalTailoredHtml({content:referenceContent,layoutSource,tailoredPayload:tailoredPayload || payload,language}) : tailoredHtml(payload, { language, template });
   const result = await render(html);
   if (result.pages > maxPages)
     throw new Error(

@@ -188,8 +188,7 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
                             Hint(tr("原简历语言自动识别","Langue du CV original détectée automatiquement","Original CV language detected automatically"))
                             Text(tr("求职简历语言","Langue du CV de candidature","Application CV language"),fontWeight=FontWeight.SemiBold)
                             JourneyLanguageChoices(state.cvLanguage,false) {vm.journeyLanguages(cvLanguage=it)}
-                            Text(tr("我希望用这种语言看分析","Langue de mes conseils","My insights in"),fontWeight=FontWeight.SemiBold)
-                            JourneyLanguageChoices(state.analysisLanguage) {vm.journeyLanguages(analysisLanguage=it)}
+                            Hint(tr("分析、岗位详情和公司信息跟随界面语言。","Les analyses, les offres et les informations sur les entreprises suivent la langue de l’application.","Analysis, role details and company information follow the app language."))
                         }
                         if(importFailed) Text(tr("这份文件暂时打不开，请换一份 PDF 或 Word。","Ce fichier ne s’ouvre pas. Essayez un autre PDF ou Word.","This file could not be opened. Try another PDF or Word file."),color=MaterialTheme.colorScheme.error)
                         TextButton({showPrivacy=true}) {Text(tr("简历信息如何使用","Utilisation des informations du CV","How your CV information is used"),fontSize=12.sp)}

@@ -14,7 +14,7 @@ import { getProfile, profileFile } from "@/lib/profile-context";
 import { runModelTransport } from "@/lib/model-transport";
 import { extractJsonObject } from "@/lib/model-json.mjs";
 import { atomicWrite } from "@/lib/backend/files.mjs";
-import { currentCandidateVersion, historyDirectory, renderCvPreview } from "@/lib/mobile-history";
+import { currentCandidateVersion, historyDirectory, originalCvLayoutSource, renderCvPreview } from "@/lib/mobile-history";
 import { withProfileLock, loadCandidateVersion, operationKey, readJson, writeJson } from "@/lib/mobile-state.mjs";
 import { FLOW_DEFAULTS } from "@/lib/ai-metrics.mjs";
 import {applicationLanguage,requestUiLocale,explanationDirective,contradictsDocumentLanguage,choose} from "@/lib/language-contract.mjs";
@@ -182,12 +182,12 @@ ${JSON.stringify(target, null, 2)}
 
 LANGUAGE: every candidate-facing CV field (summary, experience, project, education and skills) MUST be written in ${cvOptions.language}. Only change_notes are user-facing explanations, in ${uiLocale}. ${explanationDirective(uiLocale)}
 
-CONTENT BUDGET — respect the configured ${cvOptions.preferredPages}-page target and keep the CV compact:
+CONTENT BUDGET — respect the configured ${cvOptions.preferredPages}-page target and keep the CV compact. For Onward V1, preserve the original CV's identity, contact details, section structure, chronology and overall visual hierarchy. Tailoring is primarily wording, bullet prioritisation and concise descriptions; do not remove a documented contact, degree or experience merely to redesign the page:
 - Summary: direct and role-specific. No generic enthusiasm. Never put missing skills, negative self-assessments, unproven-ability disclaimers, or analysis instructions into the CV itself. Keep only relevant positive factual content; discuss gaps in change_notes instead.
-- Experience: normally 2-4 strongest entries, ordered by relevance. Keep bullets short and evidence-led.
-- Projects: 0-2 entries, only when they strengthen this job.
-- Education: keep the most useful degrees/programs for this role.
-- Skills: compact categories containing only demonstrated skills.
+- Experience: keep the original experience entries and chronology. Tailor the bullets, not the candidate's employment history. Keep bullets short and evidence-led.
+- Projects: keep documented projects/activities that are already present; improve their wording only when it helps this role.
+- Education: keep the original documented degrees/programs and chronology.
+- Skills: keep demonstrated skills; regroup or reorder compactly for the role, without deleting factual contact/language information owned by the original layout.
 - Do NOT add a photo, cover letter text, references, hobbies or a career objective unless the candidate-specific notes explicitly require it.
 - Preserve dates and chronology from the candidate evidence; do not revive conflicting historical wording.
 
@@ -259,7 +259,10 @@ async function renderDraftFiles(profileId:string,job:Job,version:Record<string,a
   const outputDir=path.join(root,"output");
   const stem=`cv-draft-${slug(candidate.name,"candidate")}-${slug(job.company,"company")}-${draftId.slice(0,8)}`;
   const htmlPath=path.join(outputDir,stem+".html"),pdfPath=path.join(outputDir,stem+".pdf");
-  const rendered=await renderTailoredCv(renderPayload,{htmlPath,pdfPath,language:material,template:cvOptions.template,maxPages:cvOptions.preferredPages,keywords:cleanArray(job.cv?.keywords)});
+  const preserveOriginal=process.env.JOBPILOT_V1_PREVIEW==="1";
+  const layoutSource=preserveOriginal?await originalCvLayoutSource(profileId,version):null;
+  const rendered=await renderTailoredCv(renderPayload,{htmlPath,pdfPath,language:material,template:cvOptions.template,maxPages:cvOptions.preferredPages,keywords:cleanArray(job.cv?.keywords),
+    ...(preserveOriginal?{referenceContent:version.sources.cv.text,layoutSource,tailoredPayload:payload}:{})});
   return {file:path.relative(root,pdfPath).replaceAll("\\","/"),htmlFile:path.relative(root,htmlPath).replaceAll("\\","/"),...rendered};
 }
 
