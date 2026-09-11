@@ -1,4 +1,14 @@
-# Onward V1 0.6.0 / Web 0.8.0 — editorial design parity
+# Onward V1 0.6.1 / Web 0.8.1 — refined identity parity
+
+Android 0.6.1/code29 and Web 0.8.1 now use the same **canonical Onward vector geometry** rather than separately approximating the brand. The source assets are `web/public/onward-symbol.svg`, `onward-wordmark.svg`, and `onward-lockup.svg`; Android symbol/lockup/launcher/splash vectors are derived from them. Headers render the vector lockup directly, so the Onward wordmark is no longer live serif text. Latin typography is also sourced from the same Instrument Serif + Inter files on both clients, with CJK/Arabic/platform fallbacks preserved.
+
+The second visual pass changes composition, not product semantics: Home becomes greeting → editorial identity statement from existing signals → direction medallions → recommended roles; Opportunities becomes title/search/breathing space/result+Filters/flat role rows; Job Detail gains the branded hero, large animated score and semantic strength/gap/action rows; upload gains the chapter headline/dropzone/security note; Profile gains editorial identity and real-data summary metrics. Shared visual anchors are company monogram tiles, restrained semantic line icons, compact match labels, exact-symbol arc motifs, thin dividers and non-uniform editorial spacing. Role-CV/Impact keep the existing document renderer and continuity chain.
+
+Motion intent is paired: ~210ms page entrance, very light section/row stagger, Sage press wash, ~430ms score count-up/underline and calm sheet transitions. The AI Liquid Progress state contract is unchanged and remains the strongest signature motion; its two shallow liquid phases are refined without glow/particles. Web honors `prefers-reduced-motion`; Android liquid amplitude honors system animator scale.
+
+Web production build and controlled browser funnel QA pass; native debug build passes and the Samsung V1 app was upgraded in place to 0.6.1/code29 with Home/Opportunities/Detail/Profile/launcher/splash screenshots visually reviewed. Product commit **`05875bb248d1d1e7fd34253c7a7c036aa48fe5fb`** is pushed. The public V1 deployment is not marked complete because the normal privileged V1-only deploy invocation was blocked by the current tool safety layer before server execution. Full scope, receipts and remaining reference differences: `ONWARD_0_6_1_RELEASE.md`.
+
+## Previous: Onward V1 0.6.0 / Web 0.8.0 — editorial design parity
 
 Android 0.6.0/code28 and Web 0.8.0 now share the same Forest/Ivory/Sage visual tokens, editorial Serif display hierarchy, Product Sans body hierarchy, reduced radii, thin-divider lists, restrained sheets/chrome and Onward symbol assets. The Web remains phone-first and does not reintroduce a desktop dashboard. First run, Home, Opportunities/history, role Match/CV/Tracking, CV impact, task/result sheets, Profile/preferences/privacy and common loading/error/empty states follow the same presentation rules as native Android.
 
