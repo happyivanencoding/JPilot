@@ -8,6 +8,8 @@ The first-run CV picker exposed two deployment-only assumptions that local devel
 
 The shared runtime image now provides `/usr/bin/python3` + `python3-fitz`, while V1 resolves the extractor from the running Web application root (`process.cwd()/scripts/extract-mobile-cv.py`) rather than from Candidate data storage. This is a server-side ingest fix: multipart upload, canonical CV confirmation/versioning and the Android first-run contract do not change.
 
+Deployed acceptance used the exact PDF selected on the Samsung. Public V1 upload task `e0a96fef-f3fc-4d76-8d73-e071c71a880b` completed, preserved filename `CV_Test_10_Yuki_Tanaka.pdf`, and returned 2,104 extracted characters beginning with `Yuki Tanaka`. The deployed V1 SHA is `7301c49076909a0a0a625a32d6e4e1a1012d7302`; production and Yifeng container identities/start times were unchanged.
+
 ## 2026-09-11 first-run match journey — 0.4.2/code16
 
 V1 now starts from a candidate journey rather than dropping a new tester into an already-populated workspace:
