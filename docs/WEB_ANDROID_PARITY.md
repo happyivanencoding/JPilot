@@ -1,5 +1,10 @@
 # JobPilot Web 0.6.1 — Android-aligned product
 
+## 2026-09-11 V1 0.4.8 — broad directions, unified role tabs and upload notice
+
+Android 0.4.8/code22 and Web 0.6.8 share one Match/CV/Tracking surface for both discovery and saved jobs. Inferred direction names/queries are broadened while specialty evidence and explicit targets stay intact. CV remains a muted, clickable tab until explicit generation; Tracking saves without AI. The previously unshipped privacy/scoring extension is included: visible pre-upload notice, unchecked acknowledgement, server enforcement and four-dimension deductions. Android comparison reopening fetches the corrected server PDF instead of an older in-memory version. No main/Yifeng merge. Local gates have passed; exact rollout receipts and boundaries are recorded in `docs/V1_0_4_8_RELEASE.md`.
+
+
 ## 2026-09-11 V1 0.4.6 delivery completed
 
 V1 Web 0.6.6 is live at source `7b85455ec339c986edf4583053969802cff2f6dc`; Samsung `.v1` 0.4.6/code20 was upgraded without clearing data, and the APK is in its Download folder. Live EN-source → ZH-insights → FR-role-CV acceptance, confirmed-contract first results, consistent reviewed scores and corrected real-PDF overlays passed. Details and native/Web verification boundaries: `docs/V1_0_4_6_RELEASE.md`. Production/Yifeng container IDs and start times unchanged. Ongoing parallel privacy/score-breakdown work is outside this release.

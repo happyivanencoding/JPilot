@@ -34,3 +34,9 @@
 .jp-contract-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.jp-contract-grid .jp-chip{white-space:normal;text-align:center;min-height:42px}.jp-v1-swipe-card{border-radius:14px;flex-basis:min(292px,85vw)}
 
 .jp-v1-role-card.has-role-cv{background:color-mix(in srgb,var(--jp-primary-container) 44%,var(--jp-surface));border-color:var(--jp-primary)}.jp-role-cv-label{color:var(--jp-primary);font-weight:650;font-size:12px;line-height:18px}
+
+.jp-privacy-overlay{position:fixed;inset:0;z-index:500;background:#0006;display:grid;place-items:center;padding:12px}.jp-privacy-document{background:var(--jp-surface);color:var(--jp-text);width:min(100%,520px);height:min(94dvh,900px);padding:22px;display:flex;flex-direction:column;gap:12px;border-radius:12px;box-sizing:border-box}.jp-privacy-document h2{margin:0;font-size:21px;line-height:1.35}.jp-privacy-body{min-height:0;flex:1;overflow:auto;overscroll-behavior:contain;font-size:14px;line-height:1.55}.jp-privacy-body h3{font-size:15px;margin:18px 0 6px}.jp-privacy-ack{display:flex;gap:10px;font-size:13px;line-height:1.4;align-items:flex-start}.jp-privacy-ack input{width:20px;height:20px;flex:none;accent-color:var(--jp-primary)}
+
+.jp-score-criterion{padding:14px 0;border-bottom:1px solid var(--jp-outline);margin-bottom:12px}.jp-score-criterion p{font-size:14px;line-height:1.5}.jp-score-criterion small{color:var(--jp-primary);display:block;margin-top:5px}
+
+.jp-tabs .jp-tab-locked{color:var(--muted);display:flex;gap:5px;align-items:center;justify-content:center}.jp-tabs .jp-tab-locked[aria-selected="false"]{opacity:.6}.jp-cv-locked-icon{color:var(--muted)}

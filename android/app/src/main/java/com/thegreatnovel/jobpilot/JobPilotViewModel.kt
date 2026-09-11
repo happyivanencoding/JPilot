@@ -256,7 +256,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         mutable.update { it.copy(selectedJob = id, selectedOffer = null, selectedJobTab = tab) }
         if(id!=null) loadJobDetail(id)
     }
-    fun selectOffer(url: String?) { mutable.update { it.copy(selectedOffer = url, selectedJob = null, task = null) } }
+    fun selectOffer(url: String?) { mutable.update { it.copy(selectedOffer = url, selectedJob = null, selectedJobTab=0, task = null) } }
     private fun loadJobDetail(id:String,retryLocalization:Boolean=false) {
         if(detailJob?.isActive==true)return
         val epoch=generation;val profile=mutable.value.profileId
@@ -355,6 +355,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun updateJob(id: String, change: JSONObject) = writeAction(json("action" to "updateJob", "id" to id, "change" to change))
     fun saveOffer(offer: JSONObject) = writeAction(json("action" to "saveOffer", "offer" to offer))
+    fun trackOffer(offer:JSONObject,change:JSONObject)=writeAction(json("action" to "trackOffer","offer" to offer,"change" to change))
     fun tailorOffer(offer: JSONObject) {
         val profile=mutable.value.profileId;val epoch=generation;val language=mutable.value.language
         viewModelScope.launch {
@@ -364,7 +365,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
                 if(epoch==generation) {
                     val task=response.child("task");val jobId=response.text("jobId")
                     mutable.update { state -> state.copy(working=false,notice=when(state.language){"zh"->"正在准备这份岗位版简历，你可以继续浏览。";"en"->"Your role-specific CV is being prepared. You can keep browsing.";else->"Votre CV ciblé se prépare. Vous pouvez continuer à naviguer."},noticeTaskId=task.text("id").takeIf(String::isNotBlank)) }
-                    if(task.text("status")=="completed") { mutable.update { it.copy(destination=json("tab" to 2)) };selectJob(jobId.takeIf(String::isNotBlank),1) }
+                    // Stay on the current role and tab; the next snapshot contains its CV.
                     refreshJob?.cancel();refreshJob=null;refresh(silent=true)
                 }
             } catch(e:Exception) { if(epoch==generation) failure(e) }
@@ -469,7 +470,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     fun loadCvComparison() {
         val preview=mutable.value.cvPreview ?: return
         val jobId=preview.tailoredJobId ?: return
-        if(preview.comparisonFiles.isNotEmpty() || mutable.value.previewLoading)return
+        if(mutable.value.previewLoading)return
         val profile=mutable.value.profileId;val epoch=generation;val previewEpoch=previewGeneration
         viewModelScope.launch {
             mutable.update {it.copy(previewLoading=true,error=null)}

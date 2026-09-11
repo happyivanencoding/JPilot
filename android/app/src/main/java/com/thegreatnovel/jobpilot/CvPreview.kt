@@ -51,7 +51,7 @@ import java.io.File
                     OutlinedButton({if(compareMode==0){compareMode=1;vm.loadCvComparison()}else compareMode=0},Modifier.fillMaxWidth().testTag("compare-role-cv"),enabled=!state.previewLoading) {Text(if(compareMode==0)tr("对比原简历 · 高光改动","Comparer au CV original · surligner","Compare original · highlight changes")else tr("关闭对比","Fermer la comparaison","Close comparison"))}
                     if(compareMode>0) {
                         Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                            FilterChip(compareMode==1,{compareMode=1;vm.loadCvComparison()},label={Text(tr("高光改动","Modifications","Changes"))})
+                            FilterChip(compareMode==1,{compareMode=1},label={Text(tr("高光改动","Modifications","Changes"))})
                             FilterChip(compareMode==2,{compareMode=2;vm.loadCvComparison()},label={Text(tr("原简历","CV original","Original CV"))})
                         }
                         Hint(tr("绿色：新增文字 · 黄色：改写。不是新增经历。","Vert : texte ajouté · jaune : reformulé. Pas de nouvelles expériences.","Green: added wording · yellow: rewritten. Not new experience."))

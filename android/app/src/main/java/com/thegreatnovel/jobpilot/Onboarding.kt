@@ -105,6 +105,8 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
     val context=LocalContext.current
     var contracts by rememberSaveable(state.profileId) { mutableStateOf(state.snapshot.child("config").child("target_roles").strings("contract_types")) }
     val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.upload(it, contracts) } }
+    var showPrivacy by remember { mutableStateOf(false) }
+    if(showPrivacy) CvPrivacyDialog(vm,state,{showPrivacy=false},if(contracts.isNotEmpty())({picker.launch(arrayOf("application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain","text/markdown"))})else null)
     var languageChosen by rememberSaveable { mutableStateOf(true) }
     var email by rememberSaveable(state.loggedIn) { mutableStateOf("") }
     val focus=LocalFocusManager.current
@@ -179,7 +181,8 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
                         Text(tr("我希望用这种语言看分析","Langue de mes conseils","My insights in"),fontWeight=FontWeight.SemiBold)
                         JourneyLanguageChoices(state.analysisLanguage) {vm.journeyLanguages(analysisLanguage=it)}
                         if(importFailed) Text(tr("这份文件暂时打不开，请换一份 PDF 或 Word。","Ce fichier ne s’ouvre pas. Essayez un autre PDF ou Word.","This file could not be opened. Try another PDF or Word file."),color=MaterialTheme.colorScheme.error)
-                        PrimaryButton(tr("选择简历","Choisir mon CV","Choose my CV"),!state.working&&contracts.isNotEmpty()) {picker.launch(arrayOf("application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain","text/markdown"))}
+                        TextButton({showPrivacy=true}) {Text(tr("简历信息如何使用","Utilisation des informations du CV","How your CV information is used"),fontSize=12.sp)}
+                        PrimaryButton(tr("选择简历","Choisir mon CV","Choose my CV"),!state.working&&contracts.isNotEmpty()) {showPrivacy=true}
                         Hint("PDF · Word · TXT · 12 MB")
                     }
                     3 -> {

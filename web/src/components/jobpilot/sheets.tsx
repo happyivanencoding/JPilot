@@ -1,7 +1,9 @@
 "use client";
+import {roleDetailForOffer,roleCvIsReady} from "./role-detail.mjs";
+import {MatchBreakdown} from "./match-breakdown";
 import {v1CvAssessment} from "@/lib/v1-match.mjs";
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleAlert } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleAlert, LockKeyhole } from "lucide-react";
 import { rows, texts, usePilot, type Json } from "./pilot-context";
 import { ACTIVE, centerTasks, destinationFor } from "./model.mjs";
 import { AiProgressButton, Button, Card, Check, Chip, Empty, EstimatedProgress, External, Hint, Input, Loading, Localization, Markdown, Pill, Score, Select, Sheet, Tabs, TextArea, Title, taskName } from "./ui";
@@ -15,40 +17,19 @@ export function TasksSheet() {
 }
 
 export function OfferSheet({offer}:{offer:Json}) {
-  const {data,tr,product,tailorOffer,busy,openJob}=usePilot();
-  const deep=offer.deepMatch||{},fast=offer.fastMatch||{};
-  const current=deep.currentScore ?? fast.score;
-  const cvPotential=deep.cvPotentialScore ?? current;
-  const saved=rows(data.jobs).find(job=>job.url===offer.url);
-  const hasVersion=!!(saved?.cvDraft?.id || saved?.cv?.file);
-  const active=rows(data.tasks).some(task=>task.kind==="cv" && (task.jobId===saved?.id || task.url===offer.url) && ACTIVE.has(task.status));
-  const strengths=rows(deep.strengths).length?rows(deep.strengths):rows(fast.strengths).map(item=>({title:item.title,evidence:item.evidence}));
-  const capability=rows(deep.capabilityGaps).length?rows(deep.capabilityGaps):rows(fast.gaps).map(item=>({title:item.title,why:item.reason,nextAction:""}));
-  return <Sheet title={<><div className="jp-subtitle">{offer.company}</div><div className="jp-row"><span className="jp-grow">{offer.title}</span><Match100 value={current}/></div></>} testId="offer-detail">
-    <div className="jp-sheet-content">
-      <Hint>{[offer.location,offer.contractType!=="unknown"?product(offer.contractType):""].filter(Boolean).join(" · ")}</Hint>
-      {hasVersion&&saved ? <Button data-testid="tailor-offer" onClick={()=>openJob(saved.id,1)}>{tr("查看我的岗位版本","Voir ma version ciblée","View my role version")}</Button> : <AiProgressButton taskKind="cv" offerUrl={offer.url} data-testid="tailor-offer" disabled={busy} onClick={()=>tailorOffer(offer)}>{tr("生成岗位版简历","Créer mon CV ciblé","Create my role CV")}</AiProgressButton>}
-      <Card><h3>{tr("你的简历与这个岗位","Votre CV pour ce poste","Your CV for this role")}</h3><div className="jp-v1-potential"><div><span>{tr("当前匹配","Match actuel","Current match")}</span><strong>{Math.round(Number(offer.matchScore?.baseline ?? current)||0)}</strong></div><span>→</span><div><span>{offer.matchScore?.reviewed?tr("岗位简历复核","CV revu","Reviewed role CV"):tr("优化后预计","Après retouches, estimé","Estimated after edits")}</span><strong>{Math.round(Number(cvPotential)||0)}</strong></div></div></Card>
-      <Card><h3>{tr("这个岗位到底做什么？","Que fait-on concrètement dans ce poste ?","What does this role actually do?")}</h3><p>{deep.roleSummary || offer.why}</p>{offer.deepMatchState==="loading"&&<Hint>{tr("正在后台补充更具体的职责和要求，你可以继续看。","Les responsabilités détaillées arrivent en arrière-plan.","Detailed responsibilities are being added in the background.")}</Hint>}{texts(deep.responsibilities).slice(0,3).map((item,i)=><p className="jp-bullet" key={i}>{item}</p>)}</Card>
-      {!!strengths.length&&<Card><h3>{tr("你的加分点","Vos points forts","Your strengths")}</h3>{strengths.slice(0,5).map((item,i)=><div className="jp-v1-evidence" key={i}><strong>+ {item.title}</strong><p>{item.evidence}</p></div>)}</Card>}
-      {!!rows(deep.presentationGaps).length&&<Card><h3>{tr("简历这样改","Mieux présenter votre CV","Sharpen your CV")}</h3>{rows(deep.presentationGaps).slice(0,5).map((item,i)=><div className="jp-v1-evidence" key={i}><strong>{item.title}</strong><p>{item.why}</p></div>)}{deep.cvPotentialReason&&<Hint>{deep.cvPotentialReason}</Hint>}</Card>}
-      {!!capability.length&&<Card><h3>{tr("值得补强的地方","Vos axes de progrès","Where to grow")}</h3>{capability.slice(0,6).map((item,i)=><div className="jp-v1-evidence" key={i}><strong>− {item.title}</strong><p>{item.why}</p>{item.nextAction&&<Hint>{item.nextAction}</Hint>}</div>)}</Card>}
-      {!!rows(deep.requirements).length&&<Card><h3>{tr("岗位要求","Exigences du poste","Role requirements")}</h3>{rows(deep.requirements).slice(0,7).map((item,i)=><div className="jp-v1-evidence" key={i}><div className="jp-row"><strong className="jp-grow">{item.title}</strong><Pill>{item.kind==="must"?tr("核心","Essentiel","Core"):tr("加分","Bonus","Nice to have")}</Pill></div><p>{item.why}</p></div>)}{!!texts(deep.tools).length&&<div className="jp-chips">{texts(deep.tools).map((tool,i)=><Pill key={i}>{tool}</Pill>)}</div>}</Card>}
-      <External url={offer.url}>{tr("打开原始职位页","Ouvrir l’annonce officielle","Open original posting")}</External>
-
-
-    </div>
-  </Sheet>;
+  const {data}=usePilot();
+  return <JobSheet job={roleDetailForOffer(offer,rows(data.jobs))} offer={offer}/>;
 }
-export function JobSheet({ job }: { job: Json }) {
-  const { route, data, tr, product, navigate, startTask } = usePilot();
+export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
+  const { route, data, tr, product, navigate, startTask,tailorOffer,busy,error } = usePilot();
   const tab = Math.min(2, Math.max(0, Number(route.jobTab) || 0));
   const cv = job.cv || {}, cvDraft = job.cvDraft || null;
-  return <Sheet title={<><div className="jp-subtitle">{job.company}</div><div className="jp-row"><span className="jp-grow">{job.role}</span>{job.v1Match?<Match100 value={job.v1Match.displayScore ?? job.v1Match.currentScore}/>:<Score score={job.score} />}</div></>} testId={`job-detail-${job.id}`}>
-    <Tabs labels={[tr("匹配", "Match", "Fit"), "CV", tr("跟踪", "Suivi", "Tracking")]} selected={tab} prefix="job-tab" onChange={i => navigate({ ...route, jobTab: String(i) }, true)} />
+  const hasCv=roleCvIsReady(job);
+  return <Sheet title={<><div className="jp-subtitle">{job.company}</div><div className="jp-row"><span className="jp-grow">{job.role}</span>{job.v1Match?<Match100 value={job.v1Match.displayScore ?? job.v1Match.currentScore}/>:<Score score={job.score} />}</div></>} testId={offer?"offer-detail":`job-detail-${job.id}`}>
+    <Tabs labels={[tr("匹配", "Match", "Fit"), "CV", tr("跟踪", "Suivi", "Tracking")]} selected={tab} prefix="job-tab" muted={hasCv?[]:[1]} onChange={i => navigate({ ...route, jobTab: String(i) }, true)} />
     <div className="jp-sheet-content" data-testid="job-content"><Localization value={job.localization} />
       {tab===0&&job.v1Match&&<>
-        {(cvDraft?.status==="pending"||cv.file)&&<Button onClick={()=>navigate({...route,jobTab:"1"},true)}>{tr("查看你的岗位版简历","Voir votre CV ciblé","View your role CV")}</Button>}
+        <MatchBreakdown match={job.v1Match.deepMatch || {}}/>
         <Card><h3>{tr("你的简历与这个岗位","Votre CV pour ce poste","Your CV for this role")}</h3><div className="jp-v1-potential"><div><span>{tr("当前主简历","CV actuel","Current master CV")}</span><strong>{job.matchScore?.baseline ?? job.v1Match.currentScore}</strong></div><span>→</span><div><span>{job.matchScore?.reviewed?tr("岗位简历复核","CV revu","Reviewed role CV"):tr("优化后预计","Après retouches, estimé","Estimated after edits")}</span><strong>{job.matchScore?.potential ?? job.v1Match.cvPotentialScore}</strong></div></div></Card>
         <External url={job.url}>{tr("打开原始职位页","Ouvrir l’annonce officielle","Open original job page")}</External>
         <Card><h3>{tr("这个岗位做什么","Ce que fait ce poste","What this role does")}</h3><p>{job.v1Match.deepMatch?.roleSummary}</p>{texts(job.v1Match.deepMatch?.responsibilities).map((text,i)=><p className="jp-bullet" key={i}>{text}</p>)}</Card>
@@ -67,16 +48,16 @@ export function JobSheet({ job }: { job: Json }) {
         {job.reportNum && <Button kind="text" data-testid="view-report" onClick={() => navigate({ view: "report", report: job.id, job: job.id })}>{tr("查看完整评估报告", "Lire le rapport complet", "Read full report")}</Button>}
       </>}
       {tab === 1 && <>
-        <Card><h2 style={{ fontSize: 22 }}>{tr("为这个岗位调整表达", "La bonne version, pour ce poste.", "The right version for this role.")}</h2><Hint>{tr("比较改动，决定是否保留这个版本。", "Comparez les changements et choisissez de conserver ou non cette version.", "Compare the changes and choose whether to keep this version.")}</Hint><div className="jp-row wrap">{!job.v1Match&&cv.atsScore != null && <Pill>ATS {cv.atsScore}/100</Pill>}{!job.v1Match&&cv.presentationScore != null && <Pill>{tr("已保留版本呈现分", "Score de présentation conservé", "Saved presentation score")} {cv.presentationScore}/100</Pill>}</div>
+        <Card>{!hasCv&&<LockKeyhole size={28} className="jp-cv-locked-icon"/>}<h2 style={{fontSize:22}}>{tr("岗位版简历","Votre CV pour cette offre","Your CV for this role")}</h2>{!hasCv&&<Hint>{tr("根据这份岗位要求，重新组织你已有的经历。由你决定是否生成和保留。","Présentez votre parcours pour cette offre. Vous décidez de créer et de conserver le CV.","Present your existing experience for this role. You choose whether to generate and keep it.")}</Hint>}
           {cvDraft?.status==="pending"&&<Button data-testid="view-role-cv-top" onClick={()=>navigate({view:"pdf",job:job.id,draft:cvDraft.id})}>{tr("查看你的岗位版简历","Voir votre CV ciblé","View your role CV")}</Button>}
-          {cv.file && <Button kind="outline" onClick={() => navigate({ view: "pdf", job: job.id })}>{tr("查看已保留的定制简历", "Voir le CV adapté conservé", "View saved tailored CV")}</Button>}
-          {!cvDraft || cvDraft.status !== "pending" ? <AiProgressButton taskKind="cv" jobId={job.id} onClick={() => startTask({ kind: "cv", jobId: job.id, retry: true })}>{cv.file ? tr("生成新的候选版本", "Générer une nouvelle proposition", "Generate a new candidate version") : tr("生成定制 PDF 简历草稿", "Générer un brouillon de CV adapté", "Generate tailored CV draft")}</AiProgressButton> : null}
-          {cv.inputVersionId && cv.inputVersionId !== data.cvState?.versionId && (!cvDraft || cvDraft.status !== "pending") && <AiProgressButton taskKind="cv" jobId={job.id} kind="outline" onClick={() => startTask({ kind: "cv", jobId: job.id, retry: true })}>{tr("根据新版主简历生成新版本", "Créer une version depuis le nouveau CV", "Generate from updated master CV")}</AiProgressButton>}
+          {cv.file&&<Button kind="outline" onClick={()=>navigate({view:"pdf",job:job.id})}>{tr("查看已保留的岗位版简历","Voir le CV ciblé conservé","View saved role CV")}</Button>}
+          {cvDraft?.status!=="pending"&&(!cv.file||cv.inputVersionId!==data.cvState?.versionId)&&<AiProgressButton taskKind="cv" jobId={job.id||undefined} offerUrl={offer?.url} data-testid="generate-role-cv" disabled={busy} onClick={()=>offer?tailorOffer(offer):startTask({kind:"cv",jobId:job.id,retry:true})}>{tr("生成我的岗位专属简历","Créer mon CV pour cette offre","Generate my role-specific CV")}</AiProgressButton>}
+          {error&&<p className="jp-error" role="alert">{error}</p>}
         </Card>
         {cvDraft && <TailoredCvDraftPanel job={job} />}
         {!!texts(cv.changes).length && <Card><h3>{tr("已保留版本的调整", "Adaptations de la version conservée", "Saved version changes")}</h3>{texts(cv.changes).map((s, i) => <p className="jp-bullet" key={i}>{s}</p>)}</Card>}{!!texts(cv.keywords).length && <Card><h3>{tr("岗位关键词", "Mots-clés du poste", "Role keywords")}</h3><p>{texts(cv.keywords).join(" · ")}</p></Card>}
       </>}
-      {tab === 2 && <Tracking job={job} />}
+      {tab === 2 && <Tracking key={job.url||job.id} job={job} offer={offer} />}
     </div>
   </Sheet>;
 }
@@ -107,15 +88,15 @@ function TailoredCvDraftPanel({ job }: { job: Json }) {
   </section>;
 }
 
-function Tracking({ job }: { job: Json }) {
+function Tracking({ job,offer }: { job: Json;offer?:Json }) {
   const { data, tr, product, act } = usePilot();
   const [status, setStatus] = useState(job.status || "À candidater"), [next, setNext] = useState(job.followup?.nextAction || ""), [date, setDate] = useState(job.followup?.dueDate || ""), [note, setNote] = useState(job.followup?.note || "");
   const editedNext = useRef(false);
   const [reply, setReply] = useState(""), [replyKind, setReplyKind] = useState("Recruteur");
   useEffect(() => { if (!editedNext.current) setNext(job.followup?.nextAction || ""); }, [job.followup?.nextAction]);
   return <>
-    <Card><h3>{tr("投递状态", "Statut de candidature", "Application status")}</h3><Select label={tr("当前阶段", "Étape actuelle", "Current stage")} value={status} onChange={setStatus}>{texts(data.statuses).map(s => <option key={s} value={s}>{product(s)}</option>)}</Select><Input label={tr("下一步行动", "Prochaine action", "Next action")} value={next} maxLength={12000} onChange={e => { setNext(e.target.value); editedNext.current = true; }} /><Input type="date" label={tr("跟进日期", "Date de relance", "Follow-up date")} value={date} onChange={e => setDate(e.target.value)} /><TextArea label={tr("我的备注", "Mes notes", "My notes")} value={note} rows={3} maxLength={12000} onChange={e => setNote(e.target.value)} /><Button data-testid="save-tracking" onClick={() => act({ action: "updateJob", id: job.id, change: { status, dueDate: date, note, ...(editedNext.current ? { nextAction: next } : {}) } })}>{tr("保存跟踪状态", "Enregistrer le suivi", "Save tracking")}</Button></Card>
-    <Card><h3>{tr("记录对方的回复", "Une réponse du recruteur ?", "Heard from the employer?")}</h3><div className="jp-chips">{["Accusé auto", "Recruteur", "Entretien", "Refus", "Offre"].map(kind => <Chip key={kind} selected={replyKind === kind} onClick={() => setReplyKind(kind)}>{product(kind)}</Chip>)}</div><TextArea label={tr("粘贴或概括收到的回复", "Coller ou résumer la réponse", "Paste or summarize the reply")} value={reply} rows={4} maxLength={12000} onChange={e => setReply(e.target.value)} /><Hint>{tr("只保存记录，不会发送邮件。投递阶段可在上方调整。", "Aucun email n’est envoyé. Vous pouvez ajuster le statut ci-dessus.", "No email is sent. Update the stage above as needed.")}</Hint><Button disabled={!reply.trim()} onClick={async () => { if (await act({ action: "updateJob", id: job.id, change: { reply, replyKind } })) setReply(""); }}>{tr("保存回复", "Enregistrer la réponse", "Save reply")}</Button></Card>
+    <Card><h3>{tr("投递状态", "Statut de candidature", "Application status")}</h3><Select label={tr("当前阶段", "Étape actuelle", "Current stage")} value={status} onChange={setStatus}>{texts(data.statuses).map(s => <option key={s} value={s}>{product(s)}</option>)}</Select><Input label={tr("下一步行动", "Prochaine action", "Next action")} value={next} maxLength={12000} onChange={e => { setNext(e.target.value); editedNext.current = true; }} /><Input type="date" label={tr("跟进日期", "Date de relance", "Follow-up date")} value={date} onChange={e => setDate(e.target.value)} /><TextArea label={tr("我的备注", "Mes notes", "My notes")} value={note} rows={3} maxLength={12000} onChange={e => setNote(e.target.value)} /><Button data-testid="save-tracking" onClick={() => act({ action: job.id?"updateJob":"trackOffer", id:job.id, offer, change: { status, dueDate: date, note, ...(editedNext.current ? { nextAction: next } : {}) } })}>{tr("保存跟踪状态", "Enregistrer le suivi", "Save tracking")}</Button></Card>
+    {!!job.id&&<Card><h3>{tr("记录对方的回复", "Une réponse du recruteur ?", "Heard from the employer?")}</h3><div className="jp-chips">{["Accusé auto", "Recruteur", "Entretien", "Refus", "Offre"].map(kind => <Chip key={kind} selected={replyKind === kind} onClick={() => setReplyKind(kind)}>{product(kind)}</Chip>)}</div><TextArea label={tr("粘贴或概括收到的回复", "Coller ou résumer la réponse", "Paste or summarize the reply")} value={reply} rows={4} maxLength={12000} onChange={e => setReply(e.target.value)} /><Hint>{tr("只保存记录，不会发送邮件。投递阶段可在上方调整。", "Aucun email n’est envoyé. Vous pouvez ajuster le statut ci-dessus.", "No email is sent. Update the stage above as needed.")}</Hint><Button disabled={!reply.trim()} onClick={async () => { if (await act({ action: "updateJob", id: job.id, change: { reply, replyKind } })) setReply(""); }}>{tr("保存回复", "Enregistrer la réponse", "Save reply")}</Button></Card>}
     {rows(job.replies).slice().reverse().map((r, i) => <Card key={i}><div className="jp-row spread"><Pill warm>{product(r.kind)}</Pill><Hint>{r.at?.slice(0, 10)}</Hint></div><p>{r.text}</p></Card>)}
     {!!rows(job.statusHistory).length && <Card><h3>{tr("状态时间线", "Historique des étapes", "Stage history")}</h3>{rows(job.statusHistory).slice().reverse().map((h, i) => <Hint key={i}>{h.at?.slice(0, 10)} · {product(h.status)}</Hint>)}</Card>}
   </>;

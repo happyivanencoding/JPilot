@@ -1,3 +1,4 @@
+import {MATCH_METHOD,ANCHORED_INSTRUCTIONS,anchoredBreakdown} from "./match-rubric.mjs";
 import {normalizeUrl} from "./posting-url.mjs";
 // V1 student-facing match layer. This is deliberately separate from the legacy
 // 0-5 official evaluation: fastMatch is immediate guidance, while deep_match is
@@ -106,20 +107,19 @@ export function deepMatchPrompt({candidate,offer,fastMatch,jobIntelligence,langu
  return `You are a practical career guide assessing ONE real role for this candidate. Use the original CV, not assumptions about nationality, names or job titles. No tools, applications or invented achievements.
 OUTPUT LANGUAGE: ${language}.
 Give one coherent job-match score on a 0-100 scale. The supplied fastMatch is a lexical retrieval hint ONLY, not the final score. English CVs and French vacancies must be compared by meaning, not shared word counts. Never infer language proficiency from the language of the CV, UI, name or nationality. Only compare a documented proficiency with an explicit job-language requirement; unknown proficiency is a question, not a failure.
-Rubric: role/domain relevance 0-30, relevant duties and transferable experience 0-30, tools and required languages 0-20, level/experience and actual stated requirements 0-20. Give these components in score_components and current_score equal to their sum.
+${ANCHORED_INSTRUCTIONS}
 Anchors: below 40 = major role/domain gaps; 40-59 = a stretch with important experience/skill gaps; 60-74 = a credible junior candidate with relevant education and transferable experience; 75-89 = a strong direct fit; 90-100 = unusually complete match. A junior posting does NOT require a senior's experience; association/student projects count as transferable work, not senior ownership. Do not invent a floor or award points just to please the user. A clearly senior/specialised unrelated role can legitimately score below 60.
 cv_potential_score is an estimate after selecting and expressing EXISTING facts better, current_score to at most current_score+18. Better writing cannot add missing years, specialist qualifications or language fluency. capability_potential_score may reflect actually learning later but is not the visible CV-edit score.
 Use everyday concise language, 2-3 strengths, at most 2 CV edits and 2 gaps. Titles at most 8 words, explanations at most 22. Avoid 'proven', 'not demonstrated', 'evidence not found', 'proof', audit/process narration and lectures. For a known shortfall say 'Limited export administration experience'. For an unknown ability use 'Clarify your Portuguese level' rather than claiming the candidate cannot speak Portuguese. State practical actions, not defence of your reasoning.
 Return exactly one JSON object (no fence):
-{"scoring_version":"role-fit-2","score_components":{"role":0,"duties":0,"tools_languages":0,"level":0},"current_score":0,"role_summary":"plain-language description","responsibilities":["3 duties"],"requirements":[{"title":"requirement","kind":"must|nice","why":"brief"}],"tools":["explicit tools"],"strengths":[{"title":"strength","evidence":"specific example","impact":1}],"presentation_gaps":[{"title":"CV edit","why":"practical improvement","potential":1}],"capability_gaps":[{"title":"gap or practical check","why":"what this role needs","next_action":"one useful step","potential":1}],"cv_potential_score":0,"capability_potential_score":0,"cv_potential_reason":"one brief reason","confidence":"low|medium|high"}
-CV AND PREFERENCES: ${JSON.stringify(candidate)}
-POSTING: ${JSON.stringify({url:offer?.url,title:offer?.title,company:offer?.company,description:clean(offer?.description,18000),location:offer?.location,contractType:offer?.contractType})}
-RETRIEVAL HINT (NOT a final score): ${JSON.stringify(fastMatch)}
-JOB FACTS: ${JSON.stringify(jobIntelligence || null)}`;
+{"scoring_version":"role-fit-2","scoring_method":"anchored-4x4-v1","ratings":{"role":2,"duties":2,"tools_languages":2,"level":2},"score_rationale":{"role":{"reason":"rating explanation","job_evidence":"short verbatim excerpt or empty","cv_evidence":"short verbatim excerpt or empty","unknown":false},"duties":{"reason":"rating explanation","job_evidence":"excerpt or empty","cv_evidence":"excerpt or empty","unknown":false},"tools_languages":{"reason":"rating explanation","job_evidence":"excerpt or empty","cv_evidence":"excerpt or empty","unknown":false},"level":{"reason":"rating explanation","job_evidence":"excerpt or empty","cv_evidence":"excerpt or empty","unknown":false}},"role_summary":"plain-language description","responsibilities":["3 duties"],"requirements":[{"title":"requirement","kind":"must|nice","why":"brief"}],"tools":["explicit tools"],"strengths":[{"title":"strength","evidence":"specific example","impact":1}],"presentation_gaps":[{"title":"CV edit","why":"practical improvement","potential":1}],"capability_gaps":[{"title":"gap or practical check","why":"what this role needs","next_action":"one useful step","potential":1}],"cv_potential_score":0,"capability_potential_score":0,"cv_potential_reason":"one brief reason","confidence":"low|medium|high"}
+CV AND CANDIDATE NOTES: ${JSON.stringify({cv:clean(candidate?.sources?.cv?.text,40000),notes:clean(candidate?.sources?.notes?.text,5000)})}
+POSTING: ${JSON.stringify({title:clean(offer?.title,300),description:clean(offer?.description,18000),contractType:offer?.contractType})}`;
 }
 
 export function normalizeDeepMatch(result,fastMatch){
-  const rubric=result?.scoring_version==='role-fit-2' && result.score_components;
+  const anchored=result?.scoring_method===MATCH_METHOD?anchoredBreakdown(result):null;
+  const rubric=anchored?.components || result?.scoring_version==='role-fit-2' && result.score_components;
   const caps={role:30,duties:30,tools_languages:20,level:20};
   if(rubric && Object.keys(caps).some(key=>!Number.isFinite(Number(rubric[key])))) throw new Error('Incomplete match rubric');
   const current=rubric?Object.entries(caps).reduce((sum,[key,cap])=>sum+clamp(rubric[key],0,cap),0):clamp(fastMatch?.score,0,100);
@@ -128,7 +128,7 @@ export function normalizeDeepMatch(result,fastMatch){
   const list=(value,limit)=>Array.isArray(value)?value.filter(x=>x&&typeof x==='object').slice(0,limit):[];
   const strings=(value,limit)=>Array.isArray(value)?value.map(x=>String(x||'').trim()).filter(Boolean).slice(0,limit):[];
   return {
-    currentScore:current,scoreComponents:rubric ? {...rubric} : null,scoringVersion:rubric?"role-fit-2":"legacy-fast",
+    currentScore:current,scoringMethod:anchored?MATCH_METHOD:null,scoreBreakdown:anchored?.rows || [],scoreComponents:rubric ? {...rubric} : null,scoringVersion:rubric?"role-fit-2":"legacy-fast",
     roleSummary:clean(result?.role_summary,1800),
     responsibilities:strings(result?.responsibilities,6),
     requirements:list(result?.requirements,8).map(x=>({title:clean(x.title,220),kind:x.kind==='must'?'must':'nice',why:clean(x.why,900)})).filter(x=>x.title),
@@ -160,7 +160,7 @@ export function searchQueryFromAnalysis(analysis,config={}){
  * @param {Record<string, any>} assessment
  * @returns {Record<string, any>} */
 export function v1CvAssessment(job, assessment={}) {
-  const match=job?.cvDraft?.matchBasis || job?.v1Match;
+  const match=(job?.cvDraft?.status==='pending'?job.cvDraft.matchBasis:null) || job?.cv?.matchBasis || job?.v1Match;
   if(assessment.scoringVersion==="role-fit-2-cv") return assessment;
   if(match?.currentScore==null || assessment.draftScore==null)return assessment;
   const baselineScore=Math.max(0,Math.min(100,Math.round(Number(match.currentScore))));
@@ -170,7 +170,7 @@ export function v1CvAssessment(job, assessment={}) {
 }
 
 export function matchScoreView(value={}) {
- const match=value.cvDraft?.matchBasis || value.v1Match || value.deepMatch || value;
+ const match=(value.cvDraft?.status==='pending'?value.cvDraft.matchBasis:null) || value.cv?.matchBasis || value.v1Match || value.deepMatch || value;
  const baseline=clamp(match.currentScore ?? value.fastMatch?.score);
  const forecast=clamp(Math.max(baseline,Number(match.cvPotentialScore ?? baseline)));
  const current=clamp(Math.max(baseline,Math.min(forecast,Number(value.v1Match?.displayScore ?? match.displayScore ?? baseline))));
@@ -181,10 +181,10 @@ export function matchScoreView(value={}) {
 }
 export function projectV1JobScores(job,tasks=[],versionId='') {
  if(!job.v1Match)return job;
- const frozen=job.cvDraft?.matchBasis || job.cv?.matchBasis;
+ const frozen=(job.cvDraft?.status==='pending'?job.cvDraft.matchBasis:null) || job.cv?.matchBasis;
  if(frozen) job={...job,v1Match:{...frozen,displayScore:job.v1Match.displayScore ?? frozen.currentScore}};
  const latest=tasks.find(t=>t.kind==='deep_match'&&t.status==='completed'&&t.inputVersionId===versionId&&normalizeUrl(t.input?.url)===normalizeUrl(job.url)&&t.result?.deepMatch?.scoringVersion==='role-fit-2');
- if(!frozen && latest && (!job.cvDraft?.baseVersionId || job.cvDraft.baseVersionId===versionId) && (!job.cv?.inputVersionId || job.cv.inputVersionId===versionId)) {
+ if(!frozen && latest && (job.cvDraft?.status==='rejected' || !job.cvDraft?.baseVersionId || job.cvDraft.baseVersionId===versionId) && (!job.cv?.inputVersionId || job.cv.inputVersionId===versionId)) {
    const deep=latest.result.deepMatch;
    const gain=Math.max(0,Number(job.cv?.presentationDelta || 0));
    job={...job,v1Match:{...job.v1Match,currentScore:deep.currentScore,cvPotentialScore:deep.cvPotentialScore,displayScore:Math.min(deep.cvPotentialScore,deep.currentScore+gain),deepMatch:deep}};

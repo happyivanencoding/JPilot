@@ -1,0 +1,99 @@
+{
+  "version": "2026-09-11.1",
+  "title": {
+    "zh": "测试阶段简历信息使用说明",
+    "fr": "Notice relative aux CV — phase de test",
+    "en": "CV information notice — testing phase"
+  },
+  "ack": {
+    "zh": "我已阅读并理解本说明，同意为上述测试功能处理我提供的简历信息。",
+    "fr": "J’ai lu et compris cette notice et consens au traitement de mon CV pour les fonctions de test décrites.",
+    "en": "I have read and understood this notice and consent to processing my CV for the test functions described."
+  },
+  "sections": [
+    {
+      "title": {
+        "zh": "负责人及适用范围",
+        "fr": "Responsable et périmètre",
+        "en": "Controller and scope"
+      },
+      "body": {
+        "zh": "本说明适用于 JobPilot 封闭测试。项目负责人：Jingxuan Li。你可通过邀请你参加测试的联系人，或“我的”中的简历信息使用说明提交数据删除请求。本说明不是放弃个人信息权利的协议。",
+        "fr": "Cette notice concerne le test fermé de JobPilot, piloté par Jingxuan Li. Contactez la personne qui vous a invité au test ou déposez une demande de suppression depuis cette notice dans « Moi ». Aucun droit sur vos données n’est abandonné.",
+        "en": "This notice applies to the closed JobPilot test, coordinated by Jingxuan Li. Contact the person who invited you or submit a deletion request through this notice in My. You do not waive any data rights."
+      }
+    },
+    {
+      "title": {
+        "zh": "仅用于你选择的测试功能",
+        "fr": "Utilisation limitée aux fonctions testées",
+        "en": "Limited to the features you test"
+      },
+      "body": {
+        "zh": "我们处理你上传的简历及提取文字、你填写的求职偏好、分析和岗位匹配结果、岗位版简历以及必要的故障记录，用于提供、验证和修复这些测试功能。不会出售你的简历，不用于广告营销或训练 JobPilot 自有模型；不会擅自向雇主投递、公开展示或用于无关项目。",
+        "fr": "Le CV et son texte extrait, vos préférences, analyses, résultats de rapprochement, CV ciblés et journaux techniques nécessaires servent uniquement à fournir, vérifier et corriger ces fonctions de test. JobPilot ne vend pas votre CV, ne l’utilise ni pour la publicité ni pour entraîner ses propres modèles et ne le transmet pas spontanément à des employeurs, ne le publie pas et ne l’utilise pas pour des projets sans rapport.",
+        "en": "Your uploaded CV and extracted text, preferences, analyses, match results, tailored CVs and necessary technical logs are used only to provide, test and fix these features. JobPilot does not sell your CV, use it for advertising or train its own models with it. We do not submit it to employers, publish it or reuse it for unrelated projects."
+      }
+    },
+    {
+      "title": {
+        "zh": "保存与第三方处理",
+        "fr": "Stockage et services tiers",
+        "en": "Storage and third-party processing"
+      },
+      "body": {
+        "zh": "资料保存在本测试版的 VPS 档案中。为生成分析、匹配和简历，相关文字会发送到已配置的第三方 AI 接口；分析翻译使用 DeepSeek 接口。搜索服务接收岗位关键词和筛选条件，而非整份简历。下方列出本环境实际连接的 AI 服务域名。服务商的保存、训练政策及跨境处理安排不由本说明替代，我们不作“所有资料都不离开服务器”或“第三方绝不留存”的承诺。测试管理员仅在支持、排错和处理数据请求所需范围内访问资料。",
+        "fr": "Les données sont conservées dans le dossier VPS propre à ce test. Les textes nécessaires sont transmis aux interfaces IA configurées pour l’analyse, le rapprochement et la rédaction ; les traductions utilisent DeepSeek. Les services de recherche reçoivent des mots-clés et filtres, pas le CV complet. Les domaines IA effectivement utilisés figurent ci-dessous. Leurs règles de conservation, d’entraînement et de transfert international ne sont pas remplacées par cette notice : nous ne promettons pas un traitement uniquement sur notre serveur ni une absence de conservation par les tiers. Les administrateurs accèdent aux données dans la mesure nécessaire au support, au diagnostic et aux demandes relatives aux données.",
+        "en": "Data is stored in the VPS profile for this test. Relevant text is sent to the configured third-party AI interfaces for analysis, matching and CV writing; translations use DeepSeek. Search services receive job keywords and filters, not the complete CV. The actual AI endpoint domains are shown below. This notice does not replace their retention, training or international-transfer terms: we do not promise server-only processing or zero third-party retention. Administrators access data as needed for support, diagnosis and data requests."
+      }
+    },
+    {
+      "title": {
+        "zh": "当前测试入口的限制",
+        "fr": "Limites de cet accès de test",
+        "en": "Limits of this test access"
+      },
+      "body": {
+        "zh": "当前入口只填写邮箱，尚未验证邮箱所有权，知道同一邮箱的人可能访问对应测试档案。因此目前请使用虚构或去标识的测试简历，删除电话号码、详细住址、证件号码及其他敏感内容。该测试入口不应当作正式安全账户使用；任何系统也无法保证绝对无泄露风险。",
+        "fr": "Cet accès repose sur la saisie d’une adresse e-mail sans vérification de son propriétaire : une personne connaissant la même adresse pourrait accéder au dossier de test. Utilisez pour le moment un CV fictif ou désidentifié, sans téléphone, adresse précise, numéro de pièce d’identité ni autre donnée sensible. Il ne s’agit pas encore d’un compte sécurisé de production ; aucun système ne garantit un risque nul.",
+        "en": "This entry uses an email address without verifying ownership: someone who knows the same address may access its test profile. For now, use a fictional or de-identified test CV without phone numbers, precise addresses, identity-document numbers or other sensitive content. This is not a production-secure account, and no system can guarantee zero disclosure risk."
+      }
+    },
+    {
+      "title": {
+        "zh": "保留及删除",
+        "fr": "Conservation et suppression",
+        "en": "Retention and deletion"
+      },
+      "body": {
+        "zh": "当前测试版会保留资料以便你再次登录和复查结果，尚未实施自动到期删除。你可随时请求删除；管理员需处理测试档案、已生成材料和关联记录，完成前界面会显示“待处理”，而不是宣称已经删除。备份及第三方副本可能按各自周期保留，需另行确认，不承诺即时清除所有副本。",
+        "fr": "Le test conserve les données pour vos retours et la consultation des résultats ; aucune suppression automatique à échéance n’est encore appliquée. Vous pouvez demander leur suppression à tout moment. Un administrateur doit traiter le dossier, les documents produits et les enregistrements associés ; la demande reste « en attente » jusqu’à son traitement, sans prétendre que la suppression est déjà faite. Les sauvegardes et copies tierces peuvent suivre leurs propres cycles, à vérifier séparément ; l’effacement instantané de toutes les copies n’est pas promis.",
+        "en": "The test retains data so you can return and review results; automatic expiry deletion is not yet implemented. You can request deletion at any time. An administrator must process the profile, generated documents and related records; the request stays pending until handled rather than being represented as completed. Backups and third-party copies may follow separate retention cycles requiring confirmation; instant removal of every copy is not promised."
+      }
+    },
+    {
+      "title": {
+        "zh": "自愿参加及你的权利",
+        "fr": "Participation volontaire et droits",
+        "en": "Voluntary participation and rights"
+      },
+      "body": {
+        "zh": "上传是自愿的，处理以你本次同意为依据。不同意即可关闭，不会上传文件，但依赖简历的功能无法使用。你可查阅、修正或请求获取资料，撤回同意并申请删除，或向 CNIL 投诉。撤回后将停止新的简历上传和 AI 任务；撤回前已经发出的请求可能仍需结束处理。撤回不影响此前处理的合法性。",
+        "fr": "L’envoi est volontaire et repose sur votre consentement. Vous pouvez fermer cette notice sans transmettre de fichier ; les fonctions nécessitant le CV ne seront alors pas disponibles. Vous pouvez consulter, corriger ou demander une copie de vos données, retirer votre consentement et demander leur suppression, ou saisir la CNIL. Le retrait bloque les nouveaux envois et tâches IA ; les requêtes déjà transmises peuvent devoir terminer leur traitement. Il n’affecte pas la licéité des traitements antérieurs.",
+        "en": "Uploading is voluntary and based on your consent. Closing without accepting sends no file, but CV-dependent features will be unavailable. You can access, correct or request a copy of your data, withdraw consent and request deletion, or complain to the CNIL. Withdrawal blocks new uploads and AI tasks; requests already sent may still finish processing. Withdrawal does not affect the lawfulness of prior processing."
+      }
+    },
+    {
+      "title": {
+        "zh": "确认记录",
+        "fr": "Trace de votre accord",
+        "en": "Acknowledgement record"
+      },
+      "body": {
+        "zh": "勾选并确认后，我们仅记录说明版本、界面语言、服务器确认时间和当前档案，用于证明已告知及记录你的选择。不默认勾选，不视为向无关用途授权，也不代表已经完成正式上线的全部合规审查。匹配分为求职辅助建议，不是雇主决定或录用概率。",
+        "fr": "Après votre confirmation, nous enregistrons la version, la langue, l’heure serveur et le dossier concerné pour tracer votre choix. La case n’est pas précochée, n’autorise pas d’autres usages et ne signifie pas que toutes les vérifications de conformité d’un lancement public sont terminées. Les scores sont une aide à la recherche, pas une décision d’employeur ni une probabilité d’embauche.",
+        "en": "After confirmation, we record the notice version, language, server time and profile to document your choice. The box is not preselected, does not authorize unrelated uses and does not mean all compliance checks for a public launch are complete. Match scores are search guidance, not employer decisions or hiring probabilities."
+      }
+    }
+  ]
+}

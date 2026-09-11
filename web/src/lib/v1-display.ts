@@ -1,3 +1,4 @@
+import {broadCareerDirections} from "@/lib/career-directions.mjs";
 import {directionDescriptor,directionNotice} from "@/lib/v1-directions.mjs";
 import {matchScoreView,friendlyOffer} from "@/lib/v1-match.mjs";
 import {searchProgress} from "@/lib/v1-progress.mjs";
@@ -23,16 +24,16 @@ export async function prepareV1Display(profileId:string, locale:string, snapshot
       failed:offers.some((offer:any)=>offer.deepMatchState==='failed') || !!localized.localization?.failed};
   };
   const current=await localizeBatch(snapshot.discovery);
-  const rawDirections=snapshot.analysis?.careerDirections || [];
+  const rawDirections=broadCareerDirections(snapshot.analysis?.careerDirections || [],uiLocale,snapshot.config?.target_roles?.primary || []);
   const allGroups=[snapshot.discovery,...(snapshot.discovery.history || [])];
-  const descriptors=rawDirections.map((d:any)=>({...d,...directionDescriptor(d.searchQuery,snapshot.analysis,uiLocale),title:d.title,outputLocale:snapshot.analysis?.outputLocale || 'en'}));
+  const descriptors=rawDirections.map((d:any)=>({...d,...directionDescriptor(d.searchQuery,snapshot.analysis,uiLocale),title:d.title,outputLocale:d.broad?uiLocale:snapshot.analysis?.outputLocale || 'en'}));
   const titles=await localizeDisplay(profileId,uiLocale,{items:[...descriptors,...allGroups.map((g:any)=>{
     const descriptor=directionDescriptor(g.query,snapshot.analysis || {},uiLocale);
     return {...descriptor,outputLocale:descriptor.known?uiLocale:(snapshot.analysis?.careerDirections?.find((d:any)=>d.searchQuery===g.query)?'en':undefined)};
   })]},'directions',{retry});
   const labelsReady=!titles.localization?.pending;
   analysisReady=analysisReady&&labelsReady;
-  const displayDirections=labelsReady?titles.items.slice(0,descriptors.length).map((item:any,index:number)=>({...analysis?.careerDirections?.[index],searchQuery:item.searchQuery,key:item.key,title:item.title})):[];
+  const displayDirections=labelsReady?titles.items.slice(0,descriptors.length).map((item:any,index:number)=>({...analysis?.careerDirections?.[rawDirections[index].sourceIndex],searchQuery:item.searchQuery,key:item.key,title:item.title})):[];
   const labelFor=(index:number)=>labelsReady?titles.items[descriptors.length+index]?.title:'';
   current.label=labelFor(0);
   current.directionKey=directionDescriptor(snapshot.discovery.query,snapshot.analysis || {}).key;

@@ -105,7 +105,7 @@ export async function GET(req: Request) {
       return [{taskId:task.id,query:String(task.input?.query || ""),searchedAt:task.updatedAt || task.createdAt || "",offers}];
     });
     const snapshot={
-      version: "0.4.6", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
+      version: "0.4.8", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
       access:{role,canSwitchProfiles:role!=="user"&&profiles.length>1,needsCv:role==="user"&&!cv.trim()},
       cv, cvState:{versionId:version.id,cvVersion:version.cvVersion,revision:version.revision,changedAt:version.createdAt},
       languageSettings:{uiLocale:locale,analysisLanguage:analysisLocale,applicationLanguage:applicationLanguage(config || {},read("cv")),documentLanguage:documentLanguage(version)},
@@ -198,6 +198,10 @@ export async function POST(req: Request) {
       return Response.json({ok:true,jobs});
     }
     if (body.action === "saveOffer") return Response.json({ ok: true, job: await saveMobileOffer(profileId, body.offer) });
+    if(body.action === "trackOffer") {
+      const job=await saveMobileOffer(profileId,body.offer);
+      return Response.json({ok:true,job:updateMobileJob(profileId,job.id,body.change || {})});
+    }
     if (body.action === "tailorOffer") {
       const job=await saveMobileOffer(profileId,body.offer);
       const task=await startMobileTask(profileId,{kind:"cv",jobId:job.id,retry:true,uiLocale:locale});

@@ -61,6 +61,7 @@ export function displaySlots(value,scope) {
     fields(m,['roleSummary','cvPotentialReason'],p,mh);strings(m,'responsibilities',p,mh);
     rows(m,'requirements',p,(r,q)=>fields(r,['title','why'],q,mh));
     rows(m,'strengths',p,(r,q)=>fields(r,['title','evidence'],q,mh));
+    rows(m,'scoreBreakdown',p,(r,q)=>fields(r,['reason'],q,mh));
     rows(m,'presentationGaps',p,(r,q)=>fields(r,['title','why'],q,mh));
     rows(m,'capabilityGaps',p,(r,q)=>fields(r,['title','why','nextAction'],q,mh));
     // tools are search/domain terms and remain source-language tokens.

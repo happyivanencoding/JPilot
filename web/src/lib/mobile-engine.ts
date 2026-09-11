@@ -1,3 +1,4 @@
+import {assertNotWithdrawn} from "@/lib/cv-privacy.mjs";
 import {planDirectionSearch,directionNotice,v1CandidatePriority} from "@/lib/v1-directions.mjs";
 import {orientationPrompt,parseOrientation} from "@/lib/v1-journey.mjs";
 import {setProfileDisplayName} from "@/lib/v1-session.mjs";
@@ -297,7 +298,7 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
         onRun,onMetrics:metrics,onText:text=>{output+=text;},onFinalText:complete=>{output=complete;}});
       const parsed=extractJsonObject(output);
       if(parsed.truncated || !parsed.obj) throw new Error("L’analyse approfondie du poste n’a pas renvoyé un résultat structuré.");
-      if(task.input.experience==='v1' && (parsed.obj?.scoring_version!=='role-fit-2' || !parsed.obj?.score_components))throw new Error('Incomplete match rubric');
+      if(task.input.experience==='v1' && (parsed.obj?.scoring_version!=='role-fit-2' || parsed.obj?.scoring_method!=='anchored-4x4-v1' || !parsed.obj?.ratings || !parsed.obj?.score_rationale))throw new Error('Incomplete match rubric');
       const deepMatch={...normalizeDeepMatch(parsed.obj,fastMatch),outputLocale:task.input.uiLocale};
       writeJobIntelligence(String(task.input.url || offer.url || ""),deepMatch);
       task.text=String(deepMatch.roleSummary || "");
@@ -419,6 +420,7 @@ export function prepareTaskHistory(profileId: string, version: Record<string, an
   return tasks;
 }
 export async function startMobileTask(profileId: string, input: Record<string, unknown>, uploadPath?: string): Promise<MobileTask> {
+  if(process.env.JOBPILOT_V1_PREVIEW==='1')assertNotWithdrawn(mobileDirectory(profileId));
   const kind=String(input.kind || "");
   if(process.env.JOBPILOT_V1_PREVIEW==="1") {
     input={...input,experience:"v1"};

@@ -1,3 +1,4 @@
+import {assertCvConsent} from "@/lib/cv-privacy.mjs";
 import {profileFile} from "@/lib/profile-context";
 import {readJson,writeJson,withProfileLock} from "@/lib/mobile-state.mjs";
 import {requestUiLocale,uiLocale} from "@/lib/language-contract.mjs";
@@ -17,6 +18,9 @@ export async function POST(req: Request) {
     const declared = Number(req.headers.get("content-length") || 0);
     if (declared > UPLOAD_LIMIT + 65536) return Response.json({ error: "12 Mo maximum." }, { status: 413 });
     const profileId = await activeProfileId(new URL(req.url).searchParams.get("profileId"));
+    if(process.env.JOBPILOT_V1_PREVIEW === "1") {
+      try {assertCvConsent(mobileDirectory(profileId));} catch(e) {return Response.json({error:e instanceof Error?e.message:String(e)},{status:428});}
+    }
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) throw new Error("Sélectionnez un document.");

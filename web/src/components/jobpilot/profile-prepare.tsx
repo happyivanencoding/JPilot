@@ -1,4 +1,5 @@
 "use client";
+import {CvPrivacyDialog} from "./cv-privacy";
 import { useEffect, useRef, useState } from "react";
 import { FileText } from "lucide-react";
 import { rows, texts, usePilot, type Json } from "./pilot-context";
@@ -18,6 +19,7 @@ export function ProfilePage() {
   const p = usePilot(); const { data, tr, product, act, busy, locale, theme, setLocale, setTheme, navigate, upload, openJob } = p;
   const picker = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false);
+  const [privacyMode,setPrivacyMode]=useState(0);
   const [separateInsights,setSeparateInsights]=useState(data.languageSettings?.analysisLanguage!==locale);
   const [roles, setRoles] = useState(""), [location, setLocation] = useState(""), [remote, setRemote] = useState("");
   const config = data.config || {}, contracts = texts(config.target_roles?.contract_types);
@@ -25,10 +27,10 @@ export function ProfilePage() {
   const authenticated = typeof window !== "undefined" && (window.location.hostname === "jobs.thegreatnovel.com" || window.location.port === "3002");
   const needsCv=Boolean(data.access?.needsCv);
   const jobs=rows(data.jobs),directions=rows(data.v1?.careerDirections);
-  return <div className="jp-page roomy" data-testid="profile-page"><Title sub={needsCv?tr("先上传一份简历，JobPilot 才能建立你的个人档案。","Importez d’abord votre CV pour créer votre dossier personnel.","Upload a CV first so JobPilot can build your personal profile."):data.profile?.name}>{needsCv?tr("从你的简历开始","Commençons par votre CV","Start with your CV"):tr("我的", "Moi", "My")}</Title>
+  return <div className="jp-page roomy" data-testid="profile-page">{privacyMode>0&&<CvPrivacyDialog onClose={()=>setPrivacyMode(0)} onAccepted={privacyMode===1?()=>picker.current?.click():undefined}/>}<Title sub={needsCv?tr("先上传一份简历，JobPilot 才能建立你的个人档案。","Importez d’abord votre CV pour créer votre dossier personnel.","Upload a CV first so JobPilot can build your personal profile."):data.profile?.name}>{needsCv?tr("从你的简历开始","Commençons par votre CV","Start with your CV"):tr("我的", "Moi", "My")}</Title>
     <Card><FileText size={34} className="jp-accent" /><h2 style={{ fontSize: 22, lineHeight: "28px" }}>{tr("让简历成为起点", "Le CV comme point de départ", "Start with your CV")}</h2><Hint>{tr("PDF、Word、TXT · 最大 12 MB", "PDF, Word, TXT · 12 Mo maximum", "PDF, Word, TXT · up to 12 MB")}</Hint>
       <input ref={picker} type="file" accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" hidden data-testid="cv-upload-input" onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void upload(file,material,data.languageSettings?.analysisLanguage || locale); }} />
-      <Button data-testid="upload-cv" onClick={() => picker.current?.click()}>{tr("上传我的简历", "Importer mon CV", "Upload my CV")}</Button><div className="jp-row"><Button kind="outline" data-testid="view-master-pdf" disabled={!data.cv?.trim()} onClick={() => navigate({ tab: "profile", view: "pdf" })}>{tr("查看 PDF", "Voir le PDF", "View PDF")}</Button><Button kind="text" onClick={() => navigate({ tab: "profile", view: "edit-cv" })}>{tr("编辑内容", "Modifier le contenu", "Edit content")}</Button></div>
+      <Button kind="text" data-testid="privacy-link" onClick={()=>setPrivacyMode(2)}>{tr("简历信息如何使用","Utilisation des informations du CV","How your CV information is used")}</Button><Button data-testid="upload-cv" onClick={() => setPrivacyMode(1)}>{tr("上传我的简历", "Importer mon CV", "Upload my CV")}</Button><div className="jp-row"><Button kind="outline" data-testid="view-master-pdf" disabled={!data.cv?.trim()} onClick={() => navigate({ tab: "profile", view: "pdf" })}>{tr("查看 PDF", "Voir le PDF", "View PDF")}</Button><Button kind="text" onClick={() => navigate({ tab: "profile", view: "edit-cv" })}>{tr("编辑内容", "Modifier le contenu", "Edit content")}</Button></div>
       {data.cvState?.cvVersion != null && <Hint>{`CV ${data.cvState.cvVersion} · ${String(data.cvState.changedAt || "").slice(0, 10)}`}</Hint>}
     </Card>
     {!p.preview&&<Card><AnalysisEntry /></Card>}

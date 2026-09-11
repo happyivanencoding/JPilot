@@ -246,8 +246,7 @@ function useController(profileId: string, preview: boolean) {
     const result = await request("/api/mobile", { method: "POST", body: JSON.stringify({ action: "tailorOffer", profileId, uiLocale: locale, offer }) });
     invalidateReads(); await refresh();
     const task=result.task || {};
-    if(task.status==="completed") navigate({tab:"profile",view:"job",job:result.jobId,jobTab:"1"});
-    else notify(tr(`正在准备 ${offer.deepMatch?.cvPotentialScore ?? offer.fastMatch?.score ?? ""} 分版本，可继续浏览。`,`Préparation de votre version ciblée ; vous pouvez continuer à naviguer.`,`Preparing your targeted CV; you can keep browsing.`),task.id);
+    if(task.status!=="completed") notify(tr(`正在准备 ${offer.deepMatch?.cvPotentialScore ?? offer.fastMatch?.score ?? ""} 分版本，可继续浏览。`,`Préparation de votre version ciblée ; vous pouvez continuer à naviguer.`,`Preparing your targeted CV; you can keep browsing.`),task.id);
     return result;
   }), [execute, request, profileId, locale, refresh, navigate, notify, tr]);
   const upload = useCallback(async (file: File, sourceLanguage="en", analysisLanguage:Locale=locale, contractTypes?:string[]) => execute(async () => {

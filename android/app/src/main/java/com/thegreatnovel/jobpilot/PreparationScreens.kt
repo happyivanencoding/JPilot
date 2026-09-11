@@ -99,6 +99,8 @@ import java.time.ZoneOffset
 @Composable fun ProfileScreen(state: PilotState,vm: JobPilotViewModel) {
     val context = LocalContext.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { runCatching { context.contentResolver.takePersistableUriPermission(it,Intent.FLAG_GRANT_READ_URI_PERMISSION) }; vm.upload(it) } }
+    var privacyMode by remember { mutableStateOf(0) }
+    if(privacyMode>0) CvPrivacyDialog(vm,state,{privacyMode=0},if(privacyMode==1)({picker.launch(arrayOf("application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain","text/markdown"))})else null)
     var editCv by remember { mutableStateOf(false) }
     var cvDraft by remember(state.snapshot.text("cv")) { mutableStateOf(state.snapshot.text("cv")) }
     var confirmSave by remember { mutableStateOf(false) }
@@ -118,7 +120,8 @@ import java.time.ZoneOffset
             Icon(Icons.Rounded.Description,null,Modifier.size(34.dp),tint = MaterialTheme.colorScheme.primary)
             Text(tr("让简历成为起点","Le CV comme point de départ","Start with your CV"),fontSize = 22.sp,fontWeight = FontWeight.SemiBold)
             Hint(tr("PDF、Word、TXT · 最大 12 MB","PDF, Word, TXT · 12 Mo maximum","PDF, Word, TXT · up to 12 MB"))
-            PrimaryButton(tr("从手机上传简历","Importer un CV du téléphone","Upload a CV from my phone"),!state.working) { picker.launch(arrayOf("application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain","text/markdown")) }
+            TextButton({privacyMode=2}) {Text(tr("简历信息如何使用","Utilisation des informations du CV","How your CV information is used"),fontSize=12.sp)}
+            PrimaryButton(tr("从手机上传简历","Importer un CV du téléphone","Upload a CV from my phone"),!state.working) {privacyMode=1}
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton({ vm.openCvPreview() },Modifier.weight(1f),enabled = state.snapshot.text("cv").isNotBlank()) { Text(tr("查看 PDF","Voir le PDF","View PDF")) }
                 TextButton({ editCv = true },Modifier.weight(1f)) { Text(tr("编辑内容","Modifier le contenu","Edit content")) }
