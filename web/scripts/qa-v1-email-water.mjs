@@ -53,11 +53,20 @@ try {
   const notice=await (await context.request.get(base+'/api/v1/privacy')).json();
   assert.equal((await context.request.post(base+'/api/v1/privacy',{data:{action:'accept',version:notice.notice.version,acknowledged:false}})).status(),400);
   await page.screenshot({path:path.join(artifacts,'privacy-unchecked.png')});
+  assert.equal(await page.getByTestId('privacy-language-en').getAttribute('aria-selected'),'true');
+  assert.deepEqual(await page.getByTestId('cv-privacy-dialog').getByRole('tab').allTextContents(),['English','Français','中文']);
+  for(const code of ['fr','zh','en']) {
+    await page.getByTestId('privacy-language-'+code).click();
+    assert.equal(await page.getByTestId('privacy-language-'+code).getAttribute('aria-selected'),'true');
+    assert.doesNotMatch(await page.getByTestId('cv-privacy-dialog').innerText(),/Jingxuan|Jing Xuan/i);
+    assert.equal(await page.getByTestId('privacy-ack').isChecked(),false);
+    await page.screenshot({path:path.join(artifacts,'privacy-'+code+'.png')});
+  }
   await page.getByTestId('cv-privacy-dialog').getByRole('button',{name:'Close',exact:true}).click();
   assert.equal(modelCalls,0);
-  await page.getByTestId('onboarding-upload').click();await page.getByTestId('privacy-ack').check();
+  await page.getByTestId('onboarding-upload').click();await page.getByTestId('privacy-language-fr').click();await page.getByTestId('privacy-ack').check();
   const picker=page.waitForEvent('filechooser');await page.getByTestId('privacy-accept').click();await (await picker).setFiles(cv);
-  const consent=await (await context.request.get(base+'/api/v1/privacy')).json();assert.equal(consent.record.version,notice.notice.version);assert.ok(consent.record.acceptedAt);
+  const consent=await (await context.request.get(base+'/api/v1/privacy')).json();assert.equal(consent.record.version,notice.notice.version);assert.ok(consent.record.acceptedAt);assert.equal(consent.record.locale,'fr');
 
   await page.getByTestId('cv-analysis-progress').waitFor({state:'visible'});
   await page.waitForTimeout(2200);
@@ -108,7 +117,7 @@ try {
   fs.writeFileSync(path.join(taskRoot,search.id+'.json'),JSON.stringify(search));
   await page.goto(base+'/?tab=offers');await page.locator('.jp-v1-role-card:visible').first().waitFor();await page.locator('.jp-v1-role-card:visible').first().click();
   await page.getByTestId('job-tab-0').waitFor();
-  assert.equal(await page.locator('[role="tab"]').count(),3);assert.equal(await page.locator('.jp-tabs .jp-tab-locked').count(),1);
+  assert.equal(await page.getByTestId('job-tab-0').isVisible(),true);assert.equal(await page.locator('.jp-tabs .jp-tab-locked').count(),1);
   assert.equal((await (await context.request.get(base+'/api/mobile?profileId='+session.profileId)).json()).jobs.length,0);
   await page.getByTestId('job-tab-1').click();assert.ok(await page.getByTestId('generate-role-cv').isVisible());assert.equal(modelCalls,2);
   await page.screenshot({path:path.join(artifacts,'cv-locked.png')});
@@ -121,13 +130,79 @@ try {
   assert.equal(modelCalls,2);assert.equal(tracked.tasks.filter(t=>t.kind==='cv').length,0);
   assert.equal(await page.getByTestId('offer-detail').count(),1);assert.equal(await page.getByTestId('job-tab-2').getAttribute('aria-selected'),'true');
   await page.screenshot({path:path.join(artifacts,'tracking-no-ai.png')});
-  await page.getByTestId('job-tab-0').click();await page.getByTestId('match-breakdown').waitFor();
-  assert.match(await page.getByTestId('match-breakdown').innerText(),/76\/100/);
+  await page.getByTestId('job-tab-0').click();
+  await page.getByText('Your CV for this role',{exact:true}).waitFor({state:'visible'});
+  assert.equal(await page.getByTestId('match-breakdown').count(),0);
+  assert.equal(await page.locator('.jp-score-criterion').count(),0);
   assert.ok(saved.job?.id);
+  // A reviewed draft is a controlled saved-result fixture, not a live CV generation.
+  const registry=JSON.parse(fs.readFileSync(path.join(root,'data','profiles.json'),'utf8'));
+  const profile=registry.profiles.find(p=>p.id===session.profileId);
+  const storePath=path.join(root,profile.candidatures);
+  const ledger=JSON.parse(fs.readFileSync(storePath,'utf8'));
+  const target=ledger.jobs.find(j=>j.id===saved.job.id);
+  target.cvDraft={id:'synthetic-reviewed-draft',status:'pending',baseVersionId:own.cvState.versionId,matchBasis:structuredClone(target.v1Match),
+    assessment:{scoringVersion:'role-fit-2-cv',baselineScore:76,draftScore:76,rawDraftScore:76,delta:0,improvements:[],remainingGaps:[],needsSubstantiveImprovement:true}};
+  fs.writeFileSync(storePath,JSON.stringify(ledger));
+  await page.goto(base+'/?tab=offers');
+  await page.locator('.jp-v1-role-card:visible').first().waitFor();
+  assert.match(await page.locator('.jp-v1-role-card:visible').first().innerText(),/Initial estimate: 76 → 84/);
+  assert.match(await page.locator('.jp-v1-role-card:visible').first().innerText(),/Reviewed CV: 76 → 76.*unchanged/);
+  await page.screenshot({path:path.join(artifacts,'forecast-and-review.png')});
   await page.goto(base+'/?tab=profile&view=job&job='+encodeURIComponent(saved.job.id)+'&jobTab=0');
-  await page.getByTestId('match-breakdown').waitFor();assert.equal(await page.locator('.jp-score-criterion').count(),4);
-  assert.match(await page.getByTestId('match-breakdown').innerText(),/100.*24.*76\/100/s);
-  await page.waitForTimeout(900);await page.screenshot({path:path.join(artifacts,'score-breakdown.png')});
+  await page.getByText('Initial estimated potential',{exact:true}).waitFor();
+  assert.equal(await page.getByTestId('match-breakdown').count(),0);
+  assert.match(await page.getByTestId('job-detail-'+saved.job.id).innerText(),/Reviewed CV: 76 → 76/);
+  await page.waitForTimeout(900);await page.screenshot({path:path.join(artifacts,'match-without-rules.png')});
+  const statuses=['À candidater','CV prêt','Candidature envoyée','Réponse reçue','Entretien','Offre reçue','Embauché','Refus','Archivée'];
+  for(let i=0;i<18;i++) {
+    const response=await context.request.post(base+'/api/mobile',{data:{action:'trackOffer',profileId:session.profileId,
+      offer:{url:'https://example.com/tracking-'+i,title:'Student role '+i,company:'Test Company '+i,location:'Paris',contractType:'Stage'},
+      change:{status:statuses[i%statuses.length],note:'Per-role note '+i,dueDate:'2026-10-01'}}});
+    assert.equal(response.status(),200);
+  }
+  await page.goto(base+'/?tab=profile');
+  await page.getByTestId('profile-tab-1').click();
+  await page.getByTestId('profile-applications').waitFor({state:'visible'});
+  assert.equal(await page.locator('.jp-application-card').count(),19);
+  assert.equal(modelCalls,2);
+  for(const status of statuses) {
+    await page.getByLabel('Status',{exact:true}).selectOption(status);
+    assert.ok(await page.locator('.jp-application-card').count()>=2);
+  }
+  await page.getByLabel('Status',{exact:true}).selectOption('');
+  await page.getByTestId('application-query').fill('Company 17');
+  assert.equal(await page.locator('.jp-application-card').count(),1);
+  assert.match(await page.locator('.jp-application-card').innerText(),/Per-role note 17/);
+  await page.getByTestId('application-query').fill('');
+  await page.screenshot({path:path.join(artifacts,'all-applications.png')});
+  await page.getByTestId('application-'+saved.job.id).click();
+  await page.getByTestId('save-tracking').waitFor();
+  assert.equal(await page.getByTestId('job-tab-2').getAttribute('aria-selected'),'true');
+  await page.getByLabel('Current stage',{exact:true}).selectOption('Entretien');
+  await page.getByLabel('My notes',{exact:true}).fill('Interview scheduled from the My tab');
+  await page.getByTestId('save-tracking').click();
+  for(let i=0;i<20;i++) {
+    const state=await (await context.request.get(base+'/api/mobile?profileId='+session.profileId)).json();
+    if(state.jobs.find(j=>j.id===saved.job.id)?.status==='Entretien')break;
+    await page.waitForTimeout(200);
+  }
+  await page.goto(base+'/?tab=profile');await page.getByTestId('profile-tab-1').click();
+  await page.getByLabel('Status',{exact:true}).selectOption('Entretien');
+  assert.equal(await page.locator('.jp-application-card').count(),3);
+  assert.match(await page.getByTestId('application-'+saved.job.id).innerText(),/Interview scheduled from the My tab/);
+  assert.equal(modelCalls,2);
+  assert.equal(await page.getByTestId('profile-applications').evaluate(el=>el.scrollWidth>el.clientWidth+1),false);
+  // UI-language preference remains independent: Chinese menus, English notice by default.
+  await page.evaluate(()=>localStorage.setItem('jobpilot:language','zh'));
+  await page.goto(base+'/?tab=profile');await page.getByTestId('privacy-link').click();
+  await page.getByTestId('privacy-language-en').waitFor();
+  assert.equal(await page.getByTestId('privacy-language-en').getAttribute('aria-selected'),'true');
+  await page.getByTestId('cv-privacy-dialog').getByText('1. Contact and scope',{exact:true}).waitFor();
+  assert.match(await page.getByTestId('cv-privacy-dialog').innerText(),/person who gave you your invitation code/);
+  await page.screenshot({path:path.join(artifacts,'english-notice-chinese-ui.png')});
+  await page.getByRole('button',{name:'Close',exact:true}).click();
+  await page.evaluate(()=>localStorage.setItem('jobpilot:language','en'));
   await page.goto(base+'/?tab=profile');await page.getByTestId('privacy-link').waitFor();
 
   await page.getByTestId('privacy-link').click();await page.getByTestId('cv-privacy-dialog').waitFor();
@@ -148,8 +223,8 @@ try {
   const empty=await (await context.request.get(base+'/api/mobile?profileId='+next.profileId)).json();assert.equal(empty.cv,'');
   assert.equal((await context.request.get(base+'/api/mobile?profileId='+session.profileId)).status(),403);
   assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(artifacts,'result.json'),JSON.stringify({ok:true,model:'controlled local fixture, not live AI',realPdf: path.basename(cv),modelCalls,broadDirections:true,unifiedTabs:true,trackingWithoutAi:true,cvLockedUntilExplicitGeneration:true,scoreBreakdown:[23,23,10,20],repeatedScoringTaskReused:true,consentRecorded:true,uncheckedUploadBlocked:true,withdrawalPending:true,newAiBlockedAfterWithdrawal:true,contractsPersisted:['Stage'],progressSamples:[first,second,100],emailPersistence:true,returningHome:true,newEmailEmpty:true,errors},null,2));
-  console.log('PASS: mandatory unchecked notice -> persisted consent -> file chooser; withdrawal blocks new uploads/AI without pretending to erase; real PDF import + fixture analysis; animated full-screen water -> 100 -> directions; logout -> email; same email -> same CV/workspace; another email isolated.');
+  fs.writeFileSync(path.join(artifacts,'result.json'),JSON.stringify({ok:true,model:'controlled local fixture, not live AI',realPdf: path.basename(cv),modelCalls,broadDirections:true,unifiedTabs:true,trackingWithoutAi:true,cvLockedUntilExplicitGeneration:true,initialForecast:84,reviewedScore:76,forecastUnchanged:true,scoringRulesHidden:true,applicationCount:19,allStatusFilters:true,trackingUpdateFromMy:true,noticeLanguageTabs:["en","fr","zh"],noticeLanguageRecorded:"fr",defaultNoticeEnglishWithChineseUi:true,repeatedScoringTaskReused:true,consentRecorded:true,uncheckedUploadBlocked:true,withdrawalPending:true,newAiBlockedAfterWithdrawal:true,contractsPersisted:['Stage'],progressSamples:[first,second,100],emailPersistence:true,returningHome:true,newEmailEmpty:true,errors},null,2));
+  console.log('PASS: fixed forecast + separate zero-gain review; My shows all 19 roles/statuses and opens editable tracking without AI; EN/FR/ZH notice default EN, no personal identity; mandatory unchecked notice -> persisted consent -> file chooser; withdrawal blocks new uploads/AI without pretending to erase; real PDF import + fixture analysis; animated full-screen water -> 100 -> directions; logout -> email; same email -> same CV/workspace; another email isolated.');
   console.log('Artifacts:',artifacts);
 } finally {
   fs.writeFileSync(path.join(artifacts,'server.log'),log);

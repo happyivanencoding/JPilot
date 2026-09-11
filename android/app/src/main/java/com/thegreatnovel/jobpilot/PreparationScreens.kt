@@ -112,10 +112,43 @@ import java.time.ZoneOffset
     var contracts by remember(state.profileId) { mutableStateOf(config.child("target_roles").strings("contract_types").toSet()) }
     val needsCv=state.snapshot.child("access").optBoolean("needsCv")
     val jobs=state.snapshot.objects("jobs")
+    var profileTab by rememberSaveable(state.profileId) { mutableIntStateOf(0) }
+    var applicationStatus by rememberSaveable(state.profileId) { mutableStateOf("") }
+    var applicationQuery by rememberSaveable(state.profileId) { mutableStateOf("") }
+    var applicationMenu by remember { mutableStateOf(false) }
+    val applications=jobs.filter { (applicationStatus.isBlank() || it.text("status")==applicationStatus) &&
+        (it.text("company")+" "+it.text("role")).contains(applicationQuery.trim(),ignoreCase=true) }
+        .sortedByDescending { it.text("updatedAt",it.text("createdAt")) }
     val directions=state.snapshot.child("v1").objects("careerDirections")
     var separateInsights by remember(state.profileId) { mutableStateOf(state.analysisLanguage!=state.language) }
     LazyColumn(Modifier.fillMaxSize().imePadding().testTag("profile-content"),contentPadding = PaddingValues(22.dp),verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item { SectionTitle(if(needsCv)tr("从你的简历开始","Commençons par votre CV","Start with your CV")else tr("我的","Moi","My"),if(needsCv)tr("先上传一份简历，JobPilot 才能建立你的个人档案。","Importez d’abord votre CV pour créer votre dossier personnel.","Upload a CV first so JobPilot can build your personal profile.")else state.snapshot.child("profile").text("name")) }
+        item {
+            TabRow(profileTab) {
+                listOf(tr("个人资料","Mon profil","Profile"),tr("投递情况","Candidatures","Applications")).forEachIndexed { i,label ->
+                    Tab(profileTab==i,{profileTab=i},modifier=Modifier.testTag("profile-tab-$i"),text={Text(label)})
+                }
+            }
+        }
+        if(profileTab==1) {
+            item {
+                Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                    Text(tr("投递情况","Mes candidatures","My applications"),fontSize=22.sp,fontWeight=FontWeight.SemiBold)
+                    Hint(tr("全部 ${jobs.size} 个岗位 · 当前显示 ${applications.size} 个","${jobs.size} offres · ${applications.size} affichées","${jobs.size} roles · ${applications.size} shown"))
+                    OutlinedTextField(applicationQuery,{applicationQuery=it},Modifier.fillMaxWidth().testTag("application-query"),singleLine=true,label={Text(tr("搜索公司或岗位","Rechercher une entreprise ou un poste","Search company or role"))})
+                    Box {
+                        OutlinedButton({applicationMenu=true},Modifier.fillMaxWidth()) {Text(if(applicationStatus.isBlank())tr("全部状态","Tous les statuts","All statuses")else product(applicationStatus),Modifier.weight(1f));Icon(Icons.Rounded.ExpandMore,null)}
+                        DropdownMenu(applicationMenu,{applicationMenu=false}) {
+                            (listOf("")+state.snapshot.strings("statuses")+jobs.map {it.text("status")}).distinct().forEach { value ->
+                                DropdownMenuItem(text={Text(if(value.isBlank())tr("全部状态","Tous les statuts","All statuses")else product(value))},onClick={applicationStatus=value;applicationMenu=false})
+                            }
+                        }
+                    }
+                    if(applications.isEmpty()) Hint(if(jobs.isEmpty())tr("保存或跟踪的岗位会显示在这里。","Vos offres enregistrées et suivies apparaîtront ici.","Saved and tracked roles will appear here.")else tr("没有符合筛选的岗位。","Aucune offre ne correspond aux filtres.","No roles match these filters."))
+                }
+            }
+            items(applications,key={it.text("id")}) { job -> ProfileApplicationCard(job,vm) }
+        } else {
         item { GlassCard(accent = true) {
             Icon(Icons.Rounded.Description,null,Modifier.size(34.dp),tint = MaterialTheme.colorScheme.primary)
             Text(tr("让简历成为起点","Le CV comme point de départ","Start with your CV"),fontSize = 22.sp,fontWeight = FontWeight.SemiBold)
@@ -132,7 +165,7 @@ import java.time.ZoneOffset
             Row(verticalAlignment=Alignment.CenterVertically) { Text(tr("我的岗位版本","Mes versions par offre","My role-specific versions"),Modifier.weight(1f),fontWeight=FontWeight.SemiBold);Hint(jobs.size.toString()) }
             Hint(tr("为不同岗位准备的简历，都在这里。","Retrouvez ici vos CV adaptés à chaque offre.","Your tailored CVs, organised by role."))
             if(jobs.isEmpty()) Hint(tr("当你在岗位页点击“查看我的 XX 分版本”，它会出现在这里。","Une offre apparaîtra ici lorsque vous demanderez votre version ciblée.","A role appears here after you request its tailored version."))
-            jobs.take(12).forEach { job ->
+            jobs.forEach { job ->
                 val hasRoleCv = job.child("cvDraft").text("id").isNotBlank() || job.child("cv").text("file").isNotBlank()
                 Column(
                     Modifier.fillMaxWidth().clickable { vm.selectJob(job.text("id"), if (hasRoleCv) 1 else 0) }.padding(vertical = 8.dp),
@@ -191,6 +224,7 @@ import java.time.ZoneOffset
         } }
 
         item { TextButton(vm::logout,Modifier.fillMaxWidth().testTag("sign-out")) {Text(tr("登出","Se déconnecter","Sign out"))} }
+        }
     }
     if(editCv) ModalBottomSheet(onDismissRequest = { editCv = false },sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),modifier = Modifier.imePadding()) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(.88f).blockSheetEdgeMotion().padding(22.dp),verticalArrangement = Arrangement.spacedBy(14.dp)) {

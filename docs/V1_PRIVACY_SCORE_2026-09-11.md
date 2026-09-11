@@ -1,5 +1,9 @@
 # V1 CV privacy notice and anchored scoring — 2026-09-11
 
+## Superseding product decision — V1 0.4.9
+
+See [V1 0.4.9](V1_0_4_9_RELEASE.md). The notice removes the project owner's personal name and defaults to English with French/Chinese tabs. Contact is the invitation-code provider. The Match UI must **not** display per-criterion points, deductions, weights or formulas; the internal rubric remains unchanged. Initial forecast and actual reviewed CV score are shown separately, not substituted for one another. Earlier visible-breakdown descriptions below are historical, not current UI requirements.
+
 ## 2026-09-11 V1 0.4.8 — broad directions, unified role tabs and upload notice
 
 Android 0.4.8/code22 and Web 0.6.8 share one Match/CV/Tracking surface for both discovery and saved jobs. Inferred direction names/queries are broadened while specialty evidence and explicit targets stay intact. CV remains a muted, clickable tab until explicit generation; Tracking saves without AI. The previously unshipped privacy/scoring extension is included: visible pre-upload notice, unchecked acknowledgement, server enforcement and four-dimension deductions. Android comparison reopening fetches the corrected server PDF instead of an older in-memory version. No main/Yifeng merge. Local gates have passed; exact rollout receipts and boundaries are recorded in `docs/V1_0_4_8_RELEASE.md`.

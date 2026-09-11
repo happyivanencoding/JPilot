@@ -2,6 +2,13 @@
 export const PHONE = Object.freeze({ width: 384, height: 832 }); // USB reference: 1440×3120, density 600.
 export const TABS = ['home', 'offers', 'profile'];
 export const ACTIVE = new Set(['queued', 'running', 'reconciling']);
+/** Full application history, newest activity first. Filtering never mutates the store. */
+export function applicationRows(jobs=[],status='',query='') {
+  const q=query.trim().toLocaleLowerCase();
+  return jobs.filter(job=>(!status || job.status===status) &&
+    `${job.company || ''} ${job.role || ''}`.toLocaleLowerCase().includes(q))
+    .sort((a,b)=>String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
+}
 export function validScore(value) { return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 5 ? value : null; }
 export function filteredJobs(jobs = [], sets = {}, filter = '', query = '') {
   const key = filter || 'all';

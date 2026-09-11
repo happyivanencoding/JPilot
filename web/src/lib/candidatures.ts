@@ -42,7 +42,7 @@ function v1MatchFromRaw(raw:any) {
   const fast=raw?.fastMatch,deep=raw?.deepMatch;
   const current=Number(raw?.matchScore?.baseline ?? deep?.currentScore ?? fast?.score);
   if(!Number.isFinite(current))return null;
-  const cvPotential=Math.max(current,Number(deep?.cvPotentialScore ?? current));
+  const cvPotential=Math.max(current,Number(raw?.matchScore?.forecast ?? deep?.cvPotentialScore ?? current));
   const capabilityPotential=Math.max(cvPotential,Number(deep?.capabilityPotentialScore ?? cvPotential));
   return {currentScore:Math.max(0,Math.min(100,Math.round(current))),displayScore:Math.max(0,Math.min(100,Math.round(current))),cvPotentialScore:Math.max(0,Math.min(100,Math.round(cvPotential))),capabilityPotentialScore:Math.max(0,Math.min(100,Math.round(capabilityPotential))),deepMatch:deep||null,fastMatch:fast||null,source:"v1-student-match"};
 }

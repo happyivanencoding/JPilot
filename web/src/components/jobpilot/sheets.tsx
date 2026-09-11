@@ -1,6 +1,5 @@
 "use client";
 import {roleDetailForOffer,roleCvIsReady} from "./role-detail.mjs";
-import {MatchBreakdown} from "./match-breakdown";
 import {v1CvAssessment} from "@/lib/v1-match.mjs";
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleAlert, LockKeyhole } from "lucide-react";
@@ -29,11 +28,10 @@ export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
     <Tabs labels={[tr("匹配", "Match", "Fit"), "CV", tr("跟踪", "Suivi", "Tracking")]} selected={tab} prefix="job-tab" muted={hasCv?[]:[1]} onChange={i => navigate({ ...route, jobTab: String(i) }, true)} />
     <div className="jp-sheet-content" data-testid="job-content"><Localization value={job.localization} />
       {tab===0&&job.v1Match&&<>
-        <MatchBreakdown match={job.v1Match.deepMatch || {}}/>
-        <Card><h3>{tr("你的简历与这个岗位","Votre CV pour ce poste","Your CV for this role")}</h3><div className="jp-v1-potential"><div><span>{tr("当前主简历","CV actuel","Current master CV")}</span><strong>{job.matchScore?.baseline ?? job.v1Match.currentScore}</strong></div><span>→</span><div><span>{job.matchScore?.reviewed?tr("岗位简历复核","CV revu","Reviewed role CV"):tr("优化后预计","Après retouches, estimé","Estimated after edits")}</span><strong>{job.matchScore?.potential ?? job.v1Match.cvPotentialScore}</strong></div></div></Card>
+        <Card><h3>{tr("你的简历与这个岗位","Votre CV pour ce poste","Your CV for this role")}</h3><div className="jp-v1-potential"><div><span>{tr("当前主简历","CV actuel","Current master CV")}</span><strong>{job.matchScore?.baseline ?? job.v1Match.currentScore}</strong></div><span>→</span><div><span>{tr("最初预估潜力","Potentiel estimé initial","Initial estimated potential")}</span><strong>{job.matchScore?.forecast ?? job.v1Match.cvPotentialScore}</strong></div></div>{job.matchScore?.reviewed&&job.matchScore.reviewedScore!=null&&<><Hint>{tr(`本次简历复核：${job.matchScore.baseline} → ${job.matchScore.reviewedScore}/100`,`CV revu : ${job.matchScore.baseline} → ${job.matchScore.reviewedScore}/100`,`Reviewed CV: ${job.matchScore.baseline} → ${job.matchScore.reviewedScore}/100`)}</Hint>{job.matchScore.reviewedScore===job.matchScore.baseline&&<Hint>{tr("本次改写未提高匹配分，仍可继续完善相关经历和技能。","Cette réécriture n’a pas amélioré le match. Poursuivez le développement des expériences et compétences pertinentes.","This rewrite did not improve the match. Keep developing the relevant experience and skills.")}</Hint>}</>}</Card>
         <External url={job.url}>{tr("打开原始职位页","Ouvrir l’annonce officielle","Open original job page")}</External>
         <Card><h3>{tr("这个岗位做什么","Ce que fait ce poste","What this role does")}</h3><p>{job.v1Match.deepMatch?.roleSummary}</p>{texts(job.v1Match.deepMatch?.responsibilities).map((text,i)=><p className="jp-bullet" key={i}>{text}</p>)}</Card>
-        {!!rows(job.v1Match.deepMatch?.strengths).length&&<Card><h3>{tr("你的加分点","Vos points forts","Your strengths")}</h3>{rows(job.v1Match.deepMatch.strengths).map((item,i)=><div key={i}><strong>+ {item.title}</strong><Hint>{item.evidence}</Hint></div>)}</Card>}
+        {!!rows(job.v1Match.deepMatch?.strengths).length&&<Card><h3>{tr("你的强项","Vos points forts","Your strengths")}</h3>{rows(job.v1Match.deepMatch.strengths).map((item,i)=><div key={i}><strong>+ {item.title}</strong><Hint>{item.evidence}</Hint></div>)}</Card>}
         {!!rows(job.v1Match.deepMatch?.presentationGaps).length&&<Card><h3>{tr("简历这样改","Mieux présenter votre CV","Sharpen your CV")}</h3>{rows(job.v1Match.deepMatch.presentationGaps).map((item,i)=><div key={i}><strong>{item.title}</strong><Hint>{item.why}</Hint></div>)}</Card>}
         {!!rows(job.v1Match.deepMatch?.capabilityGaps).length&&<Card><h3>{tr("值得补强的地方","Vos axes de progrès","Where to grow")}</h3>{rows(job.v1Match.deepMatch.capabilityGaps).map((item,i)=><div key={i}><strong>− {item.title}</strong><p>{item.why}</p><Hint>{item.nextAction}</Hint></div>)}</Card>}
       </>}

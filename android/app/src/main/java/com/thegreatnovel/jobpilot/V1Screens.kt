@@ -184,13 +184,19 @@ private fun V1OfferCard(offer: JSONObject, onClick: () -> Unit) {
                 strengths.take(2).forEach { Pill("+ $it") }
                 gaps.take(2).forEach { Pill("− $it", warm = true) }
             }
-            val potential = deep.optInt("cvPotentialScore", score)
+            val scores=offer.child("matchScore")
+            val baseline=scores.optInt("baseline",deep.optInt("currentScore",score))
+            val potential = scores.optInt("forecast",deep.optInt("cvPotentialScore", baseline))
             Hint(when {
                 offer.text("deepMatchState") == "loading" -> tr("正在补充岗位匹配…", "Match détaillé en cours…", "Adding detailed match…")
-                offer.child("matchScore").optBoolean("reviewed") -> tr("岗位简历复核：${offer.child("matchScore").optInt("baseline",score)} → $potential/100","CV revu : ${offer.child("matchScore").optInt("baseline",score)} → $potential/100","Reviewed CV: ${offer.child("matchScore").optInt("baseline",score)} → $potential/100")
-                potential > score && score >= 0 -> tr("简历优化：$score → 预计 $potential/100", "CV : $score → ~$potential/100", "CV edits: $score → ~$potential/100")
+                potential >= 0 && baseline >= 0 -> tr("最初预估：$baseline → $potential/100", "Estimation initiale : $baseline → $potential/100", "Initial estimate: $baseline → $potential/100")
                 else -> tr("点开看详细匹配", "Ouvrez pour voir le match détaillé", "Open for the detailed match")
             })
+            if(scores.optBoolean("reviewed") && !scores.isNull("reviewedScore")) {
+                val reviewed=scores.optInt("reviewedScore",baseline)
+                val gain=reviewed-baseline
+                Hint(tr("本次复核：$baseline → $reviewed", "CV revu : $baseline → $reviewed", "Reviewed CV: $baseline → $reviewed") + if(gain>0) " (+$gain)" else tr(" · 未提升"," · inchangé"," · unchanged"))
+            }
         }
     }
 }
@@ -212,16 +218,16 @@ fun V1OfferDetailSheet(offer:JSONObject,state:PilotState,vm:JobPilotViewModel) {
     val deep=offer.child("deepMatch");val fast=offer.child("fastMatch");val scores=offer.child("matchScore")
     val current=scores.optInt("baseline",deep.optInt("currentScore",fast.optInt("score",-1)))
     val view=saved ?: json("id" to "", "url" to offer.text("url"),"role" to offer.text("title"),"company" to offer.text("company"),"location" to offer.text("location"),"contract" to offer.text("contractType"),"status" to "À candidater", "matchScore" to scores,
-        "v1Match" to json("currentScore" to current,"displayScore" to scores.optInt("current",current),"cvPotentialScore" to scores.optInt("potential",deep.optInt("cvPotentialScore",current)),"deepMatch" to deep))
+        "v1Match" to json("currentScore" to current,"displayScore" to scores.optInt("current",current),"cvPotentialScore" to scores.optInt("forecast",deep.optInt("cvPotentialScore",current)),"deepMatch" to deep))
     V1SavedJobDetailSheet(view,state,vm,offer)
 }
 
 @Composable
-private fun V1PotentialRow(current: Int, cvPotential: Int, reviewed: Boolean = false) {
+private fun V1PotentialRow(current: Int, cvPotential: Int) {
     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-        V1PotentialCell(tr("当前匹配","Match actuel","Current match"),current,Modifier.weight(1f))
+        V1PotentialCell(tr("原主简历匹配","CV de référence initial","Original master CV"),current,Modifier.weight(1f))
         Text("→",color=MaterialTheme.colorScheme.onSurfaceVariant)
-        V1PotentialCell(if(reviewed)tr("岗位简历复核","CV revu","Reviewed role CV")else tr("优化后预计","Après retouches, estimé","Estimated after edits"),cvPotential,Modifier.weight(1f))
+        V1PotentialCell(tr("最初预估潜力","Potentiel estimé initial","Initial estimated potential"),cvPotential,Modifier.weight(1f))
     }
 }
 
@@ -242,7 +248,7 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
     val deep = match.child("deepMatch")
     val current = match.optInt("currentScore", match.optInt("displayScore", -1))
     val display = match.optInt("displayScore", current)
-    val cvPotential = job.child("matchScore").optInt("potential",match.optInt("cvPotentialScore", current)).coerceAtLeast(current)
+    val cvPotential = job.child("matchScore").optInt("forecast",match.optInt("cvPotentialScore", current)).coerceAtLeast(current)
     var status by rememberSaveable(roleKey) { mutableStateOf(job.text("status")) }
     var statusMenu by remember { mutableStateOf(false) }
     var nextAction by rememberSaveable(roleKey) { mutableStateOf(job.child("followup").text("nextAction")) }
@@ -268,18 +274,23 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
                 item { LocalizationNotice(job.child("localization"), vm::retryLocalization) }
                 when (tab) {
                     0 -> {
-                        item {MatchBreakdown(deep)}
                         if (current >= 0) item {
                             GlassCard {
                                 Text(tr("这个岗位与你的距离", "Votre distance à ce poste", "Your distance from this role"), fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-                                V1PotentialRow(current, cvPotential,job.child("matchScore").optBoolean("reviewed"))
+                                V1PotentialRow(current, cvPotential)
+                                val scores=job.child("matchScore")
+                                if(scores.optBoolean("reviewed") && !scores.isNull("reviewedScore")) {
+                                    val reviewed=scores.optInt("reviewedScore",current)
+                                    Hint(tr("本次简历复核：$current → $reviewed/100","CV revu : $current → $reviewed/100","Reviewed CV: $current → $reviewed/100"))
+                                    if(reviewed==current) Hint(tr("本次改写未提高匹配分，仍可继续完善相关经历和技能。","Cette réécriture n’a pas amélioré le match. Poursuivez le développement des expériences et compétences pertinentes.","This rewrite did not improve the match. Keep developing the relevant experience and skills."))
+                                }
                                 if (display > current) Hint(tr("你已采用岗位版 CV，当前展示分已包含真实的呈现改善。", "Votre score affiché inclut déjà l’amélioration du CV adopté.", "Your displayed score already includes the presentation gain from the accepted role CV."))
                             }
                         }
                         item { TextButton({ runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(job.text("url")))) } }) { Icon(Icons.Rounded.OpenInNew, null, Modifier.size(17.dp)); Spacer(Modifier.width(7.dp)); Text(tr("打开原始职位页", "Ouvrir l’annonce officielle", "Open original posting")) } }
                         if (deep.text("roleSummary").isNotBlank()) item { GlassCard { Text(tr("这个岗位做什么", "Ce que fait ce poste", "What this role does"), fontWeight = FontWeight.SemiBold, fontSize = 18.sp); Text(deep.text("roleSummary"), fontSize = 14.sp, lineHeight = 21.sp); deep.strings("responsibilities").take(6).forEach { Text("• $it", fontSize = 14.sp, lineHeight = 21.sp) } } }
                         val strengths = deep.objects("strengths")
-                        if (strengths.isNotEmpty()) item { GlassCard { Text(tr("你的加分点", "Vos points forts", "Your strengths"), fontWeight = FontWeight.SemiBold, fontSize = 18.sp); strengths.take(6).forEach { item -> Text("+ ${item.text("title")}", fontWeight = FontWeight.SemiBold); Hint(item.text("evidence")) } } }
+                        if (strengths.isNotEmpty()) item { GlassCard { Text(tr("你的强项", "Vos points forts", "Your strengths"), fontWeight = FontWeight.SemiBold, fontSize = 18.sp); strengths.take(6).forEach { item -> Text("+ ${item.text("title")}", fontWeight = FontWeight.SemiBold); Hint(item.text("evidence")) } } }
                         val presentation = deep.objects("presentationGaps")
                         if (presentation.isNotEmpty()) item { GlassCard { Text(tr("可以通过简历表达改善", "À améliorer dans la présentation du CV", "Can improve through CV presentation"), fontWeight = FontWeight.SemiBold, fontSize = 18.sp); presentation.take(6).forEach { item -> Text(item.text("title"), fontWeight = FontWeight.SemiBold); Text(item.text("why"), fontSize = 14.sp, lineHeight = 21.sp) } } }
                         val gaps = deep.objects("capabilityGaps")

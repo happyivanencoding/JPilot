@@ -13,7 +13,7 @@ export async function POST(req:Request) {
  try {
   const profileId=await activeProfileId(new URL(req.url).searchParams.get('profileId'));
   const body=await req.json();
-  const record=await recordCvChoice(mobileDirectory(profileId),{...body,locale:requestUiLocale(req)});
+  const record=await recordCvChoice(mobileDirectory(profileId),{...body,locale:["en","fr","zh"].includes(body.noticeLocale)?body.noticeLocale:requestUiLocale(req)});
   return Response.json({ok:true,record},{headers:{'Cache-Control':'no-store'}});
  } catch(e) {return Response.json({error:e instanceof Error?e.message:String(e)},{status:400});}
 }

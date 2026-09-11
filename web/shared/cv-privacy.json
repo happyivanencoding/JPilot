@@ -1,5 +1,5 @@
 {
-  "version": "2026-09-11.1",
+  "version": "2026-09-11.2",
   "title": {
     "zh": "测试阶段简历信息使用说明",
     "fr": "Notice relative aux CV — phase de test",
@@ -13,14 +13,14 @@
   "sections": [
     {
       "title": {
-        "zh": "负责人及适用范围",
-        "fr": "Responsable et périmètre",
-        "en": "Controller and scope"
+        "en": "Contact and scope",
+        "fr": "Contact et périmètre",
+        "zh": "联系与适用范围"
       },
       "body": {
-        "zh": "本说明适用于 JobPilot 封闭测试。项目负责人：Jingxuan Li。你可通过邀请你参加测试的联系人，或“我的”中的简历信息使用说明提交数据删除请求。本说明不是放弃个人信息权利的协议。",
-        "fr": "Cette notice concerne le test fermé de JobPilot, piloté par Jingxuan Li. Contactez la personne qui vous a invité au test ou déposez une demande de suppression depuis cette notice dans « Moi ». Aucun droit sur vos données n’est abandonné.",
-        "en": "This notice applies to the closed JobPilot test, coordinated by Jingxuan Li. Contact the person who invited you or submit a deletion request through this notice in My. You do not waive any data rights."
+        "en": "This notice applies to the closed JobPilot test. For any questions about your data or participation, contact the person who gave you your invitation code. You can also submit a deletion request through this notice in My. You do not waive any data rights.",
+        "fr": "Cette notice concerne le test fermé de JobPilot. Pour toute question sur vos données ou votre participation, contactez la personne qui vous a transmis votre code d’invitation. Vous pouvez aussi demander la suppression depuis cette notice dans « Moi ». Aucun droit sur vos données n’est abandonné.",
+        "zh": "本说明适用于 JobPilot 封闭测试。关于你的数据或参与测试的问题，请联系给你邀请码的那个人。你也可以通过“我的”中的本说明提交数据删除请求。本说明不是放弃个人信息权利的协议。"
       }
     },
     {
@@ -90,7 +90,7 @@
         "en": "Acknowledgement record"
       },
       "body": {
-        "zh": "勾选并确认后，我们仅记录说明版本、界面语言、服务器确认时间和当前档案，用于证明已告知及记录你的选择。不默认勾选，不视为向无关用途授权，也不代表已经完成正式上线的全部合规审查。匹配分为求职辅助建议，不是雇主决定或录用概率。",
+        "zh": "勾选并确认后，我们仅记录说明版本、所阅读声明的语言、服务器确认时间和当前档案，用于证明已告知及记录你的选择。不默认勾选，不视为向无关用途授权，也不代表已经完成正式上线的全部合规审查。匹配分为求职辅助建议，不是雇主决定或录用概率。",
         "fr": "Après votre confirmation, nous enregistrons la version, la langue, l’heure serveur et le dossier concerné pour tracer votre choix. La case n’est pas précochée, n’autorise pas d’autres usages et ne signifie pas que toutes les vérifications de conformité d’un lancement public sont terminées. Les scores sont une aide à la recherche, pas une décision d’employeur ni une probabilité d’embauche.",
         "en": "After confirmation, we record the notice version, language, server time and profile to document your choice. The box is not preselected, does not authorize unrelated uses and does not mean all compliance checks for a public launch are complete. Match scores are search guidance, not employer decisions or hiring probabilities."
       }

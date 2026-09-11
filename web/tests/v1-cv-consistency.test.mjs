@@ -11,12 +11,12 @@ test('a forecast of 43 does not force a reviewed draft of 39 upward',()=>{
  assert.equal(review.baselineScore,31);assert.equal(review.draftScore,39);assert.equal(review.delta,8);
  const job={url:'https://example.com/job',v1Match:basis,cvDraft:{status:'pending',baseVersionId:'cv-a',matchBasis:basis,assessment:review}};
  const projection=projectV1JobScores(job,[{kind:'deep_match',status:'completed',inputVersionId:'cv-a',input:{url:job.url},result:{deepMatch:{scoringVersion:'role-fit-2',currentScore:90,cvPotentialScore:100}}}],'cv-a');
- assert.equal(projection.matchScore.potential,39);assert.equal(projection.matchScore.forecast,43);assert.equal(projection.matchScore.reviewed,true);
+ assert.equal(projection.matchScore.potential,43);assert.equal(projection.matchScore.reviewedScore,39);assert.equal(projection.matchScore.forecast,43);assert.equal(projection.matchScore.reviewed,true);
  assert.equal(v1CvAssessment(projection,projection.cvDraft.assessment).draftScore,39);assert.equal(projection.v1Match.currentScore,31);
 });
 test('legacy drafts project one actual score without overwriting raw assessments',()=>{
  const old={baselineScore:66,draftScore:74,delta:8};const job={v1Match:basis,cvDraft:{status:'pending',assessment:old}};
- assert.equal(matchScoreView(job).potential,39);assert.equal(projectV1JobScores(job).cvDraft.assessment.draftScore,39);assert.equal(old.baselineScore,66);
+ assert.equal(matchScoreView(job).potential,43);assert.equal(matchScoreView(job).reviewedScore,39);assert.equal(projectV1JobScores(job).cvDraft.assessment.draftScore,39);assert.equal(old.baselineScore,66);
  assert.equal(matchScoreView({...job,cvDraft:{...job.cvDraft,status:'rejected'}}).potential,43);
 });
 test('negative or unsupported changes retain the baseline or original ceiling',()=>{
