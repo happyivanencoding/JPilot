@@ -23,6 +23,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 420;
 
+const ROLE_CV_RENDERER = "original-layout-v1";
+
 
 
 type CvInfo = {
@@ -82,6 +84,7 @@ export type TailoredDraft = {
   matchBasis?:Record<string,any>;
   id:string; status:"pending"|"accepted"|"rejected"; baseVersionId:string; language:string; notesLocale:string; revision:number;
   createdAt:string; updatedAt:string; payload:TailoredPayload; file:string; htmlFile:string; pages:number; atsScore:number; atsPass:boolean;
+  rendererVersion?:string;
   atsGrade?:string; atsIssues:Array<{severity?:string;message?:string}>; keywordCoverage:number|null; changes:string[]; baselinePresentationScore?:number|null; assessment?:TailoredAssessment|null;
 };
 
@@ -263,7 +266,7 @@ async function renderDraftFiles(profileId:string,job:Job,version:Record<string,a
   const layoutSource=preserveOriginal?await originalCvLayoutSource(profileId,version):null;
   const rendered=await renderTailoredCv(renderPayload,{htmlPath,pdfPath,language:material,template:cvOptions.template,maxPages:cvOptions.preferredPages,keywords:cleanArray(job.cv?.keywords),
     ...(preserveOriginal?{referenceContent:version.sources.cv.text,layoutSource,tailoredPayload:payload}:{})});
-  return {file:path.relative(root,pdfPath).replaceAll("\\","/"),htmlFile:path.relative(root,htmlPath).replaceAll("\\","/"),...rendered};
+  return {file:path.relative(root,pdfPath).replaceAll("\\","/"),htmlFile:path.relative(root,htmlPath).replaceAll("\\","/"),rendererVersion:preserveOriginal?ROLE_CV_RENDERER:"standard-tailored-v1",...rendered};
 }
 
 async function compareCvPresentation(profileId:string,job:Job,version:Record<string,any>,payload:TailoredPayload,locale:string,revision:number,hooks?:{onRun?:(run:any)=>void;onMetrics?:(metrics:any)=>void}) {
@@ -293,6 +296,21 @@ function findDraft(store:Store,draftId:string) {
 }
 
 function writeStore(profileId:string,store:Store) { store.updatedAt=new Date().toISOString();atomicWrite(profileFile(profileId,"candidatures"),`${JSON.stringify(store,null,2)}\n`); }
+
+/** Existing V1 drafts predate the original-layout renderer. Re-render their
+ * already-saved payload mechanically on first preview/download: no model call,
+ * no wording change, no new assessment, and no mutation of the canonical CV. */
+async function ensureCurrentTailoredRender(profileId:string,store:Store,job:Job,draft:TailoredDraft) {
+  if(process.env.JOBPILOT_V1_PREVIEW!=="1")return draft;
+  const root=workspaceRoot();
+  const existing=draft.file ? path.resolve(root,draft.file) : "";
+  if(draft.rendererVersion===ROLE_CV_RENDERER && existing && fs.existsSync(existing))return draft;
+  const version=loadCandidateVersion(historyDirectory(profileId),draft.baseVersionId);
+  const files=await renderDraftFiles(profileId,job,version,draft.payload,draft.language,draft.id);
+  Object.assign(draft,{...files,updatedAt:new Date().toISOString()});
+  writeStore(profileId,store);
+  return draft;
+}
 
 export async function updateTailoredCvDraft(profileId:string,draftId:string,payload:unknown) {
   const store=readStore(profileId),{job,draft}=findDraft(store,draftId);if(draft.status!=="pending")throw new Error("Ce brouillon a déjà été traité.");
@@ -350,8 +368,9 @@ export async function downloadTailoredCv(req: Request) {
     const store=readStore(profileId);
     const job = store.jobs.find((item) => item.id === id);
     const draftId=url.searchParams.get("draftId")?.trim();
-    const draft=draftId ? (job as any)?.cvDraft as TailoredDraft | undefined : undefined;
+    let draft=draftId ? (job as any)?.cvDraft as TailoredDraft | undefined : undefined;
     if(draftId && (!draft || draft.id!==draftId)) return new Response("tailored CV draft not found",{status:404});
+    if(draft && job) draft=await ensureCurrentTailoredRender(profileId,store,job,draft);
     const rel = draft?.file || job?.cv?.file;
     if (!rel) return new Response("no tailored CV for this candidature", { status: 404 });
     const abs = path.resolve(workspaceRoot(), rel);
