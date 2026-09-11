@@ -1,5 +1,6 @@
 "use client";
 import {CvPrivacyDialog} from "./cv-privacy";
+import {SearchAreaSettings} from "./search-area";
 import {ProfileApplications} from "./profile-applications";
 import { useEffect, useRef, useState } from "react";
 import { FileText } from "lucide-react";
@@ -11,7 +12,7 @@ export function AnalysisEntry() {
   const { data, tr, navigate } = usePilot();
   const a = data.analysis || {}, exists = Boolean(a.markdown);
   const background=Boolean(data.v1?.backgroundActive);
-  return <div className="jp-stack"><h3>{tr("JobPilot 对你的理解", "Ce que JobPilot comprend de votre profil", "How JobPilot understands your profile")}</h3><Hint>{tr("上传或修改主简历后会自动更新，不需要再手动点击 AI 分析。", "L’analyse se met à jour automatiquement après une modification du CV de référence.", "This updates automatically when your master CV changes; no separate AI button is needed.")}</Hint>
+  return <div className="jp-stack"><h3>{tr("Onward 对你的理解", "Ce que Onward comprend de votre profil", "How Onward understands your profile")}</h3><Hint>{tr("上传或修改主简历后会自动更新，不需要再手动点击 AI 分析。", "L’analyse se met à jour automatiquement après une modification du CV de référence.", "This updates automatically when your master CV changes; no separate AI button is needed.")}</Hint>
     {background&&<><div className="jp-progress indeterminate"/><Hint>{tr("正在后台更新职业方向和首批岗位…","Mise à jour des directions et des premières offres…","Updating directions and initial roles in the background…")}</Hint></>}
     {exists && <Button kind="outline" data-testid="view-analysis" onClick={() => navigate({ tab:"profile",view: "analysis" })}>{tr("查看完整优势与真实行动", "Voir les atouts et actions réelles", "See strengths and real actions")}</Button>}
   </div>;
@@ -30,11 +31,12 @@ export function ProfilePage() {
   const authenticated = typeof window !== "undefined" && (window.location.hostname === "jobs.thegreatnovel.com" || window.location.port === "3002");
   const needsCv=Boolean(data.access?.needsCv);
   const jobs=rows(data.jobs),directions=rows(data.v1?.careerDirections);
-  return <div className="jp-page roomy" data-testid="profile-page">{privacyMode>0&&<CvPrivacyDialog onClose={()=>setPrivacyMode(0)} onAccepted={privacyMode===1?()=>picker.current?.click():undefined}/>}<Title sub={needsCv?tr("先上传一份简历，JobPilot 才能建立你的个人档案。","Importez d’abord votre CV pour créer votre dossier personnel.","Upload a CV first so JobPilot can build your personal profile."):data.profile?.name}>{needsCv?tr("从你的简历开始","Commençons par votre CV","Start with your CV"):tr("我的", "Moi", "My")}</Title>
+  return <div className="jp-page roomy" data-testid="profile-page">{privacyMode>0&&<CvPrivacyDialog onClose={()=>setPrivacyMode(0)} onAccepted={privacyMode===1?()=>picker.current?.click():undefined}/>}
     <div className="jp-segmented" role="tablist" aria-label={tr("我的页面","Espace personnel","My workspace")}>
       {[tr("个人资料","Mon profil","Profile"),tr("投递情况","Candidatures","Applications")].map((label,i)=><button type="button" key={i} id={`profile-tab-${i}`} role="tab" aria-selected={profileTab===i} aria-controls={`profile-panel-${i}`} className={profileTab===i?"selected":""} data-testid={`profile-tab-${i}`} onClick={()=>setProfileTab(i)}>{label}</button>)}
     </div>
     {profileTab===1?<div id="profile-panel-1" role="tabpanel" aria-labelledby="profile-tab-1"><ProfileApplications/></div>:<div id="profile-panel-0" role="tabpanel" aria-labelledby="profile-tab-0" className="jp-stack">
+    <SearchAreaSettings key={p.profileId}/>
     <Card><FileText size={34} className="jp-accent" /><h2 style={{ fontSize: 22, lineHeight: "28px" }}>{tr("让简历成为起点", "Le CV comme point de départ", "Start with your CV")}</h2><Hint>{tr("PDF、Word、TXT · 最大 12 MB", "PDF, Word, TXT · 12 Mo maximum", "PDF, Word, TXT · up to 12 MB")}</Hint>
       <input ref={picker} type="file" accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" hidden data-testid="cv-upload-input" onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void upload(file,material,data.languageSettings?.analysisLanguage || locale); }} />
       <Button kind="text" data-testid="privacy-link" onClick={()=>setPrivacyMode(2)}>{tr("简历信息如何使用","Utilisation des informations du CV","How your CV information is used")}</Button><Button data-testid="upload-cv" onClick={() => setPrivacyMode(1)}>{tr("上传我的简历", "Importer mon CV", "Upload my CV")}</Button><div className="jp-row"><Button kind="outline" data-testid="view-master-pdf" disabled={!data.cv?.trim()} onClick={() => navigate({ tab: "profile", view: "pdf" })}>{tr("查看 PDF", "Voir le PDF", "View PDF")}</Button><Button kind="text" onClick={() => navigate({ tab: "profile", view: "edit-cv" })}>{tr("编辑内容", "Modifier le contenu", "Edit content")}</Button></div>

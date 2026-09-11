@@ -1,92 +1,369 @@
 {
-  "À candidater": {"zh":"待投递","en":"To apply"},
-  "CV prêt": {"zh":"简历已就绪","en":"CV ready"},
-  "Candidature envoyée": {"zh":"已投递","en":"Applied"},
-  "Réponse reçue": {"zh":"已收到回复","en":"Reply received"},
-  "Entretien": {"zh":"面试","en":"Interview"},
-  "Offre reçue": {"zh":"已收到录用通知","en":"Offer received"},
-  "Embauché": {"zh":"已入职","en":"Hired"},
-  "Refus": {"zh":"未通过","en":"Rejected"},
-  "Archivée": {"zh":"已归档","en":"Archived"},
-  "Accusé auto": {"zh":"自动回执","en":"Automatic acknowledgement"},
-  "Recruteur": {"zh":"招聘方回复","en":"Recruiter reply"},
-  "Offre": {"zh":"录用通知","en":"Offer"},
-  "Stage": {"zh":"实习","en":"Internship"},
-  "Alternance": {"zh":"学徒制","en":"Apprenticeship"},
-  "CDI": {"zh":"长期合同（CDI）","en":"Permanent (CDI)"},
-  "CDD": {"zh":"定期合同（CDD）","en":"Fixed-term (CDD)"},
-  "À confirmer": {"zh":"待确认","en":"To confirm"},
-  "À évaluer": {"zh":"待评估","en":"Unrated"},
-  "Évaluation officielle nécessaire": {"zh":"尚未进行岗位评估","en":"Job evaluation needed"},
-  "Évaluer la compatibilité avant de candidater": {"zh":"投递前先评估岗位匹配情况","en":"Assess fit before applying"},
-  "Skip": {"zh":"不建议投递","fr":"Candidature déconseillée","en":"Not recommended"},
-  "Apply": {"zh":"建议投递","fr":"Candidature recommandée","en":"Recommended"},
-  "Go": {"zh":"建议投递","fr":"Candidature recommandée","en":"Recommended"},
-  "Maybe": {"zh":"值得进一步确认","fr":"À approfondir","en":"Worth checking"},
-  "High": {"zh":"高","fr":"Élevé","en":"High"},
-  "Medium": {"zh":"中","fr":"Moyen","en":"Medium"},
-  "Low": {"zh":"低","fr":"Faible","en":"Low"},
-  "Fort": {"zh":"较强","en":"Strong"},
-  "Partiel": {"zh":"部分匹配","en":"Partial"},
-  "Faible": {"zh":"较弱","en":"Weak"},
-  "Élevée": {"zh":"较高","en":"High"},
-  "Moyenne": {"zh":"中等","en":"Medium"},
-  "Critique": {"zh":"关键差距","en":"Critical"},
-  "Hybride": {"zh":"混合办公","en":"Hybrid"},
-  "Sur site": {"zh":"现场办公","en":"On-site"},
-  "Télétravail": {"zh":"远程办公","en":"Remote"},
-  "Analyse du CV et des compétences": {"zh":"简历与能力分析","en":"CV and skills analysis"},
-  "Recherche d’opportunités": {"zh":"岗位搜索","en":"Opportunity search"},
-  "Évaluation du poste": {"zh":"岗位评估","en":"Job evaluation"},
-  "CV adapté": {"zh":"定制简历","en":"Tailored CV"},
-  "Brouillon du CV": {"zh":"简历草稿","en":"CV draft"},
-  "Préparation de l’entretien": {"zh":"面试准备","en":"Interview preparation"},
-  "Entraînement à l’entretien": {"zh":"模拟面试","en":"Interview practice"},
-  "Comparaison des opportunités": {"zh":"岗位对比","en":"Opportunity comparison"},
-  "Conseil de carrière": {"zh":"职业建议","en":"Career advice"},
-  "Import du CV": {"zh":"简历导入","en":"CV import"},
-  "Traitement": {"zh":"任务","en":"Task"},
-  "terminé": {"zh":"已完成","en":"completed"},
-  "terminée": {"zh":"已完成","en":"completed"},
-  "en cours": {"zh":"进行中","en":"in progress"},
-  "Dossier → CV et compétences": {"zh":"档案 → 简历与能力","en":"Profile → CV and skills"},
-  "Opportunités": {"zh":"机会","en":"Opportunities"},
-  "Candidatures": {"zh":"投递","en":"Applications"},
-  "Candidatures → CV": {"zh":"投递 → 简历","en":"Applications → CV"},
-  "Dossier → Brouillon à valider": {"zh":"档案 → 待确认草稿","en":"Profile → Draft review"},
-  "Préparation": {"zh":"面试准备","en":"Preparation"},
-  "Dossier → Import à confirmer": {"zh":"档案 → 待确认导入","en":"Profile → Import review"},
-  "Dossier": {"zh":"档案","en":"Profile"},
-  "Profil": {"zh":"档案","en":"Profile"},
-  "Une action est nécessaire": {"zh":"需要处理","en":"Needs attention"},
-  "En attente de traitement": {"zh":"任务排队中","en":"Queued"},
-  "Vérification du traitement précédent": {"zh":"正在核对已有任务","en":"Checking the previous task"},
-  "Traitement en cours — vous pouvez continuer à naviguer": {"zh":"正在处理，你可以继续使用其他页面","en":"Processing — you can keep browsing"},
-  "Habituellement quelques minutes": {"zh":"耗时以任务进度为准","en":"See task progress for timing"},
-  "Traitement en cours": {"zh":"正在处理","en":"Processing"},
-  "Traitement demandé": {"zh":"已提交任务","en":"Task requested"},
-  "Import du CV…": {"zh":"正在导入简历…","en":"Importing CV…"},
-  "Import en cours · retrouvez-le dans les traitements": {"zh":"正在导入，可在后台任务中查看","en":"Importing — see background tasks"},
-  "Enregistré": {"zh":"已保存","en":"Saved"},
-  "CV enregistré. L’analyse peut être mise à jour.": {"zh":"简历已保存，可以更新分析了。","en":"CV saved. Analysis can now be updated."},
-  "CV enregistré · suggestions résolues": {"zh":"简历已保存，已应用的建议已标记完成","en":"CV saved — applied suggestions resolved"},
-  "Brouillon refusé · CV inchangé": {"zh":"已放弃草稿，原简历未改变","en":"Draft rejected — CV unchanged"},
-  "Erreur de connexion": {"zh":"连接失败，请检查电脑和服务是否在线。","en":"Connection failed. Check that your PC and services are online."},
-  "Connexion expirée. Réessayez.": {"zh":"登录已过期，请重新登录。","en":"Login expired. Please sign in again."},
-  "Connexion expirée. Reconnectez JobPilot.": {"zh":"登录已过期，请重新登录 JobPilot。","en":"Login expired. Sign in to JobPilot again."},
-  "Utiliser le domaine JobPilot ou la connexion USB.": {"zh":"请使用 JobPilot 服务地址或 USB 连接。","en":"Use the JobPilot domain or USB connection."},
-  "Adresse invalide.": {"zh":"服务器地址无效。","en":"Invalid server address."},
-  "12 Mo maximum.": {"zh":"文件不能超过 12 MB。","en":"Maximum file size is 12 MB."},
-  "Document inaccessible.": {"zh":"无法读取文件，请重新选择。","en":"Cannot read this document. Select it again."},
-  "Téléchargement hors du serveur JobPilot refusé.": {"zh":"只能下载 JobPilot 服务中的文件。","en":"Only files from the JobPilot server can be downloaded."},
-  "Ce format de téléchargement n’est pas pris en charge.": {"zh":"暂不支持此文件格式。","en":"This file format is not supported."},
-  "Le serveur n’a pas renvoyé de PDF.": {"zh":"服务器没有返回有效的 PDF。","en":"The server did not return a valid PDF."},
-  "Rendu du contenu canonique. La mise en page originale d’un fichier Word/PDF importé n’est pas reconstruite.": {"zh":"预览根据当前简历内容生成，不会还原所导入 Word 或 PDF 的原始排版。","en":"Preview of the current CV content, not a reconstruction of the imported Word/PDF layout."},
-  "Le contenu dépasse une page. Réduire ou sélectionner les informations.": {"zh":"内容超过一页，请精简或筛选信息。","en":"Content exceeds one page. Shorten or select information."},
-  "Débordement horizontal détecté.": {"zh":"发现内容超出页面宽度。","en":"Content extends beyond the page width."},
-  "Trop de lignes : la hiérarchie visuelle est trop dense.": {"zh":"行数过多，内容层次不够清楚。","en":"Too many lines; the visual hierarchy is too dense."},
-  "Plusieurs puces dépassent trois lignes.": {"zh":"多条经历描述超过三行，请适当精简。","en":"Several bullets exceed three lines; shorten them."},
-  "Le texte original est conservé pour éviter une traduction partielle non demandée. Ce plan applique la sélection et l’ordre des contenus ; les reformulations ne sont pas enregistrées.": {"zh":"为避免简历混用语言，已保留原文。此方案只调整内容取舍和顺序，不会写入语言不一致的改写。","en":"Original wording is preserved to avoid mixed languages. This plan changes selection and order only; mismatched rewrites are not applied."},
-  "Proposition explicite de l’analyse précédente": {"zh":"来自上一份已保存分析的明确建议","en":"Explicit suggestion from the previous saved analysis"},
-  "Présentez votre parcours et votre motivation pour ce poste.": {"zh":"请介绍你的经历，以及为什么申请这个岗位。","en":"Introduce your experience and motivation for this role."}
+  "À candidater": {
+    "zh": "待投递",
+    "en": "To apply"
+  },
+  "CV prêt": {
+    "zh": "简历已就绪",
+    "en": "CV ready"
+  },
+  "Candidature envoyée": {
+    "zh": "已投递",
+    "en": "Applied"
+  },
+  "Réponse reçue": {
+    "zh": "已收到回复",
+    "en": "Reply received"
+  },
+  "Entretien": {
+    "zh": "面试",
+    "en": "Interview"
+  },
+  "Offre reçue": {
+    "zh": "已收到录用通知",
+    "en": "Offer received"
+  },
+  "Embauché": {
+    "zh": "已入职",
+    "en": "Hired"
+  },
+  "Refus": {
+    "zh": "未通过",
+    "en": "Rejected"
+  },
+  "Archivée": {
+    "zh": "已归档",
+    "en": "Archived"
+  },
+  "Accusé auto": {
+    "zh": "自动回执",
+    "en": "Automatic acknowledgement"
+  },
+  "Recruteur": {
+    "zh": "招聘方回复",
+    "en": "Recruiter reply"
+  },
+  "Offre": {
+    "zh": "录用通知",
+    "en": "Offer"
+  },
+  "Stage": {
+    "zh": "实习",
+    "en": "Internship"
+  },
+  "Alternance": {
+    "zh": "学徒制",
+    "en": "Apprenticeship"
+  },
+  "CDI": {
+    "zh": "长期合同（CDI）",
+    "en": "Permanent (CDI)"
+  },
+  "CDD": {
+    "zh": "定期合同（CDD）",
+    "en": "Fixed-term (CDD)"
+  },
+  "À confirmer": {
+    "zh": "待确认",
+    "en": "To confirm"
+  },
+  "À évaluer": {
+    "zh": "待评估",
+    "en": "Unrated"
+  },
+  "Évaluation officielle nécessaire": {
+    "zh": "尚未进行岗位评估",
+    "en": "Job evaluation needed"
+  },
+  "Évaluer la compatibilité avant de candidater": {
+    "zh": "投递前先评估岗位匹配情况",
+    "en": "Assess fit before applying"
+  },
+  "Skip": {
+    "zh": "不建议投递",
+    "fr": "Candidature déconseillée",
+    "en": "Not recommended"
+  },
+  "Apply": {
+    "zh": "建议投递",
+    "fr": "Candidature recommandée",
+    "en": "Recommended"
+  },
+  "Go": {
+    "zh": "建议投递",
+    "fr": "Candidature recommandée",
+    "en": "Recommended"
+  },
+  "Maybe": {
+    "zh": "值得进一步确认",
+    "fr": "À approfondir",
+    "en": "Worth checking"
+  },
+  "High": {
+    "zh": "高",
+    "fr": "Élevé",
+    "en": "High"
+  },
+  "Medium": {
+    "zh": "中",
+    "fr": "Moyen",
+    "en": "Medium"
+  },
+  "Low": {
+    "zh": "低",
+    "fr": "Faible",
+    "en": "Low"
+  },
+  "Fort": {
+    "zh": "较强",
+    "en": "Strong"
+  },
+  "Partiel": {
+    "zh": "部分匹配",
+    "en": "Partial"
+  },
+  "Faible": {
+    "zh": "较弱",
+    "en": "Weak"
+  },
+  "Élevée": {
+    "zh": "较高",
+    "en": "High"
+  },
+  "Moyenne": {
+    "zh": "中等",
+    "en": "Medium"
+  },
+  "Critique": {
+    "zh": "关键差距",
+    "en": "Critical"
+  },
+  "Hybride": {
+    "zh": "混合办公",
+    "en": "Hybrid"
+  },
+  "Sur site": {
+    "zh": "现场办公",
+    "en": "On-site"
+  },
+  "Télétravail": {
+    "zh": "远程办公",
+    "en": "Remote"
+  },
+  "Analyse du CV et des compétences": {
+    "zh": "简历与能力分析",
+    "en": "CV and skills analysis"
+  },
+  "Recherche d’opportunités": {
+    "zh": "岗位搜索",
+    "en": "Opportunity search"
+  },
+  "Évaluation du poste": {
+    "zh": "岗位评估",
+    "en": "Job evaluation"
+  },
+  "CV adapté": {
+    "zh": "定制简历",
+    "en": "Tailored CV"
+  },
+  "Brouillon du CV": {
+    "zh": "简历草稿",
+    "en": "CV draft"
+  },
+  "Préparation de l’entretien": {
+    "zh": "面试准备",
+    "en": "Interview preparation"
+  },
+  "Entraînement à l’entretien": {
+    "zh": "模拟面试",
+    "en": "Interview practice"
+  },
+  "Comparaison des opportunités": {
+    "zh": "岗位对比",
+    "en": "Opportunity comparison"
+  },
+  "Conseil de carrière": {
+    "zh": "职业建议",
+    "en": "Career advice"
+  },
+  "Import du CV": {
+    "zh": "简历导入",
+    "en": "CV import"
+  },
+  "Traitement": {
+    "zh": "任务",
+    "en": "Task"
+  },
+  "terminé": {
+    "zh": "已完成",
+    "en": "completed"
+  },
+  "terminée": {
+    "zh": "已完成",
+    "en": "completed"
+  },
+  "en cours": {
+    "zh": "进行中",
+    "en": "in progress"
+  },
+  "Dossier → CV et compétences": {
+    "zh": "档案 → 简历与能力",
+    "en": "Profile → CV and skills"
+  },
+  "Opportunités": {
+    "zh": "机会",
+    "en": "Opportunities"
+  },
+  "Candidatures": {
+    "zh": "投递",
+    "en": "Applications"
+  },
+  "Candidatures → CV": {
+    "zh": "投递 → 简历",
+    "en": "Applications → CV"
+  },
+  "Dossier → Brouillon à valider": {
+    "zh": "档案 → 待确认草稿",
+    "en": "Profile → Draft review"
+  },
+  "Préparation": {
+    "zh": "面试准备",
+    "en": "Preparation"
+  },
+  "Dossier → Import à confirmer": {
+    "zh": "档案 → 待确认导入",
+    "en": "Profile → Import review"
+  },
+  "Dossier": {
+    "zh": "档案",
+    "en": "Profile"
+  },
+  "Profil": {
+    "zh": "档案",
+    "en": "Profile"
+  },
+  "Une action est nécessaire": {
+    "zh": "需要处理",
+    "en": "Needs attention"
+  },
+  "En attente de traitement": {
+    "zh": "任务排队中",
+    "en": "Queued"
+  },
+  "Vérification du traitement précédent": {
+    "zh": "正在核对已有任务",
+    "en": "Checking the previous task"
+  },
+  "Traitement en cours — vous pouvez continuer à naviguer": {
+    "zh": "正在处理，你可以继续使用其他页面",
+    "en": "Processing — you can keep browsing"
+  },
+  "Habituellement quelques minutes": {
+    "zh": "耗时以任务进度为准",
+    "en": "See task progress for timing"
+  },
+  "Traitement en cours": {
+    "zh": "正在处理",
+    "en": "Processing"
+  },
+  "Traitement demandé": {
+    "zh": "已提交任务",
+    "en": "Task requested"
+  },
+  "Import du CV…": {
+    "zh": "正在导入简历…",
+    "en": "Importing CV…"
+  },
+  "Import en cours · retrouvez-le dans les traitements": {
+    "zh": "正在导入，可在后台任务中查看",
+    "en": "Importing — see background tasks"
+  },
+  "Enregistré": {
+    "zh": "已保存",
+    "en": "Saved"
+  },
+  "CV enregistré. L’analyse peut être mise à jour.": {
+    "zh": "简历已保存，可以更新分析了。",
+    "en": "CV saved. Analysis can now be updated."
+  },
+  "CV enregistré · suggestions résolues": {
+    "zh": "简历已保存，已应用的建议已标记完成",
+    "en": "CV saved — applied suggestions resolved"
+  },
+  "Brouillon refusé · CV inchangé": {
+    "zh": "已放弃草稿，原简历未改变",
+    "en": "Draft rejected — CV unchanged"
+  },
+  "Erreur de connexion": {
+    "zh": "连接失败，请检查电脑和服务是否在线。",
+    "en": "Connection failed. Check that your PC and services are online."
+  },
+  "Connexion expirée. Réessayez.": {
+    "zh": "登录已过期，请重新登录。",
+    "en": "Login expired. Please sign in again."
+  },
+  "Connexion expirée. Reconnectez JobPilot.": {
+    "zh": "登录已过期，请重新登录 Onward。",
+    "en": "Login expired. Sign in to Onward again."
+  },
+  "Utiliser le domaine JobPilot ou la connexion USB.": {
+    "zh": "请使用 Onward 服务地址或 USB 连接。",
+    "en": "Use the Onward domain or USB connection."
+  },
+  "Adresse invalide.": {
+    "zh": "服务器地址无效。",
+    "en": "Invalid server address."
+  },
+  "12 Mo maximum.": {
+    "zh": "文件不能超过 12 MB。",
+    "en": "Maximum file size is 12 MB."
+  },
+  "Document inaccessible.": {
+    "zh": "无法读取文件，请重新选择。",
+    "en": "Cannot read this document. Select it again."
+  },
+  "Téléchargement hors du serveur JobPilot refusé.": {
+    "zh": "只能下载 Onward 服务中的文件。",
+    "en": "Only files from the Onward server can be downloaded."
+  },
+  "Ce format de téléchargement n’est pas pris en charge.": {
+    "zh": "暂不支持此文件格式。",
+    "en": "This file format is not supported."
+  },
+  "Le serveur n’a pas renvoyé de PDF.": {
+    "zh": "服务器没有返回有效的 PDF。",
+    "en": "The server did not return a valid PDF."
+  },
+  "Rendu du contenu canonique. La mise en page originale d’un fichier Word/PDF importé n’est pas reconstruite.": {
+    "zh": "预览根据当前简历内容生成，不会还原所导入 Word 或 PDF 的原始排版。",
+    "en": "Preview of the current CV content, not a reconstruction of the imported Word/PDF layout."
+  },
+  "Le contenu dépasse une page. Réduire ou sélectionner les informations.": {
+    "zh": "内容超过一页，请精简或筛选信息。",
+    "en": "Content exceeds one page. Shorten or select information."
+  },
+  "Débordement horizontal détecté.": {
+    "zh": "发现内容超出页面宽度。",
+    "en": "Content extends beyond the page width."
+  },
+  "Trop de lignes : la hiérarchie visuelle est trop dense.": {
+    "zh": "行数过多，内容层次不够清楚。",
+    "en": "Too many lines; the visual hierarchy is too dense."
+  },
+  "Plusieurs puces dépassent trois lignes.": {
+    "zh": "多条经历描述超过三行，请适当精简。",
+    "en": "Several bullets exceed three lines; shorten them."
+  },
+  "Le texte original est conservé pour éviter une traduction partielle non demandée. Ce plan applique la sélection et l’ordre des contenus ; les reformulations ne sont pas enregistrées.": {
+    "zh": "为避免简历混用语言，已保留原文。此方案只调整内容取舍和顺序，不会写入语言不一致的改写。",
+    "en": "Original wording is preserved to avoid mixed languages. This plan changes selection and order only; mismatched rewrites are not applied."
+  },
+  "Proposition explicite de l’analyse précédente": {
+    "zh": "来自上一份已保存分析的明确建议",
+    "en": "Explicit suggestion from the previous saved analysis"
+  },
+  "Présentez votre parcours et votre motivation pour ce poste.": {
+    "zh": "请介绍你的经历，以及为什么申请这个岗位。",
+    "en": "Introduce your experience and motivation for this role."
+  }
 }

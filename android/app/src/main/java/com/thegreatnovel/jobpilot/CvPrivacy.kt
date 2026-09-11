@@ -50,7 +50,7 @@ fun CvPrivacyDialog(vm:JobPilotViewModel,state:PilotState,onClose:()->Unit,onAcc
         Surface(Modifier.fillMaxWidth().fillMaxHeight(.94f).testTag("cv-privacy-dialog"),color=MaterialTheme.colorScheme.surface) {
             Column(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 Text(title,fontWeight=FontWeight.SemiBold,fontSize=22.sp)
-                Text("JobPilot · V1 · ${data?.child("notice")?.text("version") ?: "…"}",style=MaterialTheme.typography.labelMedium)
+                Text("Onward · V1 · ${data?.child("notice")?.text("version") ?: "…"}",style=MaterialTheme.typography.labelMedium)
                 TabRow(listOf("en","fr","zh").indexOf(locale)) {
                     listOf("en" to "English","fr" to "Français","zh" to "中文").forEach { (code,label) ->
                         Tab(locale==code,{locale=code},enabled=!working,modifier=Modifier.testTag("privacy-language-$code"),text={Text(label)})

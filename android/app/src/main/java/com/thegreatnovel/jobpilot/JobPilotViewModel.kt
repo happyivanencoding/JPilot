@@ -7,6 +7,9 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -35,12 +38,16 @@ data class PilotState(
     val taskLaunch: TaskLaunchFeedback? = null,
     val showWelcome: Boolean = false, val walkthroughTab: Int? = null,
     val showV1FirstRun: Boolean = false,
+    val trackingStates: Map<String,String> = emptyMap(),
 )
 class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     val api = JobPilotApi(app)
+    val analytics = ProductAnalytics(api, viewModelScope)
     private val prefs = app.getSharedPreferences("jobpilot", 0)
     private val previewMode = BuildConfig.APPLICATION_ID.endsWith(".v1")
-    private val mutable = MutableStateFlow(PilotState(loggedIn = api.token != null, profileId = prefs.getString("profile", "") ?: "", language = prefs.getString("language", "en") ?: "en", analysisLanguage=prefs.getString("analysisLanguage","en") ?: "en", cvLanguage=prefs.getString("cvLanguage","en") ?: "en", theme = prefs.getString("theme", "system") ?: "system", server = if (previewMode) BuildConfig.API_BASE_URL else api.base, showV1FirstRun=previewMode))
+    private fun deviceLanguage()=onwardSystemLanguage(getApplication<Application>().resources.configuration.locales[0].language)
+    private val initialLanguage=if(prefs.getBoolean("languageExplicit",false))prefs.getString("language","en")?:"en" else deviceLanguage()
+    private val mutable = MutableStateFlow(PilotState(loggedIn = api.token != null, profileId = prefs.getString("profile", "") ?: "", language = initialLanguage, analysisLanguage=prefs.getString("analysisLanguage",initialLanguage) ?: initialLanguage, cvLanguage=prefs.getString("cvLanguage","en") ?: "en", theme = prefs.getString("theme", "system") ?: "system", server = if (previewMode) BuildConfig.API_BASE_URL else api.base, showV1FirstRun=previewMode))
     val state = mutable.asStateFlow()
     private var foreground = true
     private var generation = 0
@@ -58,6 +65,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         if(ids.isNotEmpty())refresh(silent=true)
     }
     init {
+        prefs.edit().putString("language",initialLanguage).apply()
         if (previewMode) api.setBase(BuildConfig.API_BASE_URL)
         if (api.token != null) refresh()
         // Feedback lifetime belongs to the operation, not to the composable that
@@ -74,7 +82,12 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
-    fun setForeground(value: Boolean) { foreground = value; if (value && mutable.value.loggedIn) refresh(silent = true) }
+    fun setForeground(value: Boolean) {
+        foreground=value
+        analytics.foreground(value)
+        if(value) {if(!prefs.getBoolean("languageExplicit",false))appearance(language=deviceLanguage(),automatic=true);if(mutable.value.loggedIn)refresh(silent=true)}
+        else trackingPending.keys.toList().forEach {flushTracking(it)}
+    }
     fun clearMessage() { mutable.update { it.copy(error = null, notice = null) } }
     fun clearNotice() { mutable.update { it.copy(notice = null, noticeTaskId = null) } }
     fun clearTaskLaunch() { mutable.update { it.copy(taskLaunch = null) } }
@@ -106,6 +119,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         mutable.update { it.copy(cvLanguage=cvLanguage,analysisLanguage=analysisLanguage) }
     }
     fun experienceLanguage(language:String) {
+        prefs.edit().putBoolean("languageExplicit",true).apply()
         prefs.edit().putString("language",language).apply()
         mutable.update {it.copy(language=language)}
         changeAnalysisLanguage(language)
@@ -134,6 +148,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     fun previewLogin(email:String) {
+        analytics.click("login_continue")
         loginJob?.cancel()
         loginJob=viewModelScope.launch {
             mutable.update { it.copy(working=true,error=null) }
@@ -232,9 +247,10 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         mutable.update { it.copy(profileId = id, snapshot = JSONObject(), task = null, selectedJob = null, selectedOffer = null, error = null, working = false, notice = null, noticeTaskId = null, taskLaunch = null, destination = null, analysisVisible = false, cvPreview = null, previewLoading = false) }
         refresh()
     }
-    fun appearance(language: String = mutable.value.language, theme: String = mutable.value.theme) {
+    fun appearance(language: String = mutable.value.language, theme: String = mutable.value.theme,automatic:Boolean=false) {
         val previous=mutable.value
         val changed=language!=previous.language
+        if(!automatic && (changed||theme==previous.theme))prefs.edit().putBoolean("languageExplicit",true).apply()
         prefs.edit().putString("language", language).putString("theme", theme).apply()
         if(!changed) { mutable.update { it.copy(theme=theme) };return }
         generation++;refreshJob?.cancel();refreshJob=null;detailJob?.cancel();detailJob=null;reportJob?.cancel();reportJob=null
@@ -252,11 +268,12 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     fun selectJob(id: String?, tab: Int = 0) {
+        if(id!=null){analytics.click("open_job");analytics.funnel("open_job")}
         detailJob?.cancel();detailJob=null
         mutable.update { it.copy(selectedJob = id, selectedOffer = null, selectedJobTab = tab) }
         if(id!=null) loadJobDetail(id)
     }
-    fun selectOffer(url: String?) { mutable.update { it.copy(selectedOffer = url, selectedJob = null, selectedJobTab=0, task = null) } }
+    fun selectOffer(url: String?) { if(url!=null){analytics.click("open_job");analytics.funnel("open_job")}; mutable.update { it.copy(selectedOffer = url, selectedJob = null, selectedJobTab=0, task = null) } }
     private fun loadJobDetail(id:String,retryLocalization:Boolean=false) {
         if(detailJob?.isActive==true)return
         val epoch=generation;val profile=mutable.value.profileId
@@ -282,6 +299,9 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     fun startTask(input: JSONObject) {
+        analytics.click("start_"+input.text("kind"));analytics.startWait(input.text("kind"))
+        if(input.text("kind")=="search")analytics.funnel("choose_direction")
+        if(input.text("kind")=="cv")analytics.funnel("generate_cv")
         val profile = mutable.value.profileId; val epoch = generation
         input.put("language", mutable.value.language)
         input.put("uiLocale", mutable.value.language)
@@ -290,11 +310,13 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
             val estimate = mutable.value.snapshot.child("flowEstimates").child(input.text("kind"))
             val estimateLabel = estimate.text("label", "Habituellement quelques minutes")
             if(!silent) mutable.update { it.copy(working = true, error = null, notice = "Traitement demandé · $estimateLabel", noticeTaskId = null) }
-            else mutable.update { it.copy(error=null) }
+            else mutable.update { it.copy(working=true,error=null) }
             try {
                 val task = withContext(Dispatchers.IO) { api.request("/api/mobile",profile,json("action" to "task", "profileId" to profile, "input" to input)) }
+                analytics.returnedTask(task)
                 if (epoch == generation) { refreshJob?.cancel();refreshJob=null;
                     if(silent) {
+                        mutable.update {it.copy(working=false)}
                         refresh(silent=true)
                     } else {
                         mutable.update { it.copy(working = false) }
@@ -305,7 +327,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
                         refresh(silent = true)
                     }
                 }
-            } catch (e: Exception) { if (epoch == generation) failure(e) }
+            } catch (e: Exception) { if (epoch == generation) {analytics.finishWait(input.text("kind"),"failed");failure(e)} }
         }
     }
     fun startTasks(inputs: List<JSONObject>, title: String) {
@@ -337,38 +359,75 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
             } catch(e:Exception) { if(epoch==generation) failure(e) }
         }
     }
-    fun upload(uri: Uri, contractTypes: List<String>? = null) {
+    fun upload(uri: Uri, contractTypes: List<String>? = null, searchArea:JSONObject?=null) {
+        analytics.click("upload_cv");analytics.startWait("analysis")
         val prior=mutable.value
         generation++; refreshJob?.cancel(); refreshJob=null; detailJob?.cancel(); reportJob?.cancel()
         val profile=prior.profileId;val epoch=generation
         mutable.update { it.copy(working=true,error=null,notice=null,task=null,selectedJob=null,selectedOffer=null,showV1FirstRun=previewMode,snapshot=json("profile" to prior.snapshot.child("profile"))) }
         viewModelScope.launch {
             try {
-                val task=withContext(Dispatchers.IO) { api.upload(uri,profile,contractTypes) }
+                val task=withContext(Dispatchers.IO) { api.upload(uri,profile,contractTypes,searchArea) }
+                analytics.funnel("upload_cv")
                 if(epoch==generation) {
                     refreshJob?.cancel();refreshJob=null
                     mutable.update { it.copy(working=false,loading=previewMode,task=if(previewMode)null else task) }
                     refresh(silent=true)
                 }
-            } catch(e:Exception) { if(epoch==generation) failure(e) }
+            } catch(e:Exception) { if(epoch==generation) {analytics.finishWait("analysis","failed");failure(e)} }
+        }
+    }
+    private val trackingPending=mutableMapOf<String,JSONObject>()
+    private val trackingTimers=mutableMapOf<String,Job>()
+    private val trackingLocks=mutableMapOf<String,Mutex>()
+    private val trackingTargets=mutableMapOf<String,JSONObject>()
+    fun trackingKey(job:JSONObject,offer:JSONObject?=null)=mutable.value.profileId+":"+(offer?.text("url")?.takeIf {it.isNotBlank()}?:job.text("url").ifBlank {job.text("id")})
+    fun queueTracking(job:JSONObject,offer:JSONObject?,change:JSONObject,immediate:Boolean=false) {
+        val key=trackingKey(job,offer)
+        if(!trackingTargets.containsKey(key))trackingTargets[key]=json("profileId" to mutable.value.profileId,"id" to job.text("id"),"offer" to (offer?:JSONObject()))
+        val pending=trackingPending.getOrPut(key){JSONObject()}
+        change.keys().forEach {pending.put(it,change.get(it))}
+        mutable.update {it.copy(trackingStates=it.trackingStates+(key to "saving"))}
+        trackingTimers.remove(key)?.cancel()
+        if(immediate)flushTracking(key)else trackingTimers[key]=viewModelScope.launch {delay(450);trackingTimers.remove(key);persistTracking(key)}
+    }
+    fun flushTracking(key:String) {trackingTimers.remove(key)?.cancel();viewModelScope.launch {persistTracking(key)}}
+    private suspend fun persistTracking(key:String) {
+        trackingLocks.getOrPut(key){Mutex()}.withLock {
+            val target=trackingTargets[key]?:return@withLock
+            val patch=trackingPending.remove(key)?:return@withLock
+            val profile=target.text("profileId")
+            try {
+                val result=withContext(Dispatchers.IO){api.request("/api/mobile",profile,json("action" to if(target.text("id").isBlank())"trackOffer" else "updateJob","profileId" to profile,"id" to target.text("id"),"offer" to target.child("offer"),"change" to patch))}
+                result.child("job").text("id").takeIf {it.isNotBlank()}?.let {target.put("id",it)}
+                val pending=trackingPending[key]?.length()?:0
+                mutable.update {it.copy(trackingStates=it.trackingStates+(key to if(pending>0)"saving" else "saved"))}
+                if(mutable.value.profileId==profile)refresh(silent=true)
+            } catch(error:Exception) {
+                val newer=trackingPending[key]
+                newer?.keys()?.forEach {patch.put(it,newer.get(it))}
+                trackingPending[key]=patch
+                mutable.update {it.copy(trackingStates=it.trackingStates+(key to "failed"),error=when(it.language){"zh"->"自动保存失败，改动仍保留，请重试。";"fr"->"Échec de la sauvegarde. Vos modifications sont conservées.";else->"Autosave failed. Your edits are retained. Please retry."})}
+            }
         }
     }
     fun updateJob(id: String, change: JSONObject) = writeAction(json("action" to "updateJob", "id" to id, "change" to change))
     fun saveOffer(offer: JSONObject) = writeAction(json("action" to "saveOffer", "offer" to offer))
     fun trackOffer(offer:JSONObject,change:JSONObject)=writeAction(json("action" to "trackOffer","offer" to offer,"change" to change))
     fun tailorOffer(offer: JSONObject) {
+        analytics.click("generate_cv");analytics.funnel("generate_cv");analytics.startWait("cv")
         val profile=mutable.value.profileId;val epoch=generation;val language=mutable.value.language
         viewModelScope.launch {
             mutable.update { it.copy(working=true,error=null) }
             try {
                 val response=withContext(Dispatchers.IO) { api.request("/api/mobile",profile,json("action" to "tailorOffer","profileId" to profile,"uiLocale" to language,"offer" to JSONObject(offer.toString()))) }
                 if(epoch==generation) {
-                    val task=response.child("task");val jobId=response.text("jobId")
+                    val task=response.child("task");analytics.returnedTask(task);val jobId=response.text("jobId")
                     mutable.update { state -> state.copy(working=false,notice=when(state.language){"zh"->"正在准备这份岗位版简历，你可以继续浏览。";"en"->"Your role-specific CV is being prepared. You can keep browsing.";else->"Votre CV ciblé se prépare. Vous pouvez continuer à naviguer."},noticeTaskId=task.text("id").takeIf(String::isNotBlank)) }
                     // Stay on the current role and tab; the next snapshot contains its CV.
                     refreshJob?.cancel();refreshJob=null;refresh(silent=true)
                 }
-            } catch(e:Exception) { if(epoch==generation) failure(e) }
+            } catch(e:Exception) { if(epoch==generation) {analytics.finishWait("cv","failed");failure(e)} }
         }
     }
     private fun writeAction(body: JSONObject) {
@@ -442,6 +501,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     fun openCvPreview(draftId: String? = null, job: JSONObject? = null, tailoredDraftId: String? = null) {
+        analytics.click("preview_cv");analytics.funnel("view_cv")
         val profile = mutable.value.profileId; val epoch = generation
         val previewEpoch = ++previewGeneration
         viewModelScope.launch {
@@ -477,7 +537,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val files=withContext(Dispatchers.IO) {
                     val source=api.base+"/api/candidatures/cv?id=${Uri.encode(jobId)}&profileId=${Uri.encode(profile)}"+(preview.draftId?.let {"&draftId=${Uri.encode(it)}"} ?: "")
-                    listOf(api.downloadDocument(source+"&compare=highlight",profile).first,api.downloadDocument(source+"&compare=baseline",profile).first)
+                    listOf(preview.files.first(),api.downloadDocument(source+"&compare=baseline",profile).first)
                 }
                 if(epoch==generation && previewEpoch==previewGeneration)mutable.update {it.copy(previewLoading=false,cvPreview=it.cvPreview?.copy(comparisonFiles=files))}
             } catch(e:Exception) {if(epoch==generation && previewEpoch==previewGeneration){mutable.update {it.copy(previewLoading=false)};failure(e)}}
@@ -568,6 +628,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     fun logout() {
+        analytics.reset()
         loginJob?.cancel(); generation++; refreshJob?.cancel();refreshJob=null
         detailJob?.cancel();reportJob?.cancel();previewMetaJob?.cancel();previewGeneration++
         displayJobIds=emptySet();v1BootstrapVersion=null
@@ -589,7 +650,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
                 val context = getApplication<Application>()
                 val uri = FileProvider.getUriForFile(context, context.packageName + ".files", file)
                 val intent = Intent(Intent.ACTION_SEND).apply { type = mime; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-                context.startActivity(Intent.createChooser(intent, "JobPilot").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                context.startActivity(Intent.createChooser(intent, "Onward").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 mutable.update { it.copy(working = false) }
             } catch (e: Exception) { failure(e) }
         }

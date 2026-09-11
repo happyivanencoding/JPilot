@@ -66,7 +66,7 @@ test('flexible junior-marketing search broadens provider recall according to eac
   for (const [contract, values] of Object.entries(expected)) {
     const input = buildProviderInput({
       query: '', targetRoles: ['Junior Brand Manager','Junior CRM Analyst'], city: 'Paris', country: 'France',
-      contractTypes: [contract], strictContract: true, fallbackPolicy: 'closest', seniority: 'junior',
+      contractTypes: [contract], strictContract: false, fallbackPolicy: 'closest', seniority: 'junior',
     });
     assert.equal(input.contractTypes[0], contract);
     assert.equal(input.queries[1], values.query);
@@ -228,7 +228,7 @@ test('unknown provider contract still lets a Stage title be rejected against CDI
 });
 
 for (const desired of ['CDI', 'CDD', 'Stage', 'Alternance']) {
-  test(`${desired}: confirmed match stays, confirmed mismatch is removed, unknown contract remains visible as unconfirmed`, () => {
+  test(`${desired}: confirmed match stays, confirmed and unknown mismatches are removed under confirmed-only policy`, () => {
     const other = ({ CDI: 'CDD', CDD: 'Stage', Stage: 'Alternance', Alternance: 'CDI' })[desired];
     const request = {
       query: '', targetRoles: ['Junior Brand Manager', 'Junior CRM Analyst'], city: 'Paris', country: 'France',
@@ -240,14 +240,12 @@ for (const desired of ['CDI', 'CDD', 'Stage', 'Alternance']) {
       { url: `https://example.invalid/${desired}/unknown`, company: `Unknown ${desired}`, title: 'Junior CRM Analyst', location: 'Paris', contractType: 'unknown', description: 'International team, contract duration not stated.' },
     ];
     const result = rankSearchResults(request, rows, [], { now: NOW });
-    assert.deepEqual(new Set(result.offers.map(offer => offer.url)), new Set([rows[0].url, rows[2].url]));
+    assert.deepEqual(new Set(result.offers.map(offer => offer.url)), new Set([rows[0].url]));
     assert.equal(result.offers.find(offer => offer.url === rows[0].url).contractType, desired);
-    const unknown = result.offers.find(offer => offer.url === rows[2].url);
-    assert.equal(unknown.contractType, 'unknown');
-    assert.equal(unknown.relevanceTier, 'adjacent');
-    assert.match(unknown.why, /contrat à confirmer/i);
+    assert.equal(result.offers.find(offer => offer.url === rows[2].url), undefined);
     assert.equal(result.metrics.contractRemoved, 1);
-    assert.equal(result.metrics.contractUnknownRetained, 1);
+    assert.equal(result.metrics.contractUnknownRetained, 0);
+    assert.equal(result.metrics.contractUnknownRemoved, 1);
   });
 }
 

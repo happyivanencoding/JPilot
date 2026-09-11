@@ -1,3 +1,4 @@
+import {offerInSearchArea} from '../search-area.mjs';
 import {bilingualRoleQueries,bilingualRoleRelevance} from "./role-vocabulary.mjs";
 import {candidateConstraints} from './candidate-constraints.mjs';
 import { searchJSearch } from './providers/jsearch.mjs';
@@ -90,7 +91,7 @@ function franceTravailQueries(query, roles, hasExplicitIntent, contractTypes = [
   return variants.slice(0, 3);
 }
 
-export function buildProviderInput({ query, targetRoles = [], city = '', country = '', contractTypes = [], remote = false, seniority = '', languages = {}, relocation, strictContract = false, fallbackPolicy = 'closest', fallbackLimit = 6, flexibleEurope = false, availableFrom = '' }) {
+export function buildProviderInput({ query, targetRoles = [], city = '', country = '', contractTypes = [], remote = false, seniority = '', languages = {}, relocation, strictContract = false, fallbackPolicy = 'closest', fallbackLimit = 6, flexibleEurope = false, availableFrom = '', searchArea=null }) {
   const roles = targetRoles.map(x => clean(x, 120)).filter(Boolean);
   const explicit = clean(query, 180);
   const hasExplicitIntent = Boolean(explicit) && !genericNaturalQuery(explicit);
@@ -125,7 +126,7 @@ export function buildProviderInput({ query, targetRoles = [], city = '', country
     targetRoles: roles,
     city: clean(city, 100), country: clean(country, 100), countryCode: countryCode(country),
     contractTypes: contractTypes.map(x => clean(x, 40)).filter(Boolean),
-    seniority, languages, relocation, strictContract,
+    seniority, languages, relocation, strictContract,searchArea,
     fallbackPolicy: fallbackMode,
     fallbackLimit: Math.max(1, Math.min(12, Number(fallbackLimit || 6))),
     flexibleEurope: Boolean(flexibleEurope),
@@ -454,6 +455,7 @@ export function rankSearchResults(request, raw, runs = [], options = {}) {
       if(constraints.forceClosest) relevanceTier='closest';
       else if(relevanceTier==='strong') relevanceTier='adjacent';
     }
+    if(input.searchArea && !offerInSearchArea(offer,input.searchArea)){locationRemoved++;return [];}
     const location=locationConstraint(offer,input);
     if(location.penalty){relevance=Math.max(18,relevance-location.penalty);locationDemoted++;}
     if(location.forceClosest) relevanceTier='closest';

@@ -38,6 +38,7 @@ fun V1OverviewScreen(state: PilotState, vm: JobPilotViewModel, onExplore: () -> 
     val signals = state.snapshot.child("analysis").objects("strengths").ifEmpty {state.snapshot.child("analysis").child("globalLayout").objects("signals")}
     LazyColumn(
         Modifier.fillMaxSize(),
+        state = analyticsListState(vm),
         contentPadding = PaddingValues(18.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
         overscrollEffect = null,
@@ -46,7 +47,7 @@ fun V1OverviewScreen(state: PilotState, vm: JobPilotViewModel, onExplore: () -> 
         if (!hasCv) item {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(tr("上传一份简历，从真实岗位开始判断。", "Importez votre CV et comparez-le à de vraies offres.", "Upload your CV and compare it with real roles."), fontSize = 25.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold)
-                Hint(tr("JobPilot 会先理解你的经历，再给出适合探索的职业方向和岗位。", "JobPilot comprend d’abord votre parcours, puis propose des directions et des offres à explorer.", "JobPilot first understands your experience, then suggests directions and roles to explore."))
+                Hint(tr("Onward 会先理解你的经历，再给出适合探索的职业方向和岗位。", "Onward comprend d’abord votre parcours, puis propose des directions et des offres à explorer.", "Onward first understands your experience, then suggests directions and roles to explore."))
                 PrimaryButton(tr("上传我的简历", "Importer mon CV", "Upload my CV")) { onProfile() }
             }
         } else {
@@ -111,7 +112,7 @@ fun V1ExploreScreen(state:PilotState,vm:JobPilotViewModel) {
     var query by rememberSaveable(state.profileId){mutableStateOf(suggested)}
     var previousSuggestion by rememberSaveable(state.profileId){mutableStateOf(suggested)}
     LaunchedEffect(suggested){if(query==previousSuggestion||query.isBlank())query=suggested;previousSuggestion=suggested}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(16.dp),overscrollEffect=null) {
+    LazyColumn(Modifier.fillMaxSize(),state=analyticsListState(vm),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(16.dp),overscrollEffect=null) {
         item {SectionTitle(tr("机会","Opportunités","Opportunities"),tr("看看你和工作的契合点。","Découvrez les postes qui vous correspondent.","Find the work that fits you."))}
         item {
             Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
@@ -184,19 +185,7 @@ private fun V1OfferCard(offer: JSONObject, onClick: () -> Unit) {
                 strengths.take(2).forEach { Pill("+ $it") }
                 gaps.take(2).forEach { Pill("− $it", warm = true) }
             }
-            val scores=offer.child("matchScore")
-            val baseline=scores.optInt("baseline",deep.optInt("currentScore",score))
-            val potential = scores.optInt("forecast",deep.optInt("cvPotentialScore", baseline))
-            Hint(when {
-                offer.text("deepMatchState") == "loading" -> tr("正在补充岗位匹配…", "Match détaillé en cours…", "Adding detailed match…")
-                potential >= 0 && baseline >= 0 -> tr("最初预估：$baseline → $potential/100", "Estimation initiale : $baseline → $potential/100", "Initial estimate: $baseline → $potential/100")
-                else -> tr("点开看详细匹配", "Ouvrez pour voir le match détaillé", "Open for the detailed match")
-            })
-            if(scores.optBoolean("reviewed") && !scores.isNull("reviewedScore")) {
-                val reviewed=scores.optInt("reviewedScore",baseline)
-                val gain=reviewed-baseline
-                Hint(tr("本次复核：$baseline → $reviewed", "CV revu : $baseline → $reviewed", "Reviewed CV: $baseline → $reviewed") + if(gain>0) " (+$gain)" else tr(" · 未提升"," · inchangé"," · unchanged"))
-            }
+            OnwardCvOutcome(offer)
         }
     }
 }
@@ -222,20 +211,6 @@ fun V1OfferDetailSheet(offer:JSONObject,state:PilotState,vm:JobPilotViewModel) {
     V1SavedJobDetailSheet(view,state,vm,offer)
 }
 
-@Composable
-private fun V1PotentialRow(current: Int, cvPotential: Int) {
-    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-        V1PotentialCell(tr("原主简历匹配","CV de référence initial","Original master CV"),current,Modifier.weight(1f))
-        Text("→",color=MaterialTheme.colorScheme.onSurfaceVariant)
-        V1PotentialCell(tr("最初预估潜力","Potentiel estimé initial","Initial estimated potential"),cvPotential,Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun V1PotentialCell(label: String, score: Int, modifier: Modifier = Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) { Text(label, fontSize = 10.sp, lineHeight = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant); Text(if (score >= 0) score.toString() else "—", fontSize = 23.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewModel, offer:JSONObject?=null) {
@@ -248,10 +223,13 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
     val deep = match.child("deepMatch")
     val current = match.optInt("currentScore", match.optInt("displayScore", -1))
     val display = match.optInt("displayScore", current)
-    val cvPotential = job.child("matchScore").optInt("forecast",match.optInt("cvPotentialScore", current)).coerceAtLeast(current)
+    LaunchedEffect(tab,roleKey,state.cvPreview,state.previewLoading) {if(state.cvPreview==null&&!state.previewLoading)vm.analytics.navigate(listOf("job_match","job_cv","job_tracking")[tab],when(tab){1->"view_cv";2->"tracking";else->null})}
+    var reply by rememberSaveable(roleKey) {mutableStateOf(job.child("followup").text("replyNote"))}
     var status by rememberSaveable(roleKey) { mutableStateOf(job.text("status")) }
     var statusMenu by remember { mutableStateOf(false) }
-    var nextAction by rememberSaveable(roleKey) { mutableStateOf(job.child("followup").text("nextAction")) }
+    var nextAction by rememberSaveable(roleKey) { mutableStateOf(if(job.child("followup").text("nextActionSource")=="user")job.child("followup").text("nextAction")else "") }
+    val trackingKey=vm.trackingKey(job,offer)
+    DisposableEffect(trackingKey){onDispose {vm.flushTracking(trackingKey)}}
     var date by rememberSaveable(roleKey) { mutableStateOf(job.child("followup").text("dueDate")) }
     var note by rememberSaveable(roleKey) { mutableStateOf(job.child("followup").text("note")) }
     ModalBottomSheet(onDismissRequest = { if(offer!=null)vm.selectOffer(null)else vm.selectJob(null) }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), modifier = Modifier.imePadding()) {
@@ -267,24 +245,22 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
             TabRow(tab, containerColor = androidx.compose.ui.graphics.Color.Transparent) {
                 labels.forEachIndexed { index, label ->
                     val locked=index==1&&!hasCv
-                    Tab(tab==index,{tab=index},modifier=Modifier.testTag("job-tab-$index"),unselectedContentColor=if(locked)MaterialTheme.colorScheme.onSurface.copy(alpha=.44f)else MaterialTheme.colorScheme.onSurfaceVariant,text={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(5.dp)){if(locked)Icon(Icons.Rounded.Lock,tr("待生成","À créer","Not generated"),Modifier.size(13.dp));Text(label,fontSize=13.sp)}})
+                    Tab(tab==index,{vm.analytics.click(listOf("tab_match","tab_cv","tab_tracking")[index]);tab=index},modifier=Modifier.testTag("job-tab-$index"),unselectedContentColor=if(locked)MaterialTheme.colorScheme.onSurface.copy(alpha=.44f)else MaterialTheme.colorScheme.onSurfaceVariant,text={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(5.dp)){if(locked)Icon(Icons.Rounded.Lock,tr("待生成","À créer","Not generated"),Modifier.size(13.dp));Text(label,fontSize=13.sp)}})
                 }
             }
-            LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("job-content"), contentPadding = PaddingValues(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp), overscrollEffect = null) {
+            LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("job-content"), state=key(tab){analyticsListState(vm)}, contentPadding = PaddingValues(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp), overscrollEffect = null) {
                 item { LocalizationNotice(job.child("localization"), vm::retryLocalization) }
                 when (tab) {
-                    0 -> {
+                    0 -> if(job.child("localization").optBoolean("pending")) {
+                        item {
+                            Hint(tr("为你准备岗位建议","Vos conseils se préparent","Your role insights are on their way"))
+                            if(!job.child("localization").optBoolean("failed")) CircularProgressIndicator(Modifier.size(26.dp))
+                        }
+                    } else {
                         if (current >= 0) item {
                             GlassCard {
-                                Text(tr("这个岗位与你的距离", "Votre distance à ce poste", "Your distance from this role"), fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-                                V1PotentialRow(current, cvPotential)
-                                val scores=job.child("matchScore")
-                                if(scores.optBoolean("reviewed") && !scores.isNull("reviewedScore")) {
-                                    val reviewed=scores.optInt("reviewedScore",current)
-                                    Hint(tr("本次简历复核：$current → $reviewed/100","CV revu : $current → $reviewed/100","Reviewed CV: $current → $reviewed/100"))
-                                    if(reviewed==current) Hint(tr("本次改写未提高匹配分，仍可继续完善相关经历和技能。","Cette réécriture n’a pas amélioré le match. Poursuivez le développement des expériences et compétences pertinentes.","This rewrite did not improve the match. Keep developing the relevant experience and skills."))
-                                }
-                                if (display > current) Hint(tr("你已采用岗位版 CV，当前展示分已包含真实的呈现改善。", "Votre score affiché inclut déjà l’amélioration du CV adopté.", "Your displayed score already includes the presentation gain from the accepted role CV."))
+                                Text(tr("你的简历与这个岗位", "Votre CV pour ce poste", "Your CV for this role"), fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                                OnwardCvOutcome(job,detail=true)
                             }
                         }
                         item { TextButton({ runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(job.text("url")))) } }) { Icon(Icons.Rounded.OpenInNew, null, Modifier.size(17.dp)); Spacer(Modifier.width(7.dp)); Text(tr("打开原始职位页", "Ouvrir l’annonce officielle", "Open original posting")) } }
@@ -324,12 +300,13 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
                             Text(tr("投递状态", "Statut de candidature", "Application status"), fontWeight = FontWeight.SemiBold)
                             Box {
                                 OutlinedButton({ statusMenu = true }, Modifier.fillMaxWidth()) { Text(product(status), Modifier.weight(1f)); Icon(Icons.Rounded.ExpandMore, null) }
-                                DropdownMenu(statusMenu, { statusMenu = false }) { state.snapshot.strings("statuses").forEach { value -> DropdownMenuItem(text = { Text(product(value)) }, onClick = { status = value; statusMenu = false }) } }
+                                DropdownMenu(statusMenu, { statusMenu = false }) { state.snapshot.strings("statuses").forEach { value -> DropdownMenuItem(text = { Text(product(value)) }, onClick = { status = value; statusMenu = false;vm.queueTracking(job,offer,json("status" to value),true) }) } }
                             }
-                            OutlinedTextField(nextAction, { nextAction = it }, Modifier.fillMaxWidth(), label = { Text(tr("下一步行动", "Prochaine action", "Next action")) }, shape = RoundedCornerShape(14.dp))
-                            DateField(date, { date = it }, tr("跟进日期", "Date de relance", "Follow-up date"))
-                            OutlinedTextField(note, { note = it }, Modifier.fillMaxWidth(), label = { Text(tr("我的备注", "Mes notes", "My notes")) }, minLines = 3, shape = RoundedCornerShape(14.dp))
-                            PrimaryButton(tr("保存跟踪状态", "Enregistrer le suivi", "Save tracking"), !state.working) { val change=json("status" to status,"nextAction" to nextAction,"dueDate" to date,"note" to note);if(saved)vm.updateJob(job.text("id"),change)else if(offer!=null)vm.trackOffer(offer,change) }
+                            OutlinedTextField(nextAction, { nextAction = it;vm.queueTracking(job,offer,json("nextAction" to it)) }, Modifier.fillMaxWidth(), label = { Text(tr("下一步行动", "Prochaine action", "Next action")) }, shape = RoundedCornerShape(14.dp))
+                            DateField(date, { date = it;vm.queueTracking(job,offer,json("dueDate" to it),true) }, tr("跟进日期", "Date de relance", "Follow-up date"))
+                            OutlinedTextField(reply,{reply=it;vm.queueTracking(job,offer,json("replyNote" to it))},Modifier.fillMaxWidth(),label={Text(tr("收到的回复","Réponse reçue","Reply received"))},minLines=2,shape=RoundedCornerShape(14.dp))
+                            OutlinedTextField(note, { note = it;vm.queueTracking(job,offer,json("note" to it)) }, Modifier.fillMaxWidth(), label = { Text(tr("我的备注", "Mes notes", "My notes")) }, minLines = 3, shape = RoundedCornerShape(14.dp))
+                            TrackingSaveState(state.trackingStates[trackingKey]) {vm.flushTracking(trackingKey)}
                         }
                     }
                 }

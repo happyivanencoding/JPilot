@@ -38,12 +38,16 @@ import kotlin.math.exp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun PilotApp(vm: JobPilotViewModel, state: PilotState) {
+    LaunchedEffect(state.profileId,state.loggedIn) {if(state.loggedIn){vm.analytics.identify(state.profileId);vm.analytics.funnel("login")}}
+    LaunchedEffect(state.snapshot) {if(state.loggedIn)vm.analytics.observe(state.snapshot)}
     if (BuildConfig.APPLICATION_ID.endsWith(".v1") && (state.showV1FirstRun || !state.loggedIn)) { V1FirstRunOnboarding(state,vm); return }
     if (!state.loggedIn) { LoginScreen(vm,state); return }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var profileMenu by remember { mutableStateOf(false) }
     var taskCenter by remember { mutableStateOf(false) }
     val holder = rememberSaveableStateHolder()
+    val analyticsPage=when {state.cvPreview!=null||state.previewLoading->"cv_preview";state.analysisVisible->"analysis";state.selectedJob!=null||state.selectedOffer!=null->"job_match";else->listOf("home","opportunities","profile")[tab]}
+    LaunchedEffect(analyticsPage) {if(analyticsPage!="job_match")vm.analytics.navigate(analyticsPage,if(analyticsPage=="opportunities")"view_jobs" else null)}
     val labels = listOf(tr("首页","Accueil","Home"),tr("机会","Offres","Offers"),tr("我的","Moi","My"))
     val icons = listOf(Icons.Rounded.Home,Icons.Rounded.Search,Icons.Rounded.PersonOutline)
     val tasks = state.snapshot.objects("tasks")
@@ -62,8 +66,7 @@ import kotlin.math.exp
             PilotChrome {
                 Column {
                     Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp,vertical = 8.dp),verticalAlignment = Alignment.CenterVertically) {
-                        Image(painterResource(R.drawable.ic_jobpilot),null,Modifier.size(34.dp))
-                        Text("JobPilot",Modifier.padding(start = 8.dp).weight(1f),fontSize = 21.sp,letterSpacing=(-.6).sp,fontWeight = FontWeight.SemiBold)
+                        OnwardBrand(Modifier.weight(1f))
                         if(canSwitchProfiles) Box {
                             TextButton({ profileMenu = true },modifier=Modifier.testTag("profile-switch"),contentPadding = PaddingValues(horizontal = 8.dp)) {
                                 Text(state.snapshot.objects("profiles").find { it.text("id") == state.profileId }?.text("shortName")?.substringBefore(" ·") ?: tr("档案","Profil","Profile"),maxLines = 1)
@@ -89,7 +92,7 @@ import kotlin.math.exp
                 Column {
                     HorizontalDivider()
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha=.92f),tonalElevation = 1.dp) {
-                        labels.forEachIndexed { i,label -> NavigationBarItem(modifier=Modifier.testTag("nav-$i"),selected = tab == i,onClick = { tab = i; vm.showTabGuide(i) },icon = { Icon(icons[i],label,Modifier.size(22.dp)) },label = { Text(label,fontSize = 10.sp,maxLines = 1) },colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer)) }
+                        labels.forEachIndexed { i,label -> NavigationBarItem(modifier=Modifier.testTag("nav-$i"),selected = tab == i,onClick = { vm.analytics.click(listOf("nav_home","nav_opportunities","nav_profile")[i]);tab = i; vm.showTabGuide(i) },icon = { Icon(icons[i],label,Modifier.size(22.dp)) },label = { Text(label,fontSize = 10.sp,maxLines = 1) },colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer)) }
                     }
                 }
             }
@@ -153,9 +156,9 @@ import kotlin.math.exp
         val allOffers=discovery.objects("offers") + discovery.objects("history").flatMap { it.objects("offers") }
         allOffers.find { it.text("url") == url }?.let { V1OfferDetailSheet(it,state,vm) }
     }
-    ?: state.selectedJob?.let { id -> state.snapshot.objects("jobs").find { it.text("id") == id }?.let { job -> if(job.child("localization").optBoolean("pending")) {
-        ModalBottomSheet(onDismissRequest={vm.selectJob(null)}) {Column(Modifier.fillMaxWidth().padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {Text(tr("为你准备岗位建议","Vos conseils se préparent","Your role insights are on their way"));if(job.child("localization").optBoolean("failed")) PrimaryButton(tr("重试","Réessayer","Retry")){vm.retryLocalization()}else CircularProgressIndicator()}}
-    } else if(job.child("v1Match").length()>0) V1SavedJobDetailSheet(job,state,vm) else JobDetailSheet(job,state,vm) } }
+    ?: state.selectedJob?.let { id -> state.snapshot.objects("jobs").find { it.text("id") == id }?.let { job ->
+        if(BuildConfig.APPLICATION_ID.endsWith(".v1") || job.child("v1Match").length()>0) V1SavedJobDetailSheet(job,state,vm) else JobDetailSheet(job,state,vm)
+    } }
     if(state.analysisVisible && state.snapshot.has("analysis")) AnalysisSheet(state,vm)
     if(state.cvPreview != null || state.previewLoading) CvPreviewDialog(state,vm)
     state.taskLaunch?.let { BackgroundTaskLaunch(it,state,vm::clearTaskLaunch) }
@@ -252,9 +255,8 @@ import kotlin.math.exp
 @Composable private fun LoginScreen(vm: JobPilotViewModel,state: PilotState) {
     val context = LocalContext.current
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement = Arrangement.Center) {
-        Image(painterResource(R.drawable.ic_jobpilot),null,Modifier.size(64.dp))
         Spacer(Modifier.height(24.dp))
-        Text("JobPilot",fontSize = 34.sp,fontWeight = FontWeight.Bold)
+        OnwardBrand(large=true)
         Text(tr("为下一份工作，做好决定。","Votre prochain poste.\nDes décisions éclairées.","Your next role.\nBetter-informed decisions."),Modifier.padding(vertical = 16.dp),fontSize = 25.sp,lineHeight = 32.sp,fontWeight = FontWeight.SemiBold)
         Hint(tr("你的简历、岗位判断和投递进展。档案保存在电脑上，分析使用你配置的 AI 服务。","Votre CV, vos opportunités et vos candidatures. Dossiers sur votre ordinateur ; analyses via votre service IA configuré.","Your CV, opportunities and applications. Records stay on your computer; analysis uses your configured AI service."))
         Spacer(Modifier.height(30.dp))

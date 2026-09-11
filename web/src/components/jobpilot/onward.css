@@ -1,0 +1,25 @@
+/* The Onward brand layer is shared by all V1 surfaces. */
+:root{--jp-primary:#293f68;--jp-primary-container:#e8edf6;--jp-bg:#f7f6f2;--jp-text:#202d43;--jp-muted:#5c687b;--jp-outline:#dee2e8}
+:root[data-theme=dark]{--jp-primary:#bbc9eb;--jp-on-primary:#17253f;--jp-primary-container:#263b60;--jp-bg:#111722;--jp-surface:#1b2433;--jp-text:#e6edf3;--jp-muted:#afbcc9;--jp-outline:#344452}
+.onward-brand{display:inline-flex;align-items:center;gap:10px;flex-shrink:0}
+.onward-brand .onward-icon{width:36px;height:36px;flex:none;border-radius:9px}
+.onward-brand.large .onward-icon{width:46px;height:46px}
+.onward-brand .onward-wordmark{width:122px;height:37px;object-fit:contain;border-radius:0}
+.onward-brand.large .onward-wordmark{width:143px;height:43px}
+.onward-brand .dark{display:none}
+:root[data-theme=dark] .onward-brand .light{display:none}
+:root[data-theme=dark] .onward-brand .dark{display:block}
+.onward-uplift,.onward-uplift-inline{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;color:var(--jp-primary)}
+.onward-uplift>span,.onward-uplift-inline>span{font-size:13px;color:var(--jp-muted)}
+.onward-uplift strong{font-size:28px;font-weight:650}
+.onward-uplift-inline strong{font-size:16px;font-weight:600}
+.onward-gain{display:inline-block;margin-left:8px;font-size:.75em;border-bottom:2px solid #e5b55e}
+.onward-uplift small{font-size:12px;color:var(--jp-muted);margin-left:4px}
+.jp-v1-first-run-head{padding-bottom:12px;border-bottom:1px solid var(--jp-outline);position:relative}
+.jp-v1-first-run-head:after{content:"";position:absolute;bottom:-1px;left:0;width:32px;height:3px;background:#e5b55e;transform:skewX(-30deg)}
+.jp-segmented>button.selected{position:relative}
+.jp-segmented>button.selected:after{content:"";position:absolute;bottom:-2px;right:0;width:9px;height:4px;background:#e5b55e;transform:skewX(-30deg)}
+.jp-hero{border-left:3px solid #e5b55e}
+.jp-hero:before{content:"↗";font-size:24px;color:var(--jp-primary);line-height:1}
+.jp-page[data-testid=profile-page]{padding-top:10px}
+.jp-application-card:focus-visible{outline:2px solid var(--jp-primary);outline-offset:2px}

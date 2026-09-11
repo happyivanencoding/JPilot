@@ -1,4 +1,7 @@
 "use client";
+import {useAnalytics} from "./analytics";
+import {systemUiLanguage} from "@/lib/search-area.mjs";
+import {trackingAutosave} from "./tracking-autosave.mjs";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import dictionary from "../../../shared/jobpilot-i18n.json";
@@ -17,7 +20,12 @@ export type TaskLaunch = { ids: string[]; title: string; estimate: Json; created
 const AI_TASK_KINDS = new Set(["evaluate", "cv", "cv_review", "analysis", "plan", "practice", "compare", "coach"]);
 
 function useController(profileId: string, preview: boolean) {
-  const [locale, setLocale] = useState<Locale>("en");
+  const analytics=useAnalytics(profileId);
+  const [locale, setUiLocale] = useState<Locale>("en");
+  const setLocale=useCallback((language:Locale)=>{
+    try {localStorage.setItem('onward:ui-language-mode','manual');localStorage.setItem('jobpilot:language',language);}catch{}
+    setUiLocale(language);
+  },[]);
   const [theme, setTheme] = useState("system");
   const [ready, setReady] = useState(false);
   const [data, setData] = useState<Json>(empty);
@@ -54,7 +62,7 @@ function useController(profileId: string, preview: boolean) {
 
   const apiUrl = useCallback((path: string) => {
     const u = new URL(path, window.location.origin);
-    if (u.origin !== window.location.origin || !u.pathname.startsWith("/api/")) throw new Error("Same-origin JobPilot API required");
+    if (u.origin !== window.location.origin || !u.pathname.startsWith("/api/")) throw new Error("Same-origin Onward API required");
     if (!u.pathname.startsWith("/api/mobile-auth/") && u.pathname !== "/api/profiles" && u.pathname !== "/api/v1/session") u.searchParams.set("profileId", profileId);
     return u.pathname + u.search;
   }, [profileId]);
@@ -133,13 +141,15 @@ function useController(profileId: string, preview: boolean) {
   }, [request, scope, fail]);
 
   useEffect(() => {
-    let lang = "en", appearance = "system";
-    try { lang = localStorage.getItem("jobpilot:language") || "en"; appearance = localStorage.getItem("jobpilot:theme") || localStorage.getItem("career-ops:theme") || "system"; } catch { /* Private browsing can deny storage; session state still works. */ }
-    setLocale(["zh", "fr", "en"].includes(lang) ? lang as Locale : "en");
+    let lang = systemUiLanguage(navigator.language), appearance = "system";
+    try { if(localStorage.getItem("onward:ui-language-mode")==="manual")lang=localStorage.getItem("jobpilot:language") || lang; appearance = localStorage.getItem("jobpilot:theme") || localStorage.getItem("career-ops:theme") || "system"; } catch { /* Private browsing can deny storage; session state still works. */ }
+    setUiLocale(["zh", "fr", "en"].includes(lang) ? lang as Locale : "en");
     setTheme(["system", "light", "dark"].includes(appearance) ? appearance : "system");
     setRoute(parseRoute(window.location.search) as Route); setReady(true);
     const pop = () => { setRoute(parseRoute(window.location.search) as Route); setError(null); };
-    window.addEventListener("popstate", pop); return () => window.removeEventListener("popstate", pop);
+    const systemChanged=()=>{let manual=false;try{manual=localStorage.getItem('onward:ui-language-mode')==='manual';}catch{}if(!manual)setUiLocale(systemUiLanguage(navigator.language) as Locale);};
+    window.addEventListener('languagechange',systemChanged);window.addEventListener('focus',systemChanged);
+    window.addEventListener("popstate", pop); return () => {window.removeEventListener("popstate", pop);window.removeEventListener('languagechange',systemChanged);window.removeEventListener('focus',systemChanged);};
   }, []);
   useEffect(() => {
     if (!ready) return;
@@ -191,6 +201,22 @@ function useController(profileId: string, preview: boolean) {
       .then(()=>refresh())
       .catch(e=>{if(scopeRef.current===scope){v1BootstrapRef.current="";fail(e);}});
   }, [ready,data.v1?.needsBootstrap,data.cvState?.versionId,profileId,locale,request,refresh,scope,fail]);
+  const analyticsPage=preview&&data.v1?.journey?.completed!==true
+    ? (!profileId?"onboarding_email":!data.cv?"onboarding_upload":!data.v1?.analysisReady?"onboarding_analysis":!data.v1?.journey?.query?"onboarding_direction":!data.v1?.offersReady?"onboarding_search":"onboarding_results")
+    : route.view==="job"||route.view==="offer" ? ["job_match","job_cv","job_tracking"][Number(route.jobTab)||0] : route.view||route.tab;
+  useEffect(()=>{
+    if(!ready || loading&&!data.profile?.id)return;
+    analytics.current?.enter(analyticsPage);
+    const step=analyticsPage==="job_match"?"open_job":analyticsPage==="job_cv"||analyticsPage==="pdf"?"view_cv":analyticsPage==="job_tracking"?"tracking":analyticsPage==="onboarding_results"||analyticsPage==="offers"&&rows(data.discovery?.offers).length?"view_jobs":"";
+    if(step)analytics.current?.step(step);
+  },[ready,analyticsPage,profileId,loading,Boolean(rows(data.discovery?.offers).length)]);
+  useEffect(()=>{
+    const tasks=rows(data.tasks);
+    const visible=preview?tasks.filter(t=>!["ingest","analysis","search"].includes(t.kind)):tasks;
+    if(preview&&data.v1?.cvProgress)visible.push({...data.v1.cvProgress,kind:"analysis"});
+    if(preview&&data.v1?.searchProgress)visible.push({...data.v1.searchProgress,kind:"search"});
+    analytics.current?.tasks(visible);
+  },[data.tasks,data.v1?.cvProgress,data.v1?.searchProgress,preview]);
   const selectedJob = rows(data.jobs).find(j => j.id === route.job || String(j.reportNum) === route.job);
   const discoveryOffers=[...rows(data.discovery?.offers),...rows(data.discovery?.history).flatMap(group=>rows(group.offers))];
   const selectedOffer = discoveryOffers.find(offer => String(offer.url) === String(route.offer || ""));
@@ -206,6 +232,36 @@ function useController(profileId: string, preview: boolean) {
     finally { if (scopeRef.current === scope) { busyRef.current = false; setBusy(false); } }
   }, [scope, fail]);
   const invalidateReads=useCallback(()=>{generation.current++;controllers.current.forEach(c=>c.abort());controllers.current.clear();refreshRef.current=null;},[]);
+  const trackingQueues=useRef(new Map<string,any>());
+  const [trackingStates,setTrackingStates]=useState<Record<string,string>>({});
+  const trackingKey=(job:Json,offer?:Json)=>`${profileId}:${job.url || offer?.url || job.id}`;
+  const queueTracking=(job:Json,offer:Json|undefined,patch:Json,immediate=false)=>{
+    const key=trackingKey(job,offer);
+    let queue=trackingQueues.current.get(key);
+    if(!queue) {
+      let jobId=job.id;
+      queue=trackingAutosave(async(change:Json)=>{
+        // Writes outlive the sheet. A navigation read must not abort a user's edit.
+        const response=await fetch('/api/mobile?profileId='+encodeURIComponent(profileId),{
+          method:'POST',credentials:'same-origin',keepalive:true,
+          headers:{'Content-Type':'application/json','X-JobPilot-Profile':profileId,'X-JobPilot-Locale':locale},
+          body:JSON.stringify({action:jobId?'updateJob':'trackOffer',profileId,id:jobId,offer,change}),
+        });
+        const result=await response.json();
+        if(!response.ok)throw new Error(result.error || tr('自动保存失败，改动仍保留。','Échec de la sauvegarde. Vos modifications sont conservées.','Autosave failed. Your edits are retained.'));
+        if(result.job?.id)jobId=result.job.id;
+        if(scopeRef.current===scope&&result.job)setData(old=>({...old,jobs:[...(old.jobs||[]).filter((j:Json)=>j.id!==result.job.id),result.job]}));
+      },(state:string,error?:Error)=>{
+        setTrackingStates(old=>({...old,[key]:state}));
+        if(state==='failed')setError(error?.message || tr('自动保存失败，请重试。','Sauvegarde impossible, réessayez.','Autosave failed. Please retry.'));
+        if(state==='saved'&&scopeRef.current===scope)void refresh();
+      });
+      trackingQueues.current.set(key,queue);
+    }
+    queue.edit(patch,immediate);
+  };
+  const flushTracking=(key:string)=>trackingQueues.current.get(key)?.flush();
+  useEffect(()=>{const flush=()=>{for(const queue of trackingQueues.current.values())void queue.flush();};window.addEventListener('pagehide',flush);return()=>{window.removeEventListener('pagehide',flush);flush();};},[]);
   const act = useCallback(async (body: Json, path = "/api/mobile") => execute(async () => {
     const result = await request(path, { method: "POST", body: JSON.stringify({ ...body, profileId }) });
     invalidateReads(); await refresh(); notify(tr("已保存", "Enregistré", "Saved")); return result;
@@ -216,8 +272,12 @@ function useController(profileId: string, preview: boolean) {
   }), [execute, request, refresh, navigate]);
   const startTask = useCallback(async (input: Json) => execute(async () => {
     const silent=input.silent===true;
-    const task = await request("/api/mobile", { method: "POST", body: JSON.stringify({ action: "task", profileId, input: { ...input, uiLocale: locale, language: locale } }) });
+    const waitId=crypto.randomUUID();analytics.current?.begin(waitId,String(input.kind));
+    if(input.kind==="search")analytics.current?.step("choose_direction");
+    if(input.kind==="cv")analytics.current?.step("generate_cv");
+    const task = await request("/api/mobile", { method: "POST", body: JSON.stringify({ action: "task", profileId, input: { ...input, uiLocale: locale, language: locale } }) }).catch(e=>{analytics.current?.bind(waitId,{});throw e;});
     invalidateReads(); await refresh();
+    analytics.current?.bind(waitId,preview&&["search","analysis"].includes(String(input.kind))?{...task,status:task.status==="failed"?"failed":"running"}:task);
     if(silent) return task;
     if (task.status === "completed" || task.status === "failed") navigate(destinationFor(task));
     else if(preview) setNotice(null);
@@ -243,20 +303,25 @@ function useController(profileId: string, preview: boolean) {
     await refresh(); notify(tr(`已收藏 ${offers.length} 个岗位`, `${offers.length} offres enregistrées`, `Saved ${offers.length} roles`)); return result;
   }), [execute, request, profileId, refresh, notify, tr]);
   const tailorOffer = useCallback(async (offer: Json) => execute(async () => {
-    const result = await request("/api/mobile", { method: "POST", body: JSON.stringify({ action: "tailorOffer", profileId, uiLocale: locale, offer }) });
+    const waitId=crypto.randomUUID();analytics.current?.begin(waitId,"cv");analytics.current?.step("generate_cv");
+    const result = await request("/api/mobile", { method: "POST", body: JSON.stringify({ action: "tailorOffer", profileId, uiLocale: locale, offer }) }).catch(e=>{analytics.current?.bind(waitId,{});throw e;});
     invalidateReads(); await refresh();
     const task=result.task || {};
-    if(task.status!=="completed") notify(tr(`正在准备 ${offer.deepMatch?.cvPotentialScore ?? offer.fastMatch?.score ?? ""} 分版本，可继续浏览。`,`Préparation de votre version ciblée ; vous pouvez continuer à naviguer.`,`Preparing your targeted CV; you can keep browsing.`),task.id);
+    analytics.current?.bind(waitId,task);
+    if(task.status!=="completed") notify(tr("正在准备岗位版简历，可继续浏览。",`Préparation de votre version ciblée ; vous pouvez continuer à naviguer.`,`Preparing your targeted CV; you can keep browsing.`),task.id);
     return result;
   }), [execute, request, profileId, locale, refresh, navigate, notify, tr]);
-  const upload = useCallback(async (file: File, sourceLanguage="en", analysisLanguage:Locale=locale, contractTypes?:string[]) => execute(async () => {
+  const upload = useCallback(async (file: File, sourceLanguage="auto", analysisLanguage:Locale=locale, contractTypes?:string[],searchArea?:Json) => execute(async () => {
     if (!/\.(pdf|docx|txt|md)$/i.test(file.name) || !file.size || file.size > 12 * 1024 * 1024) throw new Error(tr("请选择 PDF、DOCX、TXT 或 MD，最大 12 MB。", "PDF, DOCX, TXT ou MD · 12 Mo maximum.", "Choose PDF, DOCX, TXT or MD, up to 12 MB."));
     const form = new FormData(); form.set("file", file);
     form.set("sourceLanguage",sourceLanguage); form.set("analysisLanguage",analysisLanguage);
     if(contractTypes) form.set("contractTypes",JSON.stringify(contractTypes));
+    if(searchArea)form.set("searchArea",JSON.stringify(searchArea));
     if(preview) { setData(old=>({...empty(),profile:old.profile,languageSettings:old.languageSettings,v1:{importState:"queued",backgroundActive:true,journey:{completed:false}}})); setDetail(null); }
 
-    const task = await request("/api/mobile/upload", { method: "POST", body: form });
+    const waitId=crypto.randomUUID();analytics.current?.begin(waitId,"analysis");
+    const task = await request("/api/mobile/upload", { method: "POST", body: form }).catch(e=>{analytics.current?.bind(waitId,{});throw e;});
+    analytics.current?.bind(waitId,preview?{...task,kind:"analysis",status:task.status==="failed"?"failed":"running"}:task);analytics.current?.step("upload_cv");
     invalidateReads(); await refresh(); if(!preview) navigate({ tab: "profile", view: "task", task: task.id }); return task;
   }), [execute, request, refresh, navigate, tr]);
   const logout=useCallback(async()=>{
@@ -282,9 +347,9 @@ function useController(profileId: string, preview: boolean) {
   const retryLocalization = useCallback(() => routeRef.current.view === "task" || routeRef.current.view === "report" ? refreshDetail(true) : refresh(true), [refresh, refreshDetail]);
   const openJob = useCallback((job: string, jobTab = 0) => navigate({ tab: routeRef.current.tab, view: "job", job, jobTab: String(jobTab) }), [navigate]);
   const openOffer = useCallback((offer: string) => navigate({ tab: "offers", view: "offer", offer }), [navigate]);
-  return { profileId, preview, locale, theme, invalidateReads, logout, retryV1, changeAnalysisLanguage, ready, data, detail, route, selectedJob, selectedOffer, loading, busy, error, expired, notice, taskLaunch,
+  return { analytics, profileId, preview, locale, theme, invalidateReads, logout, retryV1, changeAnalysisLanguage, ready, data, detail, route, selectedJob, selectedOffer, loading, busy, error, expired, notice, taskLaunch,
     tr, product, setLocale, setTheme, setError, setNotice, setTaskLaunch, setTrainingJob, request, documentBytes, apiUrl, fail, notify,
-    navigate, close, refresh, retryLocalization, act, startTask, startTasks, saveOffers, tailorOffer, openTask, upload, switchProfile, openJob, openOffer, execute };
+    navigate, close, refresh, retryLocalization, trackingKey,trackingStates,queueTracking,flushTracking, act, startTask, startTasks, saveOffers, tailorOffer, openTask, upload, switchProfile, openJob, openOffer, execute };
 }
 type PilotController = ReturnType<typeof useController>;
 const Context = createContext<PilotController | null>(null);
@@ -292,4 +357,4 @@ export function PilotProvider({ profileId, preview=false, children }: { profileI
   const value = useController(profileId,preview);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
-export function usePilot() { const value = useContext(Context); if (!value) throw new Error("JobPilot provider missing"); return value; }
+export function usePilot() { const value = useContext(Context); if (!value) throw new Error("Onward provider missing"); return value; }

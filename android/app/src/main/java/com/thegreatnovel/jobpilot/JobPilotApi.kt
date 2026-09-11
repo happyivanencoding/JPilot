@@ -27,7 +27,7 @@ class JobPilotApi(private val context: Context) {
     fun setBase(value: String) {
         val u = URI(value.trim().trimEnd('/'))
         val productionHost = URI(BuildConfig.API_BASE_URL).host
-        require((u.scheme == "https" && u.host == productionHost) || (BuildConfig.DEBUG && u.scheme == "http" && u.host in listOf("127.0.0.1", "localhost"))) { "Utiliser le domaine JobPilot ou la connexion USB." }
+        require((u.scheme == "https" && u.host == productionHost) || (BuildConfig.DEBUG && u.scheme == "http" && u.host in listOf("127.0.0.1", "localhost"))) { "Utiliser le domaine Onward ou la connexion USB." }
         require(u.userInfo == null && u.query == null && u.fragment == null && u.path.isNullOrEmpty()) { "Adresse invalide." }
         base = u.toString(); prefs.edit().putString("server", base).apply()
     }
@@ -48,7 +48,7 @@ class JobPilotApi(private val context: Context) {
         if (status !in 200..299) {
             val body = String(bytes, Charsets.UTF_8)
             val message = runCatching { JSONObject(body).text("error") }.getOrNull()?.takeIf { it.isNotBlank() }
-                ?: if (status == 302) "Connexion expirée. Reconnectez JobPilot." else "HTTP $status : ${body.take(240)}"
+                ?: if (status == 302) "Connexion expirée. Reconnectez Onward." else "HTTP $status : ${body.take(240)}"
             throw ApiFailure(status, ProductStrings.error(context,uiLocale,message))
         }
         return bytes
@@ -64,7 +64,7 @@ class JobPilotApi(private val context: Context) {
             return JSONObject(String(checkedBytes(c), Charsets.UTF_8))
         } finally { c.disconnect() }
     }
-    fun upload(uri: Uri, profile: String, contractTypes: List<String>? = null): JSONObject {
+    fun upload(uri: Uri, profile: String, contractTypes: List<String>? = null, searchArea:JSONObject?=null): JSONObject {
         val resolver = context.contentResolver
         val filename = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
             if (cursor.moveToFirst()) cursor.getString(0) else null
@@ -74,11 +74,11 @@ class JobPilotApi(private val context: Context) {
             while (true) { val n = input.read(buffer); if (n < 0) break; if (out.size() + n > 12 * 1024 * 1024) throw IllegalArgumentException("12 Mo maximum."); out.write(buffer,0,n) }
             out.toByteArray()
         } ?: throw IllegalArgumentException("Document inaccessible.")
-        val boundary = "JobPilot" + java.util.UUID.randomUUID().toString()
+        val boundary = "Onward" + java.util.UUID.randomUUID().toString()
         val safeName = filename.replace(Regex("[\r\n\"\\\\]"), "_")
         val prefix = "--$boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"$safeName\"\r\nContent-Type: application/octet-stream\r\n\r\n".toByteArray(Charsets.UTF_8)
         val preferences=context.getSharedPreferences("jobpilot",0)
-        val fields=listOf("sourceLanguage" to (preferences.getString("cvLanguage","en") ?: "en"),"analysisLanguage" to (preferences.getString("analysisLanguage",uiLocale) ?: uiLocale)) + (contractTypes?.let { listOf("contractTypes" to org.json.JSONArray(it).toString()) } ?: emptyList())
+        val fields=listOf("sourceLanguage" to "auto","analysisLanguage" to (preferences.getString("analysisLanguage",uiLocale) ?: uiLocale)) + (contractTypes?.let { listOf("contractTypes" to org.json.JSONArray(it).toString()) } ?: emptyList()) + (searchArea?.let {listOf("searchArea" to it.toString())} ?: emptyList())
         val suffix = (fields.joinToString("") { (name,value) -> "\r\n--$boundary\r\nContent-Disposition: form-data; name=\"$name\"\r\n\r\n$value" } + "\r\n--$boundary--\r\n").toByteArray()
         val c = connection("/api/mobile/upload?profileId=${Uri.encode(profile)}", profile, "POST")
         try {
@@ -91,7 +91,7 @@ class JobPilotApi(private val context: Context) {
     fun downloadDocument(url: String, profile: String): Pair<File, String> {
         val target = URI(url)
         val origin = URI(base)
-        require(target.scheme == origin.scheme && target.host == origin.host && target.port == origin.port && target.path.startsWith("/api/")) { "Téléchargement hors du serveur JobPilot refusé." }
+        require(target.scheme == origin.scheme && target.host == origin.host && target.port == origin.port && target.path.startsWith("/api/")) { "Téléchargement hors du serveur Onward refusé." }
         val route = target.rawPath + (target.rawQuery?.let { "?$it" } ?: "")
         val c = connection(route, profile, "GET")
         return try {
@@ -106,7 +106,7 @@ class JobPilotApi(private val context: Context) {
                 else -> if (bytes.take(4).toByteArray().contentEquals("%PDF".toByteArray())) "pdf" else throw IllegalArgumentException("Ce format de téléchargement n’est pas pris en charge.")
             }
             val folder = File(context.cacheDir, "cv/${profile.replace(Regex("[^a-zA-Z0-9_-]"), "_")}").apply { mkdirs() }
-            val file = File(folder, "JobPilot-${System.currentTimeMillis()}.$extension").apply { writeBytes(bytes) }
+            val file = File(folder, "Onward-${System.currentTimeMillis()}.$extension").apply { writeBytes(bytes) }
             file to if (extension == "pdf") "application/pdf" else mime
         } finally { c.disconnect() }
     }

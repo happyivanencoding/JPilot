@@ -1,3 +1,4 @@
+import {normalizeSearchArea} from '@/lib/search-area.mjs';
 import fs from "node:fs";
 import * as yaml from "js-yaml";
 import { atomicWriteWithBackup } from "@/lib/backend/files.mjs";
@@ -32,6 +33,7 @@ function preferenceChanges(input: Record<string, unknown>): Settings {
     if (!Array.isArray(input.contractTypes) || input.contractTypes.some(type => !CONTRACT_TYPES.includes(type))) throw new Error("Types de contrat invalides.");
     set("target_roles", "contract_types", [...new Set(input.contractTypes)]);
   }
+  if(input.searchArea!==undefined)set("target_roles","search_area",normalizeSearchArea(input.searchArea));
   if(input.analysisLanguage!==undefined) {
     if(!["en","fr","zh"].includes(String(input.analysisLanguage))) throw new Error("Invalid analysis language");
     set("display","analysis_language",input.analysisLanguage);

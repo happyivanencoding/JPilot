@@ -46,15 +46,15 @@ import java.io.File
                 preview?.meta?.let { LocalizationNotice(it.child("localization"),vm::retryLocalization) }
                 preview?.meta?.strings("warnings")?.forEach { Text(product(it),Modifier.padding(horizontal = 16.dp,vertical = 6.dp),fontSize = 12.sp,color = MaterialTheme.colorScheme.error) }
                 if(state.previewLoading) Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally,verticalArrangement = Arrangement.spacedBy(12.dp)) { CircularProgressIndicator(Modifier.size(28.dp)); Hint(tr("正在打开简历","Ouverture du CV","Opening your CV")) } }
-                else (if(compareMode>0) preview?.comparisonFiles?.getOrNull(compareMode-1) ?: preview?.files?.getOrNull(tab) else preview?.files?.getOrNull(tab))?.let { file -> NativePdf(file,Modifier.weight(1f).fillMaxWidth()) }
+                else (if(compareMode>0) preview?.comparisonFiles?.getOrNull(compareMode-1) ?: preview?.files?.getOrNull(tab) else preview?.files?.getOrNull(tab))?.let { file -> NativePdf(file,Modifier.weight(1f).fillMaxWidth(),vm) }
                 if(tailored) Column(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=6.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                    OutlinedButton({if(compareMode==0){compareMode=1;vm.loadCvComparison()}else compareMode=0},Modifier.fillMaxWidth().testTag("compare-role-cv"),enabled=!state.previewLoading) {Text(if(compareMode==0)tr("对比原简历 · 高光改动","Comparer au CV original · surligner","Compare original · highlight changes")else tr("关闭对比","Fermer la comparaison","Close comparison"))}
+                    OutlinedButton({vm.analytics.click("compare_cv");if(compareMode==0){compareMode=1;vm.loadCvComparison()}else compareMode=0},Modifier.fillMaxWidth().testTag("compare-role-cv"),enabled=!state.previewLoading) {Text(if(compareMode==0)tr("对比原简历","Comparer au CV original","Compare original CV")else tr("关闭对比","Fermer la comparaison","Close comparison"))}
                     if(compareMode>0) {
                         Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                            FilterChip(compareMode==1,{compareMode=1},label={Text(tr("高光改动","Modifications","Changes"))})
+                            FilterChip(compareMode==1,{compareMode=1},label={Text(tr("岗位版简历","CV ciblé","Tailored CV"))})
                             FilterChip(compareMode==2,{compareMode=2;vm.loadCvComparison()},label={Text(tr("原简历","CV original","Original CV"))})
                         }
-                        Hint(tr("绿色：新增文字 · 黄色：改写。不是新增经历。","Vert : texte ajouté · jaune : reformulé. Pas de nouvelles expériences.","Green: added wording · yellow: rewritten. Not new experience."))
+
                     }
                 }
                 if(tailored && preview?.draftId != null) {
@@ -84,9 +84,9 @@ import java.io.File
     }
 }
 
-@Composable private fun NativePdf(file: File,modifier: Modifier) {
+@Composable private fun NativePdf(file: File,modifier: Modifier,vm:JobPilotViewModel) {
     val count by produceState(initialValue = 0,file) { value = withContext(Dispatchers.IO) { runCatching { PdfRenderer(ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY)).use { it.pageCount } }.getOrDefault(-1) } }
-    LazyColumn(modifier,contentPadding = PaddingValues(12.dp),verticalArrangement = Arrangement.spacedBy(12.dp),overscrollEffect=null) {
+    LazyColumn(modifier,state=analyticsListState(vm),contentPadding = PaddingValues(12.dp),verticalArrangement = Arrangement.spacedBy(12.dp),overscrollEffect=null) {
         item { Hint(if(count < 0) tr("无法读取 PDF","Impossible de lire ce PDF","Unable to read this PDF") else tr("共 $count 页 · 双指缩放","$count pages · pincez pour zoomer","$count pages · pinch to zoom")) }
         items(maxOf(0,count),key = { "${file.absolutePath}:$it" }) { index ->
             val image by produceState<Bitmap?>(initialValue = null,file,index) {

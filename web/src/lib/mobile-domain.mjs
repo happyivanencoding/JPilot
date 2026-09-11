@@ -127,7 +127,7 @@ export function applyJobUpdate(job, change, now = new Date().toISOString()) {
       out.status = change.status;
     }
   }
-  for (const k of ['nextAction', 'note']) {
+  for (const k of ['nextAction', 'note', 'replyNote']) {
     if (change[k] !== undefined) {
       if (typeof change[k] !== 'string' || change[k].length > 12000) throw new Error('Texte invalide.');
       out.followup[k] = change[k];

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.rounded.PersonOutline
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.key
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -54,7 +55,7 @@ private data class GuideTab(val icon: ImageVector, val title: String, val summar
 
 @Composable private fun guideTabs(): List<GuideTab> = listOf(
     GuideTab(Icons.Rounded.Home, tr("首页", "Accueil", "Home"), tr("先看你适合什么，而不是先学会操作软件。", "Commencez par comprendre où votre profil peut aller.", "Start by seeing where your profile can go."), listOf(
-        tr("确认简历后，JobPilot 会自动理解你的经历并给出 3–5 个可探索方向。", "Après confirmation du CV, JobPilot comprend votre parcours et propose 3–5 directions à explorer.", "After you confirm your CV, JobPilot understands your experience and suggests 3–5 directions."),
+        tr("确认简历后，Onward 会自动理解你的经历并给出 3–5 个可探索方向。", "Après confirmation du CV, Onward comprend votre parcours et propose 3–5 directions à explorer.", "After you confirm your CV, Onward understands your experience and suggests 3–5 directions."),
         tr("首页直接展示最值得先看的真实岗位和当前能力信号。", "L’accueil montre directement les offres les plus pertinentes et vos principaux signaux.", "Home shows the most useful real roles and your main profile signals.")
     )),
     GuideTab(Icons.Rounded.Search, tr("机会", "Offres", "Offers"), tr("先看即时匹配分，再决定要不要深入。", "Voyez d’abord le score de match, puis choisissez quoi approfondir.", "See the match score first, then decide what deserves a closer look."), listOf(
@@ -74,9 +75,8 @@ private data class GuideTab(val icon: ImageVector, val title: String, val summar
         Surface(Modifier.fillMaxSize().safeDrawingPadding().padding(20.dp), shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 4.dp) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (welcome) {
-                    Surface(Modifier.size(48.dp), shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primary) { Box(contentAlignment = Alignment.Center) { Text("J", color = MaterialTheme.colorScheme.onPrimary, fontSize = 26.sp, fontWeight = FontWeight.Bold) } }
-                    Text("JobPilot", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Text(tr("欢迎使用 JobPilot", "Bienvenue dans JobPilot", "Welcome to JobPilot"), fontSize = 25.sp, lineHeight = 31.sp, fontWeight = FontWeight.SemiBold)
+                    OnwardBrand(large=true)
+                    Text(tr("欢迎使用 Onward", "Bienvenue dans Onward", "Welcome to Onward"), fontSize = 25.sp, lineHeight = 31.sp, fontWeight = FontWeight.SemiBold)
                     Text(tr("用几步了解你的求职工作台。", "Découvrez votre espace de recherche en quelques étapes.", "Learn your job-search workspace in a few steps."), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(vertical = 6.dp)) {
                         tabs.forEach { item -> Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
@@ -104,9 +104,13 @@ private data class GuideTab(val icon: ImageVector, val title: String, val summar
 fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
     val context=LocalContext.current
     var contracts by rememberSaveable(state.profileId) { mutableStateOf(state.snapshot.child("config").child("target_roles").strings("contract_types")) }
-    val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.upload(it, contracts) } }
+    var areaScope by rememberSaveable(state.profileId) {mutableStateOf("city")}
+    var city by rememberSaveable(state.profileId) {mutableStateOf("Paris")}
+    val areaValid=areaScope=="france"||city.isNotBlank()
+    val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.upload(it, contracts,json("scope" to areaScope,"city" to city)) } }
     var showPrivacy by remember { mutableStateOf(false) }
-    if(showPrivacy) CvPrivacyDialog(vm,state,{showPrivacy=false},if(contracts.isNotEmpty())({picker.launch(arrayOf("application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain","text/markdown"))})else null)
+    if(showPrivacy) CvPrivacyDialog(vm,state,{showPrivacy=false},if(contracts.isNotEmpty()&&areaValid)({picker.launch(arrayOf("application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain","text/markdown"))})else null)
+    var showLanguageSettings by rememberSaveable {mutableStateOf(false)}
     var languageChosen by rememberSaveable { mutableStateOf(true) }
     var email by rememberSaveable(state.loggedIn) { mutableStateOf("") }
     val focus=LocalFocusManager.current
@@ -135,6 +139,9 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
         if((stage==3 && targetStage==4 && v1.optBoolean("analysisReady")) || (stage==5 && targetStage==6 && v1.optBoolean("offersReady"))) delay(650)
         stage=targetStage
     }
+    LaunchedEffect(stage) {vm.analytics.navigate(when(stage){0,1->"login";2->"upload";3->"analysis_wait";4->"directions";5->"search_wait";else->"first_results"},if(stage==6)"view_jobs" else null)}
+    val journeyScroll=rememberScrollState()
+    LaunchedEffect(journeyScroll) {snapshotFlow {if(journeyScroll.maxValue>0)journeyScroll.value*100/journeyScroll.maxValue else 0}.collect {vm.analytics.scroll(it)}}
     val progress=if(stage==5) v1.child("searchProgress") else v1.child("cvProgress")
     val cvFailed=progress.text("status")=="failed" || (!v1.optBoolean("analysisReady") && v1.optBoolean("presentationFailed"))
     val waveFailed=if(stage==5) progress.text("status")=="failed" || v1.optBoolean("presentationFailed") else cvFailed
@@ -144,10 +151,9 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
         Box(Modifier.fillMaxSize()) {
         if(stage==3 || stage==5) CvAnalysisWater(waterLevel,waveFailed||state.error!=null||progress.text("status")=="completed")
         AnimatedContent(targetState=stage,transitionSpec={fadeIn() togetherWith fadeOut()},label="first-steps") { page ->
-            Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+            Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(journeyScroll).padding(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
                 Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                    Surface(Modifier.size(42.dp),shape=RoundedCornerShape(10.dp),color=MaterialTheme.colorScheme.primary) { Box(contentAlignment=Alignment.Center) {Text("J",fontSize=23.sp,color=MaterialTheme.colorScheme.onPrimary,fontWeight=FontWeight.Bold)} }
-                    Text("JobPilot",fontSize=22.sp,fontWeight=FontWeight.SemiBold)
+                    OnwardBrand(large=true)
                 }
                 Spacer(Modifier.height(12.dp))
                 when(page) {
@@ -176,10 +182,15 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
                             }
                         }
                         if(contracts.isEmpty()) Hint(tr("至少选择一项，可以多选。","Choisissez au moins une option, plusieurs sont possibles.","Select at least one. You can choose several."))
-                        Text(tr("求职简历语言","Langue du CV de candidature","Application CV language"),fontWeight=FontWeight.SemiBold)
-                        JourneyLanguageChoices(state.cvLanguage,false) {vm.journeyLanguages(cvLanguage=it)}
-                        Text(tr("我希望用这种语言看分析","Langue de mes conseils","My insights in"),fontWeight=FontWeight.SemiBold)
-                        JourneyLanguageChoices(state.analysisLanguage) {vm.journeyLanguages(analysisLanguage=it)}
+                        SearchAreaFields(areaScope,city,{areaScope=it},{city=it})
+                        TextButton({showLanguageSettings=!showLanguageSettings}) {Text(tr("语言设置","Langues","Language settings"))}
+                        if(showLanguageSettings) {
+                            Hint(tr("原简历语言自动识别","Langue du CV original détectée automatiquement","Original CV language detected automatically"))
+                            Text(tr("求职简历语言","Langue du CV de candidature","Application CV language"),fontWeight=FontWeight.SemiBold)
+                            JourneyLanguageChoices(state.cvLanguage,false) {vm.journeyLanguages(cvLanguage=it)}
+                            Text(tr("我希望用这种语言看分析","Langue de mes conseils","My insights in"),fontWeight=FontWeight.SemiBold)
+                            JourneyLanguageChoices(state.analysisLanguage) {vm.journeyLanguages(analysisLanguage=it)}
+                        }
                         if(importFailed) Text(tr("这份文件暂时打不开，请换一份 PDF 或 Word。","Ce fichier ne s’ouvre pas. Essayez un autre PDF ou Word.","This file could not be opened. Try another PDF or Word file."),color=MaterialTheme.colorScheme.error)
                         TextButton({showPrivacy=true}) {Text(tr("简历信息如何使用","Utilisation des informations du CV","How your CV information is used"),fontSize=12.sp)}
                         PrimaryButton(tr("选择简历","Choisir mon CV","Choose my CV"),!state.working&&contracts.isNotEmpty()) {showPrivacy=true}
@@ -251,7 +262,7 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
 private fun FirstRunOfferCard(offer: JSONObject, onClick: () -> Unit) {
     val deep = offer.child("deepMatch")
     val fast = offer.child("fastMatch")
-    val score = if (deep.has("currentScore")) deep.optInt("currentScore") else fast.optInt("score", -1)
+    val score = if(offer.child("matchScore").has("current")) offer.child("matchScore").optInt("current") else if (deep.has("currentScore")) deep.optInt("currentScore") else fast.optInt("score", -1)
     val strengths = if (deep.objects("strengths").isNotEmpty()) deep.objects("strengths").map { it.text("title") } else fast.objects("strengths").map { it.text("title") }
     val gaps = if (deep.objects("capabilityGaps").isNotEmpty()) deep.objects("capabilityGaps").map { it.text("title") } else fast.objects("gaps").map { it.text("title") }
     val potential = deep.optInt("cvPotentialScore", score).coerceAtLeast(score)
@@ -271,7 +282,7 @@ private fun FirstRunOfferCard(offer: JSONObject, onClick: () -> Unit) {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 gaps.take(2).forEach { Pill("− $it", warm = true) }
             }
-            if (potential > score && score >= 0) Hint(tr("简历优化：$score → 预计 $potential/100", "CV : $score → ~$potential/100", "CV edits: $score → ~$potential/100"))
+            OnwardCvOutcome(offer)
             Spacer(Modifier.height(4.dp))
         }
     }

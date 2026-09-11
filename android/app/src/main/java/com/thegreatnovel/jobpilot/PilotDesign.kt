@@ -39,7 +39,7 @@ import kotlin.math.sin
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
-val Indigo = Color(0xFF166568)
+val Indigo = Color(0xFF293F68)
 val Apricot = Color(0xFF64748B)
 val LocalPilotLanguage = staticCompositionLocalOf { "fr" }
 @Composable fun tr(zh: String, fr: String, en: String = fr): String = when(LocalPilotLanguage.current) { "zh" -> zh; "en" -> en; else -> fr }
@@ -58,17 +58,17 @@ fun Modifier.blockSheetEdgeMotion(): Modifier = nestedScroll(SheetContentEdgeBlo
 @Composable fun PilotTheme(state: PilotState, content: @Composable () -> Unit) {
     val dark = state.theme == "dark" || (state.theme == "system" && isSystemInDarkTheme())
     val colors = if (dark) darkColorScheme(
-        primary = Color(0xFF9AD9D1), onPrimary = Color(0xFF103D3E), primaryContainer = Color(0xFF1A4145),
+        primary = Color(0xFFBBC9EB), onPrimary = Color(0xFF17253F), primaryContainer = Color(0xFF263B60),
         secondary = Color(0xFFB6C4D3), secondaryContainer = Color(0xFF2C3946), onSecondaryContainer = Color(0xFFE6EDF3),
-        background = Color(0xFF10191D), surface = Color(0xFF19262C), surfaceVariant = Color(0xFF25323E),
-        surfaceContainerLowest=Color(0xFF10191D),surfaceContainerLow=Color(0xFF19262C),surfaceContainer=Color(0xFF1D2C32),surfaceContainerHigh=Color(0xFF25343A),surfaceContainerHighest=Color(0xFF304148),
+        background = Color(0xFF111722), surface = Color(0xFF1B2433), surfaceVariant = Color(0xFF263347),
+        surfaceContainerLowest=Color(0xFF111722),surfaceContainerLow=Color(0xFF1B2433),surfaceContainer=Color(0xFF202C3C),surfaceContainerHigh=Color(0xFF29394E),surfaceContainerHighest=Color(0xFF35465C),
         onSurface = Color(0xFFE6EDF3), onSurfaceVariant = Color(0xFFAFBCC9), outlineVariant = Color(0xFF344452)
     ) else lightColorScheme(
-        primary = Indigo, onPrimary = Color.White, primaryContainer = Color(0xFFE3EFEC), onPrimaryContainer = Color(0xFF17474A),
-        secondary = Color(0xFF526575), secondaryContainer = Color(0xFFE7EDF2), onSecondaryContainer = Color(0xFF1C3037),
-        background = Color(0xFFF3F5F3), surface = Color.White, surfaceVariant = Color(0xFFEBEFF3),
-        surfaceContainerLowest=Color.White,surfaceContainerLow=Color(0xFFF3F5F3),surfaceContainer=Color(0xFFEDF1EF),surfaceContainerHigh=Color(0xFFE6ECE9),surfaceContainerHighest=Color(0xFFDEE6E2),
-        onSurface = Color(0xFF1C3037), onSurfaceVariant = Color(0xFF566675), outlineVariant = Color(0xFFDAE1E7)
+        primary = Indigo, onPrimary = Color.White, primaryContainer = Color(0xFFE8EDF6), onPrimaryContainer = Color(0xFF243854),
+        secondary = Color(0xFF526575), secondaryContainer = Color(0xFFE7EDF2), onSecondaryContainer = Color(0xFF202D43),
+        background = Color(0xFFF7F6F2), surface = Color.White, surfaceVariant = Color(0xFFEBEFF3),
+        surfaceContainerLowest=Color.White,surfaceContainerLow=Color(0xFFF7F6F2),surfaceContainer=Color(0xFFF0F0ED),surfaceContainerHigh=Color(0xFFE9ECEF),surfaceContainerHighest=Color(0xFFE1E5EC),
+        onSurface = Color(0xFF202D43), onSurfaceVariant = Color(0xFF5C687B), outlineVariant = Color(0xFFDEE2E8)
     )
     val view = LocalView.current
     SideEffect { (view.context as? Activity)?.window?.let { WindowCompat.getInsetsController(it,view).let { controller -> controller.isAppearanceLightStatusBars = !dark; controller.isAppearanceLightNavigationBars = !dark } } }

@@ -1,3 +1,4 @@
+import {normalizeSearchArea} from '@/lib/search-area.mjs';
 import {execFile} from "node:child_process";
 import {promisify} from "node:util";
 import * as yaml from "js-yaml";
@@ -161,13 +162,17 @@ export async function renderCvPreview(profileId: string, draftId?: string, versi
   return { pdf, ...readJson(meta), draft, versionId:version.id, cvVersion:version.cvVersion };
 }
 
-export async function saveImportedCv(profileId:string, content:string, expectedVersionId:string, sourceLanguage:string, analysisLanguage:string, contractTypes?:string[]) {
+export async function saveImportedCv(profileId:string, content:string, expectedVersionId:string, sourceLanguage:string, analysisLanguage:string, contractTypes?:string[], searchArea?:Record<string,unknown>) {
   return withProfileLock(historyDirectory(profileId),()=>{
     const before=currentCandidateVersion(profileId);
     if(before.id!==expectedVersionId) throw new Error("Le CV a changé. Réessayez avec votre nouveau fichier.");
     const config=(yaml.load(fs.readFileSync(profileFile(profileId,"config"),"utf8")) || {}) as any;
-    config.cv={...config.cv,language:sourceLanguage,source_language:detectedDocumentLanguage(content) || sourceLanguage};
+    const detected=detectedDocumentLanguage(content);
+    const explicit=["en","fr"].includes(sourceLanguage)?sourceLanguage:null;
+    const material=explicit || detected || (["en","fr"].includes(config.cv?.language)?config.cv.language:"en");
+    config.cv={...config.cv,language:material,source_language:detected || explicit || material};
     config.display={...config.display,analysis_language:analysisLanguage};
+    if(searchArea)config.target_roles={...config.target_roles,search_area:normalizeSearchArea(searchArea)};
     if(contractTypes?.length) config.target_roles={...config.target_roles,contract_types:[...new Set(contractTypes)],contract_policy:"confirmed_only"};
     atomicWriteWithBackup(profileFile(profileId,"config"),yaml.dump(config));
     if(before.sources.cv.text!==content) atomicWriteWithBackup(profileFile(profileId,"cv"),content);

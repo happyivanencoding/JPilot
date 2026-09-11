@@ -1,3 +1,4 @@
+import {reusablePreparedCv} from '@/lib/onward-cv.mjs';
 import {execFile} from "node:child_process";
 import {promisify} from "node:util";
 import {roleCvReviewPrompt,normalizeRoleCvReview} from "@/lib/v1-cv-review.mjs";
@@ -370,13 +371,34 @@ export async function downloadTailoredCv(req: Request) {
     return new Response(new Uint8Array(bytes), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${path.basename(abs)}"`,
+        ...(url.searchParams.get("download")==="1" ? {"Content-Disposition": `attachment; filename="${path.basename(abs)}"`} : {}),
         "Cache-Control": "no-store",
       },
     });
   } catch (error) {
     return new Response(error instanceof Error ? error.message : "could not read tailored CV", { status: 500 });
   }
+}
+
+/** Prepare only the visible top roles. No candidature, master CV or PDF is written.
+ * This exact assessed payload is later rendered, never regenerated after showing a gain. */
+export async function prepareRoleCv(profileId:string,version:Record<string,any>,offer:Record<string,any>,deep:Record<string,any>,locale:string,hooks:{onRun?:(run:any)=>void;onMetrics?:(m:any)=>void;onPhase?:(phase:string)=>void;applicationLanguage?:string}={}) {
+  const language=["en","fr"].includes(String(hooks.applicationLanguage)) ? String(hooks.applicationLanguage) : profileCvOptions(profileId,version.sources.config.text).language;
+  const basis={currentScore:deep.currentScore,cvPotentialScore:deep.cvPotentialScore,displayScore:deep.currentScore,deepMatch:structuredClone(deep)};
+  const job:Job={id:'prepared',company:String(offer.company||''),role:String(offer.title||offer.role||''),url:offer.url,
+    location:offer.location,sourceDescription:offer.description,summary:deep.roleSummary,v1Match:basis};
+  hooks.onPhase?.('Préparation du contenu concret du CV ciblé');
+  let output='';
+  await runModelTransport({cwd:workspaceRoot(),prompt:buildPrompt(profileId,job,version,locale,language),
+    model:FLOW_DEFAULTS.cv.model as any,reasoning:FLOW_DEFAULTS.cv.reasoning as any,timeoutMs:180_000,
+    onRun:hooks.onRun,onMetrics:hooks.onMetrics,onText:text=>{output+=text;},onFinalText:text=>{output=text;}});
+  const parsed=extractJsonObject(output).obj;
+  if(!parsed || typeof parsed.summary!=='string' || !Array.isArray(parsed.experience))throw new Error('Invalid prepared role CV');
+  const payload=sanitizePayload(parsed);
+  if(contradictsDocumentLanguage(JSON.stringify({...payload,change_notes:undefined}),language,version.sources.cv.text))throw new Error('Prepared CV language mismatch');
+  hooks.onPhase?.('Vérification du CV réellement préparé');
+  const comparison=await compareCvPresentation(profileId,job,version,payload,locale,1,hooks);
+  return {versionId:version.id,language,notesLocale:locale,matchBasis:basis,payload,assessment:comparison.assessment};
 }
 
 export async function generateTailoredCv(req: Request, choice?: {model: any; reasoning: any}) {
@@ -401,14 +423,17 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
     return Response.json({ error: error instanceof Error ? error.message : "Impossible de lire les candidatures." }, { status: 500 });
   }
   if (!job) return Response.json({ error: "Candidature introuvable" }, { status: 404 });
+  let prepared:any=null;
+  const requestedMaterial=["fr","en"].includes(String(body.applicationLanguage)) ? String(body.applicationLanguage) : profileCvOptions(profileId).language;
   if(job.v1Match) {
     const taskDir=path.join(historyDirectory(profileId),"tasks");
     const tasks=fs.existsSync(taskDir)?fs.readdirSync(taskDir).filter(name=>name.endsWith(".json")).map(name=>readJson(path.join(taskDir,name))).filter(Boolean).sort((a:any,b:any)=>Date.parse(b.createdAt)-Date.parse(a.createdAt)):[];
     job=projectV1JobScores(job,tasks,inputVersion.id) as Job;
+    prepared=reusablePreparedCv(tasks,inputVersion.id,job.url,requestedMaterial,(job.v1Match as any).currentScore);
   }
   const locale=requestUiLocale(req,body.uiLocale);
   const material=["fr","en"].includes(String(body.applicationLanguage)) ? String(body.applicationLanguage) : profileCvOptions(profileId).language;
-  const generationKey=JSON.stringify(["tailored-cv-v3-role-basis",operationKey("cv",{jobId:job.id,applicationLanguage:material},inputVersion,[job])]);
+  const generationKey=JSON.stringify(["tailored-cv-v4-onward-prepared",operationKey("cv",{jobId:job.id,applicationLanguage:material},inputVersion,[job])]);
   const generationFile=path.join(historyDirectory(profileId),"cv-generations",inputVersion.id,encodeURIComponent(job.id)+"-"+material+".json");
 
   const encoder = new TextEncoder();
@@ -425,7 +450,10 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
         const cached=readJson(generationFile);
         let output = "";
         let generationMetrics:Record<string,any>={};
-        if(cached?.operationKey===generationKey && cached.output) {
+        if(prepared) {
+          output=JSON.stringify(prepared.payload);
+          emit({t:"progress",label:"Mise en page du contenu déjà vérifié, sans nouvelle estimation"});
+        } else if(cached?.operationKey===generationKey && cached.output) {
           output=cached.output;
           emit({t:"progress",label:"Contenu déjà enregistré · reprise de la mise en page sans IA"});
           emit({t:"metrics",metrics:{model:"local-render",reasoning:"none",queueMs:0,agentMs:0,inputTokens:0,outputTokens:0,totalTokens:0,actualCostUsd:null,estimatedCostUsd:0,costKind:"no-ai",reusedAgentOutput:true}});
@@ -456,12 +484,12 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
         const rendered=await renderDraftFiles(profileId,job!,inputVersion,payload,material,draftId);
         emit({t:"progress",label:"Comparaison avec le CV actuel pour ce poste"});
         let assessmentMetrics:Record<string,any>={};
-        const comparison=await compareCvPresentation(profileId,job!,inputVersion,payload,locale,revision,{
+        const comparison=prepared ? {assessment:prepared.assessment} : await compareCvPresentation(profileId,job!,inputVersion,payload,locale,revision,{
           onRun:run=>emit({t:"execution",transport:run.transport,sessionId:run.sessionId,runId:run.runId,remoteSessionId:run.remoteSessionId}),
           onMetrics:m=>{assessmentMetrics=m;},
         });
         const changes=cleanArray(payload.change_notes),now=new Date().toISOString();
-        const draft:TailoredDraft={matchBasis:job!.v1Match?structuredClone(job!.v1Match as Record<string,any>):undefined,id:draftId,status:"pending",baseVersionId:inputVersion.id,language:material,notesLocale:locale,revision,createdAt:now,updatedAt:now,payload,...rendered,changes:changes.length?changes:job!.cv?.changes??[],baselinePresentationScore:comparison.assessment.baselineScore,assessment:comparison.assessment};
+        const draft:TailoredDraft={matchBasis:prepared?.matchBasis || (job!.v1Match?structuredClone(job!.v1Match as Record<string,any>):undefined),id:draftId,status:"pending",baseVersionId:inputVersion.id,language:material,notesLocale:locale,revision,createdAt:now,updatedAt:now,payload,...rendered,changes:changes.length?changes:job!.cv?.changes??[],baselinePresentationScore:comparison.assessment.baselineScore,assessment:comparison.assessment};
         const latestStore=readStore(profileId),latestJob=latestStore.jobs.find(item=>item.id===body.id);
         if(!latestJob)return fail("La candidature a été supprimée pendant la génération ; le PDF de brouillon est conservé dans output.");
         (latestJob as any).cvDraft=draft;writeStore(profileId,latestStore);

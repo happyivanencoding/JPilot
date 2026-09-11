@@ -21,7 +21,7 @@ import org.json.JSONObject
     val exists=analysis.text("markdown").isNotBlank()
     val background=state.snapshot.child("v1").optBoolean("backgroundActive")
     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-        Text(tr("JobPilot 对你的理解","Ce que JobPilot comprend de votre profil","How JobPilot understands your profile"),fontWeight=FontWeight.SemiBold,fontSize=18.sp)
+        Text(tr("Onward 对你的理解","Ce que Onward comprend de votre profil","How Onward understands your profile"),fontWeight=FontWeight.SemiBold,fontSize=18.sp)
         Hint(tr("上传或修改主简历后会自动更新，不需要再手动点击 AI 分析。","L’analyse se met à jour automatiquement après une modification du CV de référence.","This updates automatically when your master CV changes; no separate AI button is needed."))
         if(background) { LinearProgressIndicator(Modifier.fillMaxWidth());Hint(tr("正在后台更新职业方向和首批岗位…","Mise à jour des directions et des premières offres…","Updating directions and initial roles in the background…")) }
         if(exists) OutlinedButton({vm.showAnalysis()},Modifier.fillMaxWidth().testTag("view-analysis")) {Text(tr("查看完整优势与真实行动","Voir les atouts et actions réelles","See strengths and real actions"))}

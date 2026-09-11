@@ -121,8 +121,7 @@ import java.time.ZoneOffset
         .sortedByDescending { it.text("updatedAt",it.text("createdAt")) }
     val directions=state.snapshot.child("v1").objects("careerDirections")
     var separateInsights by remember(state.profileId) { mutableStateOf(state.analysisLanguage!=state.language) }
-    LazyColumn(Modifier.fillMaxSize().imePadding().testTag("profile-content"),contentPadding = PaddingValues(22.dp),verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        item { SectionTitle(if(needsCv)tr("从你的简历开始","Commençons par votre CV","Start with your CV")else tr("我的","Moi","My"),if(needsCv)tr("先上传一份简历，JobPilot 才能建立你的个人档案。","Importez d’abord votre CV pour créer votre dossier personnel.","Upload a CV first so JobPilot can build your personal profile.")else state.snapshot.child("profile").text("name")) }
+    LazyColumn(Modifier.fillMaxSize().imePadding().testTag("profile-content"),state=analyticsListState(vm),contentPadding = PaddingValues(22.dp),verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item {
             TabRow(profileTab) {
                 listOf(tr("个人资料","Mon profil","Profile"),tr("投递情况","Candidatures","Applications")).forEachIndexed { i,label ->
@@ -149,6 +148,7 @@ import java.time.ZoneOffset
             }
             items(applications,key={it.text("id")}) { job -> ProfileApplicationCard(job,vm) }
         } else {
+        item {SearchAreaSettings(state,vm)}
         item { GlassCard(accent = true) {
             Icon(Icons.Rounded.Description,null,Modifier.size(34.dp),tint = MaterialTheme.colorScheme.primary)
             Text(tr("让简历成为起点","Le CV comme point de départ","Start with your CV"),fontSize = 22.sp,fontWeight = FontWeight.SemiBold)

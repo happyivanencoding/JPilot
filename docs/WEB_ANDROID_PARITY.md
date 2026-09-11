@@ -1,3 +1,9 @@
+# Onward V1 0.5.0 / Web 0.7.0
+
+Android and Web share the Onward icon/wordmark, automatic system UI language (FR/ZH, otherwise EN), automatic source-CV language detection with independently configurable insights/material language, collapsed optional language controls, city/all-France search scope, and no per-page walkthrough interruptions. Home focuses on strengths, directions and priority roles; role cards use one match scale and evidence-backed prepared-CV gains. The three role tabs remain Match / CV / Tracking. PDF comparison shows clean role/original versions; status, date, reply draft and notes autosave.
+
+Both clients send authenticated, bounded product events and visible AI waiting segments. Logical CV/search progress includes presentation readiness. Normal result navigation is not abandonment; backgrounding ends visible wait segments. See PRODUCT_ANALYTICS.md for retention, reporting and measurement limits. Release validation and delivery receipts are in ONWARD_0_5_0_RELEASE.md.
+
 # JobPilot Web 0.6.1 — Android-aligned product
 
 ## 2026-09-11 V1 0.4.8 — broad directions, unified role tabs and upload notice

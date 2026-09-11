@@ -1,3 +1,4 @@
+import {roleCvOutcome} from './onward-cv.mjs';
 import {MATCH_METHOD,ANCHORED_INSTRUCTIONS,anchoredBreakdown} from "./match-rubric.mjs";
 import {normalizeUrl} from "./posting-url.mjs";
 // V1 student-facing match layer. This is deliberately separate from the legacy
@@ -191,7 +192,7 @@ export function projectV1JobScores(job,tasks=[],versionId='') {
    const gain=Math.max(0,Number(job.cv?.presentationDelta || 0));
    job={...job,v1Match:{...job.v1Match,currentScore:deep.currentScore,cvPotentialScore:deep.cvPotentialScore,displayScore:Math.min(deep.cvPotentialScore,deep.currentScore+gain),deepMatch:deep}};
  }
- const result={...job,matchScore:matchScoreView(job)};
+ const result={...job,matchScore:matchScoreView(job),cvOutcome:roleCvOutcome(job)};
  if(job.cvDraft) result.cvDraft={...job.cvDraft,assessment:v1CvAssessment(job,job.cvDraft.assessment || {})};
  return result;
 }

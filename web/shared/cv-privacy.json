@@ -1,5 +1,5 @@
 {
-  "version": "2026-09-11.2",
+  "version": "2026-09-11.3",
   "title": {
     "zh": "测试阶段简历信息使用说明",
     "fr": "Notice relative aux CV — phase de test",
@@ -18,9 +18,9 @@
         "zh": "联系与适用范围"
       },
       "body": {
-        "en": "This notice applies to the closed JobPilot test. For any questions about your data or participation, contact the person who gave you your invitation code. You can also submit a deletion request through this notice in My. You do not waive any data rights.",
-        "fr": "Cette notice concerne le test fermé de JobPilot. Pour toute question sur vos données ou votre participation, contactez la personne qui vous a transmis votre code d’invitation. Vous pouvez aussi demander la suppression depuis cette notice dans « Moi ». Aucun droit sur vos données n’est abandonné.",
-        "zh": "本说明适用于 JobPilot 封闭测试。关于你的数据或参与测试的问题，请联系给你邀请码的那个人。你也可以通过“我的”中的本说明提交数据删除请求。本说明不是放弃个人信息权利的协议。"
+        "en": "This notice applies to the closed Onward test. For any questions about your data or participation, contact the person who gave you your invitation code. You can also submit a deletion request through this notice in My. You do not waive any data rights.",
+        "fr": "Cette notice concerne le test fermé de Onward. Pour toute question sur vos données ou votre participation, contactez la personne qui vous a transmis votre code d’invitation. Vous pouvez aussi demander la suppression depuis cette notice dans « Moi ». Aucun droit sur vos données n’est abandonné.",
+        "zh": "本说明适用于 Onward 封闭测试。关于你的数据或参与测试的问题，请联系给你邀请码的那个人。你也可以通过“我的”中的本说明提交数据删除请求。本说明不是放弃个人信息权利的协议。"
       }
     },
     {
@@ -30,9 +30,9 @@
         "en": "Limited to the features you test"
       },
       "body": {
-        "zh": "我们处理你上传的简历及提取文字、你填写的求职偏好、分析和岗位匹配结果、岗位版简历以及必要的故障记录，用于提供、验证和修复这些测试功能。不会出售你的简历，不用于广告营销或训练 JobPilot 自有模型；不会擅自向雇主投递、公开展示或用于无关项目。",
-        "fr": "Le CV et son texte extrait, vos préférences, analyses, résultats de rapprochement, CV ciblés et journaux techniques nécessaires servent uniquement à fournir, vérifier et corriger ces fonctions de test. JobPilot ne vend pas votre CV, ne l’utilise ni pour la publicité ni pour entraîner ses propres modèles et ne le transmet pas spontanément à des employeurs, ne le publie pas et ne l’utilise pas pour des projets sans rapport.",
-        "en": "Your uploaded CV and extracted text, preferences, analyses, match results, tailored CVs and necessary technical logs are used only to provide, test and fix these features. JobPilot does not sell your CV, use it for advertising or train its own models with it. We do not submit it to employers, publish it or reuse it for unrelated projects."
+        "zh": "我们处理你上传的简历及提取文字、你填写的求职偏好、分析和岗位匹配结果、岗位版简历以及必要的故障记录，用于提供、验证和修复这些测试功能。不会出售你的简历，不用于广告营销或训练 Onward 自有模型；不会擅自向雇主投递、公开展示或用于无关项目。",
+        "fr": "Le CV et son texte extrait, vos préférences, analyses, résultats de rapprochement, CV ciblés et journaux techniques nécessaires servent uniquement à fournir, vérifier et corriger ces fonctions de test. Onward ne vend pas votre CV, ne l’utilise ni pour la publicité ni pour entraîner ses propres modèles et ne le transmet pas spontanément à des employeurs, ne le publie pas et ne l’utilise pas pour des projets sans rapport.",
+        "en": "Your uploaded CV and extracted text, preferences, analyses, match results, tailored CVs and necessary technical logs are used only to provide, test and fix these features. Onward does not sell your CV, use it for advertising or train its own models with it. We do not submit it to employers, publish it or reuse it for unrelated projects."
       }
     },
     {
@@ -93,6 +93,18 @@
         "zh": "勾选并确认后，我们仅记录说明版本、所阅读声明的语言、服务器确认时间和当前档案，用于证明已告知及记录你的选择。不默认勾选，不视为向无关用途授权，也不代表已经完成正式上线的全部合规审查。匹配分为求职辅助建议，不是雇主决定或录用概率。",
         "fr": "Après votre confirmation, nous enregistrons la version, la langue, l’heure serveur et le dossier concerné pour tracer votre choix. La case n’est pas précochée, n’autorise pas d’autres usages et ne signifie pas que toutes les vérifications de conformité d’un lancement public sont terminées. Les scores sont une aide à la recherche, pas une décision d’employeur ni une probabilité d’embauche.",
         "en": "After confirmation, we record the notice version, language, server time and profile to document your choice. The box is not preselected, does not authorize unrelated uses and does not mean all compliance checks for a public launch are complete. Match scores are search guidance, not employer decisions or hiring probabilities."
+      }
+    },
+    {
+      "title": {
+        "zh": "产品使用统计",
+        "fr": "Statistiques d’utilisation",
+        "en": "Product usage analytics"
+      },
+      "body": {
+        "zh": "为改善首次使用和等待体验，我们记录与测试档案关联的页面访问、活跃停留时间、操作标识、滚动深度、退出步骤及 AI 等待时长。统计不包含输入框正文、简历内容或岗位链接，不用于广告。原始统计保留 30 天，仅测试管理员用于分析。",
+        "fr": "Pour améliorer les premiers pas et l’attente, nous mesurons les pages consultées, le temps actif, les actions, le défilement, les étapes de sortie et l’attente IA, associés au profil de test. Aucun texte saisi, contenu de CV ou lien d’offre n’est enregistré dans ces statistiques. Pas d’usage publicitaire. Les données brutes sont conservées 30 jours et réservées à l’analyse par les administrateurs du test.",
+        "en": "To improve first use and waiting, we measure pages visited, active time, action identifiers, scroll depth, exit steps and AI wait time, associated with the test profile. Analytics exclude typed text, CV content and job links and are not used for advertising. Raw events are retained for 30 days for analysis by test administrators."
       }
     }
   ]

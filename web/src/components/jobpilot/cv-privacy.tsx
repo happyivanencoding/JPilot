@@ -26,7 +26,7 @@ export function CvPrivacyDialog({onClose,onAccepted}:{onClose:()=>void;onAccepte
  };
  return createPortal(<div className="jp-privacy-overlay"><section role="dialog" aria-modal="true" aria-labelledby="cv-privacy-title" className="jp-privacy-document" data-testid="cv-privacy-dialog" lang={locale}>
   <h2 id="cv-privacy-title">{data?.notice?.title[locale]||tr('测试阶段简历信息使用说明','Notice relative aux CV — phase de test','CV information notice — testing phase')}</h2>
-  <Hint>JobPilot · V1 · {data?.notice?.version||'…'}</Hint>
+  <Hint>Onward · V1 · {data?.notice?.version||'…'}</Hint>
   <div className="jp-segmented" role="tablist" aria-label="Notice language">
    {languages.map(([code,label])=><button key={code} id={`privacy-language-${code}`} type="button" role="tab" aria-selected={locale===code} aria-controls="privacy-language-panel" data-testid={`privacy-language-${code}`} className={locale===code?'selected':''} disabled={working} onClick={()=>setLocale(code)}>{label}</button>)}
   </div>

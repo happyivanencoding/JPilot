@@ -1,3 +1,4 @@
+import {recordServerAiTask} from "@/lib/product-analytics.mjs";
 import {assertNotWithdrawn} from "@/lib/cv-privacy.mjs";
 import {planDirectionSearch,directionNotice,v1CandidatePriority} from "@/lib/v1-directions.mjs";
 import {orientationPrompt,parseOrientation} from "@/lib/v1-journey.mjs";
@@ -22,7 +23,7 @@ import { currentCandidateVersion, currentAnalysis, analysisContinuity, saveImpor
 import { findPersistedEvaluation } from "@/lib/evaluation-state";
 import { executeTransportEvaluation } from "@/lib/evaluation-transport";
 import { readCandidatureStore, writeCandidatureStore, reconcileCandidatures, saveMobileOffer } from "@/lib/candidatures";
-import { generateTailoredCv, reviewTailoredCvDraft } from "@/lib/tailored-cv";
+import { generateTailoredCv, reviewTailoredCvDraft, prepareRoleCv } from "@/lib/tailored-cv";
 import { cvAnalysisPrompt } from "@/lib/cv-analysis-prompt.mjs";
 import { parseAnalysisResult } from "@/lib/analysis-result.mjs";
 import {preservePresentationLanguage} from "@/lib/cv-global-plan.mjs";
@@ -244,7 +245,7 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
         const proposal = result.stdout.trim();
         if (!proposal) throw new Error("Aucun texte extrait.");
         task.result = task.input.autoImport === true
-          ? {...await saveImportedCv(task.profileId,proposal,String(task.inputVersionId),String(task.input.sourceLanguage),String(task.input.analysisLanguage),Array.isArray(task.input.contractTypes)?task.input.contractTypes.map(String):undefined),filename:task.input.filename}
+          ? {...await saveImportedCv(task.profileId,proposal,String(task.inputVersionId),String(task.input.sourceLanguage),String(task.input.analysisLanguage),Array.isArray(task.input.contractTypes)?task.input.contractTypes.map(String):undefined,task.input.searchArea as Record<string,unknown>|undefined),filename:task.input.filename}
           : { proposal, filename: task.input.filename, confirmed: false };
         task.phase = "Aperçu prêt. Confirmation requise avant de remplacer le CV.";
       } catch (e) {
@@ -301,8 +302,26 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
       if(task.input.experience==='v1' && (parsed.obj?.scoring_version!=='role-fit-2' || parsed.obj?.scoring_method!=='anchored-4x4-v1' || !parsed.obj?.ratings || !parsed.obj?.score_rationale))throw new Error('Incomplete match rubric');
       const deepMatch={...normalizeDeepMatch(parsed.obj,fastMatch),outputLocale:task.input.uiLocale};
       writeJobIntelligence(String(task.input.url || offer.url || ""),deepMatch);
+      let preparedCv:any=null;
+      if(task.input.experience==='v1') {
+        const modelMetrics:any[]=[task.metrics].filter(Boolean);
+        try {
+          preparedCv=await prepareRoleCv(task.profileId,version,offer,deepMatch,uiLocale(task.input.uiLocale),{
+            onRun,onMetrics:m=>{modelMetrics.push(m);},onPhase:phase=>{task.phase=phase;saveTask(task);},applicationLanguage:String(task.input.applicationLanguage || ""),
+          });
+          Object.assign(deepMatch,{preparedCvScore:preparedCv.assessment.draftScore,preparedCvLanguage:preparedCv.language,cvPotentialScore:preparedCv.assessment.draftScore});
+        } catch(error) {
+          // A failed optional preparation cannot invent a numeric promise or erase
+          // useful role analysis. Explicit CV generation can retry the real work.
+          Object.assign(deepMatch,{cvPotentialScore:deepMatch.currentScore,preparationState:'failed'});
+          (task as any).preparationError=error instanceof Error?error.message:String(error);
+        }
+        const aggregate={...modelMetrics.at(-1)};
+        for(const key of ['inputTokens','outputTokens','cachedInputTokens','totalTokens','agentMs','estimatedCostUsd'])aggregate[key]=modelMetrics.reduce((sum,m)=>sum+(Number(m?.[key])||0),0);
+        metrics(aggregate);
+      }
       task.text=String(deepMatch.roleSummary || "");
-      task.result={url:String(task.input.url || offer.url || ""),deepMatch,outputLocale:task.input.uiLocale};
+      task.result={url:String(task.input.url || offer.url || ""),deepMatch,preparedCv,outputLocale:task.input.uiLocale};
     } else if (task.kind === "evaluate") {
       task.phase = "Évaluation officielle et enregistrement du rapport"; saveTask(task);
       await consume(task, await executeTransportEvaluation({ profileId: task.profileId, url: String(task.input.url), inputVersionId: task.inputVersionId, locale: String(task.input.uiLocale), model: defaultFlow.model, reasoning: defaultFlow.reasoning }));
@@ -375,7 +394,9 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
     task.error = error instanceof Error ? error.message : String(error);
     task.phase = "Action interrompue — consulter le détail";
   } finally {
-    task.metrics={...task.metrics,wallMs:Date.now()-Date.parse(task.createdAt)};saveTask(task);
+    const finishedAt=Date.now();
+    task.metrics={...task.metrics,wallMs:finishedAt-Date.parse(task.createdAt)};saveTask(task);
+    void recordServerAiTask(workspaceRoot(),task,finishedAt).catch(()=>{});
     if(task.status==="completed") await queueV1FollowUps(task);
   }
 }
@@ -442,7 +463,7 @@ export async function startMobileTask(profileId: string, input: Record<string, u
   const task=await withProfileLock(mobileDirectory(profileId),()=>{
     const version=currentCandidateVersion(profileId);
     input={...input,uiLocale:uiLocale(input.uiLocale || input.language)};
-    if(kind==='cv') input.applicationLanguage=applicationLanguage(yaml.load(readText(profileFile(profileId,'config'))) || {},version.sources.cv.text);
+    if(kind==='cv' || kind==='deep_match') input.applicationLanguage=applicationLanguage(yaml.load(readText(profileFile(profileId,'config'))) || {},version.sources.cv.text);
     const jobs=readCandidatureStore(profileId).jobs;
     if (["cv","cv_review","plan"].includes(kind) && !jobs.some(j=>j.id===input.jobId)) throw new Error("Choisissez un poste de ce profil.");
     if (input.jobId && !jobs.some(j=>j.id===input.jobId)) throw new Error("Poste introuvable pour ce profil.");
@@ -465,7 +486,7 @@ export async function startMobileTask(profileId: string, input: Record<string, u
     if(kind === "ingest" && uploadPath) {
       const bytes=fs.readFileSync(uploadPath);
       const previous=tasks.find(t=>t.kind === "ingest" && t.uploadSource && ["queued","running","reconciling","completed"].includes(t.status)
-        && t.input.autoImport===input.autoImport && t.input.sourceLanguage===input.sourceLanguage && t.input.analysisLanguage===input.analysisLanguage && JSON.stringify(t.input.contractTypes)===JSON.stringify(input.contractTypes)
+        && t.input.autoImport===input.autoImport && t.input.sourceLanguage===input.sourceLanguage && t.input.analysisLanguage===input.analysisLanguage && JSON.stringify(t.input.contractTypes)===JSON.stringify(input.contractTypes) && JSON.stringify(t.input.searchArea)===JSON.stringify(input.searchArea)
         && (!t.result?.imported || t.result.versionId===version.id) && fs.existsSync(t.uploadSource) && fs.statSync(t.uploadSource).size===bytes.length && fs.readFileSync(t.uploadSource).equals(bytes));
       if(previous)return {...previous,reused:true};
     }

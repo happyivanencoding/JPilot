@@ -1,3 +1,5 @@
+import {offerInSearchArea} from '@/lib/search-area.mjs';
+import {roleCvOutcome} from '@/lib/onward-cv.mjs';
 import {broadCareerDirections} from "@/lib/career-directions.mjs";
 import {directionDescriptor,directionNotice} from "@/lib/v1-directions.mjs";
 import {matchScoreView,friendlyOffer} from "@/lib/v1-match.mjs";
@@ -13,7 +15,7 @@ export async function prepareV1Display(profileId:string, locale:string, snapshot
   const analysis=snapshot.analysis && !snapshot.analysis.stale ? await localizeDisplay(profileId,locale,snapshot.analysis,'analysis',{retry}) : null;
   let analysisReady=!!analysis && !analysis.localization?.pending && snapshot.v1.analysisState==='completed';
   const localizeBatch=async(group:any)=>{
-    const offers=(group.offers || []).map((offer:any)=>{
+    const offers=(group.offers || []).filter((offer:any)=>offerInSearchArea(offer,snapshot.config?.target_roles?.search_area)).map((offer:any)=>{
       const saved=(snapshot.jobs || []).find((job:any)=>job.url===offer.url);
       return saved?.v1Match?.deepMatch ? {...offer,deepMatch:saved.v1Match.deepMatch} : offer;
     });
@@ -70,7 +72,7 @@ export async function prepareV1Display(profileId:string, locale:string, snapshot
     const saved=(snapshot.jobs || []).find((job:any)=>job.url===offer.url && job.v1Match);
     const match=saved?matchScoreView(saved):matchScoreView(offer);
     const roleCv=saved?.cvDraft?.status==='pending' ? {jobId:saved.id,status:"pending",draftId:saved.cvDraft.id} : saved?.cv?.file ? {jobId:saved.id,status:"accepted"} : saved && tasks.some(t=>t.kind==='cv'&&t.input?.jobId===saved.id&&['queued','running','reconciling'].includes(t.status)) ? {jobId:saved.id,status:"generating"} : null;
-    return {...friendlyOffer(offer),matchScore:match,roleCv,
+    return {...friendlyOffer(offer),matchScore:match,cvOutcome:roleCvOutcome(saved || offer),roleCv,
       deepMatch:offer.deepMatch?{...friendlyOffer(offer).deepMatch,currentScore:match.baseline,cvPotentialScore:match.forecast}:offer.deepMatch};
   };
   result.discovery.offers=result.discovery.offers.map(format).sort((a:any,b:any)=>b.matchScore.current-a.matchScore.current);

@@ -1,3 +1,4 @@
+import {roleCvOutcome} from '../../lib/onward-cv.mjs';
 /** Read-only adapter: opening a discovery offer must not create a candidature or AI task. */
 export function roleDetailForOffer(offer,jobs=[]) {
  const saved=jobs.find(job=>job.url===offer.url);

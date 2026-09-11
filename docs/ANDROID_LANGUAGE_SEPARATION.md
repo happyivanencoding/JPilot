@@ -1,3 +1,7 @@
+# Onward V1 0.5.0 language defaults
+
+New users follow the device/browser language: French -> fr, Chinese -> zh, all other locales -> en. A manual UI override remains explicit. First upload defaults sourceLanguage to auto; the backend detects actual extracted CV text and initializes material language from it. Insights default to the UI language. Optional first-run language choices are collapsed; later manual material/insight choices remain independent of UI language. Existing explicit preferences are preserved.
+
 # JobPilot 0.3.2 — display language and application documents
 
 ## 2026-09-11 V1 0.4.8 — broad directions, unified role tabs and upload notice
