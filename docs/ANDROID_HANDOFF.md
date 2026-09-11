@@ -1,5 +1,11 @@
 # JobPilot Android — implementation handoff
 
+## 2026-09-12 Onward V1 0.6.2 / Web 0.8.2 — explicit role-search hotfix
+
+Backend-only search hotfix; Android remains **0.6.2/code30** and Web package version remains **0.8.2**, so no APK rebuild/reinstall is required. A manual role query now has authority over inferred Profile directions: `量化分析师` is mapped to the quantitative role family and provider probes such as `quantitative analyst`, `quantitative researcher`, `analyste quantitatif`, `quant`, and `recherche quantitative`. Explicit searches no longer mix unrelated Profile target roles into relevance scoring and no longer use the broad `closest` tier to fill empty result slots with marketing/recruitment/etc.; generic CV-based discovery keeps its existing fallback behavior.
+
+V1 search operation identity is now **`search-v10-explicit-intent`**, so pressing Search again for the same manual query does not reuse the old v9 result. Snapshot search-history selection now recognizes current/future V1 search tasks through the task contract rather than a frozen v6–v8 allow-list. Targeted `job-search.test.mjs` is **29/29 PASS**, Web `npm run typecheck` PASS, and `git diff --check` PASS for the product files. Product SHA **`fd0a5b9dd709d8f15057ab80be3618a3b376cd50`** is deployed on the isolated V1 stack; the deploy returned `V1_DEPLOY_OK`, session/Profile isolation + logout, model-key and search-provider gates passed, `jobpilot-v1-web-1` is healthy and the public V1 root returns HTTP 200. Production and Yifeng container IDs/StartedAt remained unchanged.
+
 ## 2026-09-12 Onward V1 0.6.2 — Profile IA / score uplift refinement
 
 Android is now **0.6.2/code30**. `我的职业档案` removes the separate applications tab: its applications / saved roles / role-CV counters are now real actions that open bottom drawers. CV, analysis, language, job preferences and appearance are collapsible second-level sections; city / all-France search scope lives inside job preferences. Detailed CV uplift is now presented as a neutral initial-score card → arrow → Sage/Forest optimized-score card with real score progress, and the excess Home / Job Detail vertical space has been tightened. Web 0.8.2 implements the same IA and visual treatment.
