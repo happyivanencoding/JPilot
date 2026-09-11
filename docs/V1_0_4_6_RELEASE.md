@@ -24,3 +24,7 @@ Scope: independent `feature/v1-student-match-loop-20260910`, Android `com.thegre
 ## Delivery receipts
 
 VPS cutover, live-model/CV preview acceptance and USB installation are pending at this source commit. Add the actual receipts after those operations; local controlled-model checks do not prove live AI success.
+
+### Live search correction
+Live acceptance found that the existing confirmed_only rule still demoted unknown contract types instead of excluding them, while general-role queries omitted the selected contracts. The provider planner now incorporates selected contract vocabulary in its existing three-query budget, and confirmed-only ranking excludes unknown contracts. Two targeted tests cover the actual former failure and preserve unrestricted profiles. No user data or search history was rewritten.
+
