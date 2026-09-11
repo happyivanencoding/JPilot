@@ -1,8 +1,15 @@
-# JobPilot Web 0.6.0 — Android-aligned product
+# JobPilot Web 0.6.1 — Android-aligned product
 
-## V1 student match loop parity — 2026-09-10 branch only
+## V1 AI/bootstrap parity recovery — 2026-09-11
 
-- `feature/v1-student-match-loop-20260910` ships the same three primary surfaces on Android and Web: **首页 / 机会 / 我的**. It is branch-only here; production main is not changed by this entry.
+- Android `0.4.1/code15` and Web `0.6.1` now share the same migration bootstrap: if a Master CV exists but the current candidate version has no V1-shaped analysis (`careerDirections/searchKeywords`), the snapshot reports `v1.needsBootstrap`. Each client sends one idempotent POST `bootstrapV1`; neither client starts model work from a presentation GET.
+- Both clients therefore ignore the old pre-V1 completed analysis that caused the first preview to show `analysisState=completed` with zero directions. The same versioned analysis/search operation keys drive Android and Web, and both silently follow analysis → structured search → top-offer deep match.
+- Real shared-backend acceptance produced 4 directions, 8 keywords, a live JSearch/France Travail search, Goldman Sachs at 82/100 and a completed deep match. The real Samsung Opportunities screen showed the same Goldman result/82 score that Web receives from the snapshot.
+- Search-provider credentials remain server-only. V1 uses an isolated VPS runtime.env; Android and Web never contain JSearch/France Travail secrets.
+
+## V1 student match loop parity — 2026-09-10 branch origin
+
+- `feature/v1-student-match-loop-20260910` ships the same three primary surfaces on Android and Web: **首页 / 机会 / 我的**. The independent V1 preview is deployed separately; production main remains unchanged.
 - Both clients render the same V1 0–100 exploration score and the same three-level contract: current match → truthful CV-presentation potential → genuine capability potential. The historical official 0–5 report remains a separate legacy object.
 - Both clients treat CV confirmation/edit as the trigger for silent analysis, use explicit target roles before inferred directions, expose editable career/search suggestions, and keep silent tasks out of the user task centre / blocking launch overlay.
 - Both clients open discovered offers read-only and expose the same primary explicit AI action: **查看我的 XX 分版本**. Only that action persists the offer and starts a Master-derived role CV.

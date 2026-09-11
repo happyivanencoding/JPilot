@@ -1,13 +1,21 @@
 # JobPilot Android — implementation handoff
 
-## 2026-09-10 V1 student match loop — branch only
+## 2026-09-11 V1 AI bootstrap/search recovery — deployed preview
 
-- Dedicated worktree: `C:\dev\jpilot-v1-student-20260910`; branch: `feature/v1-student-match-loop-20260910`, based on the then-current `origin/main@9c360e9`. This V1 is **not merged to main or deployed** by this handoff entry.
-- Android V1 is `0.4.0/code14` and changes the primary IA to **首页 / 机会 / 我的**. Existing legacy screens remain in source for saved historical objects and later stages, but new V1 saved roles use a three-tab detail: **匹配 / CV / 跟踪**.
+- V1 preview is now Android `0.4.1/code15`, Web `0.6.1`, mobile contract `0.4.1`, still isolated on `feature/v1-student-match-loop-20260910` and `jobs-v1.thegreatnovel.com`; it is not merged into production main.
+- The first V1 preview falsely reused a pre-V1 completed analysis for the same candidate version, so `analysisState` looked complete while `careerDirections/searchKeywords` were empty. Analysis/search operation keys are now contract-versioned. Existing CV profiles expose `v1.needsBootstrap` until a current V1-shaped analysis exists; Android sends one idempotent background `bootstrapV1` POST per candidate version and Web mirrors the same behavior.
+- V1 search also lacked server-side provider runtime variables. Its independent VPS runtime now has its own `jobpilot-v1/runtime.env`; France Travail and JSearch are configured without mounting production data or the production runtime.env path. An all-unconfigured search now fails explicitly rather than returning a fake successful zero-result task.
+- Real `louis` acceptance: analysis completed in 37.809s / 11,185 tokens and persisted 4 directions + 8 keywords; JSearch returned 30 raw rows and the current ranking displayed Goldman Sachs 2027 Paris FICC & Equities Summer Analyst at 82/100; silent deep-match reached CV potential 87 / capability potential 94. A real tailored-CV request completed in 12.592s / 7,987 tokens and created a one-page pending draft.
+- Samsung `SM_S928U1` was upgraded in place to `0.4.1/code15`. Real device UI showed the four generated directions; the Opportunities tab contained Goldman Sachs and score 82. Package remains `com.thegreatnovel.jobpilot.v1`, so production/Yifeng apps are not overwritten.
+
+## 2026-09-10 V1 student match loop — branch origin
+
+- Dedicated worktree: `C:\dev\jpilot-v1-student-20260910`; branch: `feature/v1-student-match-loop-20260910`, based on the then-current `origin/main@9c360e9`. This V1 was originally branch-only; the independent V1 preview is now deployed, still without merging production main.
+- Android V1 began as `0.4.0/code14` and changes the primary IA to **首页 / 机会 / 我的**. Existing legacy screens remain in source for saved historical objects and later stages, but new V1 saved roles use a three-tab detail: **匹配 / CV / 跟踪**.
 - Master CV confirmation/edit automatically starts silent profile analysis; explicit target roles remain authoritative. Analysis supplies career directions/search keywords, then a silent initial search. Every offer gets immediate deterministic 0–100 `fastMatch`; only the top five get read-only silent `deep_match` enrichment.
 - Opening a discovered offer is read-only. The primary explicit AI action is **查看我的 XX 分版本**; only that action saves the offer and generates a role-specific CV. Role CVs always branch from the frozen Master input version and never chain from another tailored CV.
 - Editing a tailored draft now triggers hidden `cv_review` automatically. Keep/reject remains explicit. Android task centre is secondary under “我的”; silent work never opens the old blocking launch overlay.
-- Full product/data contract: `V1_STUDENT_MATCH_LOOP_2026-09-10.md`. Web parity is implemented in the same branch as Web `0.6.0` / backend snapshot `0.4.0`.
+- Full product/data contract: `V1_STUDENT_MATCH_LOOP_2026-09-10.md`. Current preview parity is Web `0.6.1` / backend snapshot `0.4.1`.
 
 Updated: 2026-09-10 (Europe/Paris). Samsung physically upgraded in place to **Android 0.3.8/code12**, existing session/data retained; **Web/backend 0.5.1**, contract **0.3.8**. Two explicitly selected instrumented methods passed on the real phone; the second confirmed actual PDF bitmap rendering and keyboard-visible input. A shared tailored-PDF emphasis bug was fixed and deployed. Full scope, data preservation, test interruption and untested paths: `DEVICE_ACCEPTANCE_2026-09-10.md`. Earlier release evidence below is historical.
 

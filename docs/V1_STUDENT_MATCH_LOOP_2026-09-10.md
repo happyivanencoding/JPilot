@@ -2,6 +2,27 @@
 
 > Branch-only product line for first external student tests. This document describes `feature/v1-student-match-loop-20260910`; it is not a statement that production `main` has switched to V1.
 
+## 2026-09-11 AI/bootstrap recovery — 0.4.1/code15
+
+The first deployed V1 preview exposed two real migration defects rather than a broken model transport:
+
+- the V1 `analysis` flow reused a pre-V1 completed task because its operation key only contained the candidate version. That old task had no `careerDirections/searchKeywords`, so the UI reported analysis complete while showing no V1 directions and never started the intended analysis → search → deep-match loop;
+- the isolated V1 VPS stack had model keys but no independent copy of the production search-provider runtime variables, so France Travail and JSearch were `unconfigured` and a search could finish in a few milliseconds with zero offers.
+
+V1 now versions persisted operation identities (`analysis-v2-v1-directions`, `search-v6-live-providers`). A profile that already has a Master CV but no current V1-shaped analysis exposes `v1.needsBootstrap=true`; Android and Web each issue one idempotent POST `bootstrapV1` for that candidate version, rather than starting business work from a GET. Failed V1 analysis can be retried by the normal write/bootstrap triggers. A structurally unconfigured search environment now fails explicitly instead of pretending that an empty search succeeded.
+
+The V1 VPS uses its own `/etc/server-infra/secrets/jobpilot-v1/runtime.env`; it receives an independent copy of the configured France Travail/JSearch values and does not mount the production runtime.env path. Deployment now fails if those three provider variables are absent.
+
+Real synthetic `louis` acceptance after deployment:
+
+- new V1 analysis `c4ba2344-1298-48b6-a951-2980a9a5bd19`: completed, agent 37.809s, 8,081 input + 3,104 output = 11,185 tokens; 4 career directions and 8 search keywords persisted;
+- automatic structured search: France Travail `ok` (3 calls, 410ms, 0 raw in this run), JSearch `ok` (3 calls, 5.236s, 30 raw); one displayed high-relevance offer survived current ranking;
+- Goldman Sachs 2027 EMEA Paris FICC & Equities Summer Analyst: deterministic fast match 82; silent deep match completed with CV potential 87 and capability potential 94;
+- explicit tailored-CV task `6b42ab87-8c13-4bb5-b5ee-1e368f630e92`: completed, agent 12.592s, 6,410 input + 1,577 output = 7,987 tokens; produced a one-page pending draft for explicit keep/reject;
+- Android `0.4.1/code15` was installed on the real Samsung `SM_S928U1`; the device UI showed the four new career directions and the Opportunities screen contained Goldman Sachs with score 82.
+
+These checks use only the synthetic Louis profile. Production and Yifeng container identities/start times remained unchanged during V1 deployment.
+
 ## Product goal
 
 V1 is for students and early-career candidates who are looking for a first CDI or one of their first internships and often do not yet understand what job titles mean in practice.
@@ -121,9 +142,9 @@ Historical saved roles without `v1Match` continue to open through the legacy det
 
 ## Versions and preview identity
 
-- Web: `0.6.0`
-- Android: `0.4.0` / code `14`
-- Mobile backend snapshot contract: `0.4.0`
+- Web: `0.6.1`
+- Android: `0.4.1` / code `15`
+- Mobile backend snapshot contract: `0.4.1`
 - Independent Android preview package: `com.thegreatnovel.jobpilot.v1`
 - Launcher name: `JobPilot V1`
 - Independent preview origin: `https://jobs-v1.thegreatnovel.com`
