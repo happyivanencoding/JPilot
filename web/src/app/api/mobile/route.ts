@@ -82,8 +82,8 @@ export async function GET(req: Request) {
     const activeAnalysis=tasks.find((t:MobileTask)=>t.kind==="analysis"&&t.inputVersionId===version.id&&["queued","running","reconciling"].includes(t.status));
     const failedV1Analysis=tasks.find((t:MobileTask)=>t.kind==="analysis"&&t.inputVersionId===version.id&&["failed","interrupted"].includes(t.status)&&(String(t.input?.source||"").startsWith("v1-")||String(t.operationKey||"").includes("analysis-v")));
     const selectedSearchTask=tasks.find((t:MobileTask)=>t.id===journey.searchTaskId&&t.kind==="search"&&t.inputVersionId===version.id);
-    const latestSearchTask=selectedSearchTask || tasks.find((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&String(t.operationKey||"").includes("search-v6-live-providers"));
-    const completedSearches=tasks.filter((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&String(t.operationKey||"").includes("search-v6-live-providers")&&t.status==="completed"&&Array.isArray(t.result?.offers));
+    const latestSearchTask=selectedSearchTask || tasks.find((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&["search-v6-live-providers","search-v7-v1-market"].some(key=>String(t.operationKey||"").includes(key)));
+    const completedSearches=tasks.filter((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&["search-v6-live-providers","search-v7-v1-market"].some(key=>String(t.operationKey||"").includes(key))&&t.status==="completed"&&Array.isArray(t.result?.offers));
     const latestSearch=selectedSearchTask?.status==="completed" ? selectedSearchTask : completedSearches[0];
     const projectDiscovery=(task?:MobileTask)=>{
       const result=discoveryProjection(task?.result || null,projectedJobs,currentVersionTasks(tasks,version.id));

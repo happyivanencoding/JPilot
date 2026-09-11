@@ -114,3 +114,14 @@ test('logout revokes the old account without affecting another account; next log
   await setProfileDisplayName(root,c.profileId,'Louis Martin','Mehdi Martin');assert.equal(getProfile(c.profileId).name,'');
   assert.equal(getProfile(a.profileId).name,'Yuki Tanaka','logout does not delete or rewrite the previous profile');
 });
+
+
+test('a blank V1 profile searches France and Europe, not the provider default US market',async()=>{
+  const {searchRequestFromConfig}=await import('../src/lib/job-search/mobile-context.mjs');
+  const {operationKey}=await import('../src/lib/mobile-state.mjs');
+  const request=searchRequestFromConfig('business development',{},[],'France');
+  assert.equal(request.country,'France');assert.equal(request.city,'');assert.equal(request.flexibleEurope,true);
+  assert.equal(searchRequestFromConfig('business development',{location:{country:'Germany',city:'Berlin'}},[],'France').country,'Germany');
+  assert.equal(searchRequestFromConfig('business development',{},[]).country,'','legacy search has no forced V1 default');
+  assert.notEqual(operationKey('search',{query:'business development',experience:'v1'},{id:'cv'},[]),operationKey('search',{query:'business development'},{id:'cv'},[]));
+});

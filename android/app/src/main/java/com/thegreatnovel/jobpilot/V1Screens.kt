@@ -217,7 +217,6 @@ fun V1OfferDetailSheet(offer: JSONObject, state: PilotState, vm: JobPilotViewMod
     val fast = offer.child("fastMatch")
     val current = if (deep.has("currentScore")) deep.optInt("currentScore") else fast.optInt("score", -1)
     val cvPotential = deep.optInt("cvPotentialScore", current).coerceAtLeast(current)
-    val capabilityPotential = deep.optInt("capabilityPotentialScore", cvPotential).coerceAtLeast(cvPotential)
     val savedJob = state.snapshot.objects("jobs").find { it.text("url") == offer.text("url") }
     val cvActive = savedJob?.let { job -> state.snapshot.objects("tasks").any { it.text("kind") == "cv" && it.text("jobId") == job.text("id") && it.text("status") in setOf("queued", "running", "reconciling") } } == true
     val strengths = if (deep.objects("strengths").isNotEmpty()) deep.objects("strengths") else fast.objects("strengths")
@@ -235,11 +234,11 @@ fun V1OfferDetailSheet(offer: JSONObject, state: PilotState, vm: JobPilotViewMod
                     V1MatchBadge(current)
                 }
             }
-            item { GlassCard { Text(tr("你现在离这个岗位多远？", "Où en êtes-vous pour ce poste ?", "How close are you to this role?"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); V1PotentialRow(current, cvPotential, capabilityPotential); Hint(tr("后两个分数是近似潜力，不是录用概率；CV 优化不会假装你掌握了不存在的技能。", "Les deux scores suivants sont un potentiel indicatif, pas une probabilité d’embauche. Le CV n’invente aucune compétence.", "The next two scores are approximate potential, not hiring probability. CV changes never invent skills.")) } }
-            item { GlassCard { Text(tr("这个岗位到底做什么？", "Que fait-on concrètement dans ce poste ?", "What does this role actually do?"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); Text(deep.text("roleSummary").ifBlank { offer.text("why") }, fontSize = 14.sp, lineHeight = 21.sp); if (offer.text("deepMatchState") == "loading") Hint(tr("正在后台补充更具体的职责和要求，你可以继续看。", "Les responsabilités détaillées arrivent en arrière-plan.", "Detailed responsibilities are being added in the background.")); deep.strings("responsibilities").forEach { Text("• $it", fontSize = 14.sp, lineHeight = 21.sp) } } }
+            item { GlassCard { Text(tr("你的简历与这个岗位", "Votre CV pour ce poste", "Your CV for this role"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); V1PotentialRow(current, cvPotential) } }
+            item { GlassCard { Text(tr("这个岗位到底做什么？", "Que fait-on concrètement dans ce poste ?", "What does this role actually do?"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); Text(deep.text("roleSummary").ifBlank { offer.text("why") }, fontSize = 14.sp, lineHeight = 21.sp); if (offer.text("deepMatchState") == "loading") Hint(tr("正在后台补充更具体的职责和要求，你可以继续看。", "Les responsabilités détaillées arrivent en arrière-plan.", "Detailed responsibilities are being added in the background.")); deep.strings("responsibilities").take(3).forEach { Text("• $it", fontSize = 14.sp, lineHeight = 21.sp) } } }
             if (strengths.isNotEmpty()) item { GlassCard { Text(tr("你的加分点", "Vos points forts", "Your strengths"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); strengths.take(5).forEach { item -> Text("+ ${item.text("title")}", fontWeight = FontWeight.SemiBold); Hint(item.text("evidence")) } } }
-            if (deep.objects("presentationGaps").isNotEmpty()) item { GlassCard { Text(tr("只是没有写清楚的部分", "Ce que votre CV montre mal", "What your CV underplays"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); deep.objects("presentationGaps").take(5).forEach { item -> Text("+${item.optInt("potential")} · ${item.text("title")}", fontWeight = FontWeight.SemiBold); Text(item.text("why"), fontSize = 14.sp, lineHeight = 21.sp) }; deep.text("cvPotentialReason").takeIf { it.isNotBlank() }?.let { Hint(it) } } }
-            if (capabilityGaps.isNotEmpty()) item { GlassCard { Text(tr("需要真的补齐的能力", "Ce qu’il faut réellement acquérir", "What you actually need to build"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); capabilityGaps.take(6).forEach { item -> Text("− ${item.text("title")}", fontWeight = FontWeight.SemiBold); Text(item.text("why", item.text("reason")), fontSize = 14.sp, lineHeight = 21.sp); item.text("nextAction").takeIf { it.isNotBlank() }?.let { Hint(it) } } } }
+            if (deep.objects("presentationGaps").isNotEmpty()) item { GlassCard { Text(tr("简历这样改", "Mieux présenter votre CV", "Sharpen your CV"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); deep.objects("presentationGaps").take(5).forEach { item -> Text("+${item.optInt("potential")} · ${item.text("title")}", fontWeight = FontWeight.SemiBold); Text(item.text("why"), fontSize = 14.sp, lineHeight = 21.sp) }; deep.text("cvPotentialReason").takeIf { it.isNotBlank() }?.let { Hint(it) } } }
+            if (capabilityGaps.isNotEmpty()) item { GlassCard { Text(tr("值得补强的地方", "Vos axes de progrès", "Where to grow"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); capabilityGaps.take(6).forEach { item -> Text("− ${item.text("title")}", fontWeight = FontWeight.SemiBold); Text(item.text("why", item.text("reason")), fontSize = 14.sp, lineHeight = 21.sp); item.text("nextAction").takeIf { it.isNotBlank() }?.let { Hint(it) } } } }
             if (deep.objects("requirements").isNotEmpty()) item { GlassCard { Text(tr("岗位要求", "Exigences du poste", "Role requirements"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); deep.objects("requirements").take(7).forEach { item -> Row { Text(item.text("title"), Modifier.weight(1f), fontWeight = FontWeight.SemiBold); Pill(if (item.text("kind") == "must") tr("核心", "Essentiel", "Core") else tr("加分", "Bonus", "Nice to have")) }; Text(item.text("why"), fontSize = 13.sp, lineHeight = 20.sp) }; if (deep.strings("tools").isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) { deep.strings("tools").forEach { Pill(it) } } } }
             item { TextButton({ runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(offer.text("url")))) } }, contentPadding = PaddingValues(0.dp)) { Text(tr("打开原始职位页", "Ouvrir l’annonce officielle", "Open original posting")); Icon(Icons.Rounded.OpenInNew, null, Modifier.padding(start = 6.dp).size(15.dp)) } }
             item {
@@ -255,7 +254,6 @@ fun V1OfferDetailSheet(offer: JSONObject, state: PilotState, vm: JobPilotViewMod
                     modifier = Modifier.fillMaxWidth().testTag("tailor-offer"),
                     enabled = !state.working && !cvActive,
                 ) { Text(label) }
-                Hint(tr("只有点击这里，JobPilot 才会把这条岗位加入“我的”并生成独立版本；浏览本身不会创建投递记录。", "Cette action seule enregistre l’offre dans « Moi » et crée une version indépendante ; consulter l’offre ne crée aucune candidature.", "Only this action adds the role to My and creates an independent CV version; browsing alone never creates an application record."))
             }
             item { Spacer(Modifier.navigationBarsPadding()) }
         }
@@ -263,11 +261,11 @@ fun V1OfferDetailSheet(offer: JSONObject, state: PilotState, vm: JobPilotViewMod
 }
 
 @Composable
-private fun V1PotentialRow(current: Int, cvPotential: Int, capabilityPotential: Int) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        V1PotentialCell(tr("现在", "Maintenant", "Now"), current, Modifier.weight(1f)); Text("→", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        V1PotentialCell(tr("只优化 CV", "CV mieux présenté", "Better CV"), cvPotential, Modifier.weight(1f)); Text("→", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        V1PotentialCell(tr("补真实能力", "Compétences", "Build skills"), capabilityPotential, Modifier.weight(1f))
+private fun V1PotentialRow(current: Int, cvPotential: Int) {
+    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+        V1PotentialCell(tr("当前匹配","Match actuel","Current match"),current,Modifier.weight(1f))
+        Text("→",color=MaterialTheme.colorScheme.onSurfaceVariant)
+        V1PotentialCell(tr("优化后预计","Après retouches, estimé","Estimated after edits"),cvPotential,Modifier.weight(1f))
     }
 }
 
@@ -286,7 +284,6 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
     val current = match.optInt("currentScore", match.optInt("displayScore", -1))
     val display = match.optInt("displayScore", current)
     val cvPotential = match.optInt("cvPotentialScore", current).coerceAtLeast(current)
-    val capabilityPotential = match.optInt("capabilityPotentialScore", cvPotential).coerceAtLeast(cvPotential)
     var status by rememberSaveable(job.text("id")) { mutableStateOf(job.text("status")) }
     var statusMenu by remember { mutableStateOf(false) }
     var nextAction by rememberSaveable(job.text("id")) { mutableStateOf(job.child("followup").text("nextAction")) }
@@ -312,9 +309,8 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
                         if (current >= 0) item {
                             GlassCard {
                                 Text(tr("这个岗位与你的距离", "Votre distance à ce poste", "Your distance from this role"), fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-                                V1PotentialRow(current, cvPotential, capabilityPotential)
+                                V1PotentialRow(current, cvPotential)
                                 if (display > current) Hint(tr("你已采用岗位版 CV，当前展示分已包含真实的呈现改善。", "Votre score affiché inclut déjà l’amélioration du CV adopté.", "Your displayed score already includes the presentation gain from the accepted role CV."))
-                                Hint(tr("0–100 用于探索和行动规划，不是录用概率。", "Le score 0–100 sert à explorer et planifier, pas à prédire une embauche.", "The 0–100 score is for exploration and planning, not hiring probability."))
                             }
                         }
                         item { TextButton({ runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(job.text("url")))) } }) { Icon(Icons.Rounded.OpenInNew, null, Modifier.size(17.dp)); Spacer(Modifier.width(7.dp)); Text(tr("打开原始职位页", "Ouvrir l’annonce officielle", "Open original posting")) } }
@@ -324,7 +320,7 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
                         val presentation = deep.objects("presentationGaps")
                         if (presentation.isNotEmpty()) item { GlassCard { Text(tr("可以通过简历表达改善", "À améliorer dans la présentation du CV", "Can improve through CV presentation"), fontWeight = FontWeight.SemiBold, fontSize = 18.sp); presentation.take(6).forEach { item -> Text("+${item.optInt("potential")} · ${item.text("title")}", fontWeight = FontWeight.SemiBold); Text(item.text("why"), fontSize = 14.sp, lineHeight = 21.sp) } } }
                         val gaps = deep.objects("capabilityGaps")
-                        if (gaps.isNotEmpty()) item { GlassCard { Text(tr("需要真的补齐的能力", "Ce qu’il faut réellement acquérir", "What you actually need to build"), fontWeight = FontWeight.SemiBold, fontSize = 18.sp); gaps.take(7).forEach { item -> Text("− ${item.text("title")}", fontWeight = FontWeight.SemiBold); Text(item.text("why"), fontSize = 14.sp, lineHeight = 21.sp); item.text("nextAction").takeIf(String::isNotBlank)?.let { Hint(it) } } } }
+                        if (gaps.isNotEmpty()) item { GlassCard { Text(tr("值得补强的地方", "Vos axes de progrès", "Where to grow"), fontWeight = FontWeight.SemiBold, fontSize = 18.sp); gaps.take(7).forEach { item -> Text("− ${item.text("title")}", fontWeight = FontWeight.SemiBold); Text(item.text("why"), fontSize = 14.sp, lineHeight = 21.sp); item.text("nextAction").takeIf(String::isNotBlank)?.let { Hint(it) } } } }
                         if (deep.length() == 0 && job.text("summary").isNotBlank()) item { GlassCard { Text(tr("历史岗位判断", "Lecture historique du poste", "Historical role assessment"), fontWeight = FontWeight.SemiBold); Markdown(job.text("summary")) } }
                         if (job.text("reportNum").isNotBlank()) item { TextButton({ vm.openReport(job) }) { Text(tr("查看历史正式报告", "Lire le rapport historique", "Read historical formal report")) } }
                     }

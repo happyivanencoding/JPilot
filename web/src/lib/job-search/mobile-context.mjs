@@ -8,12 +8,12 @@ function splitCandidateLocation(value) {
   return { city: parts[0] || '', country: parts.at(-1) || '' };
 }
 
-export function searchRequestFromConfig(query, config = {}, knownUrls = []) {
+export function searchRequestFromConfig(query, config = {}, knownUrls = [], defaultCountry = '') {
   const target = config?.target_roles || {};
   const candidateLocation = splitCandidateLocation(config?.candidate?.location);
   const configuredLocation = typeof target.location === 'string' ? splitCandidateLocation(target.location) : {};
   const city = String(config?.location?.city || configuredLocation.city || candidateLocation.city || '').trim();
-  const country = String(config?.location?.country || configuredLocation.country || candidateLocation.country || '').trim();
+  const country = String(config?.location?.country || configuredLocation.country || candidateLocation.country || defaultCountry).trim();
   const primary = list(target.primary);
   const archetypes = Array.isArray(target.archetypes) ? target.archetypes.filter(x => typeof x === 'string').map(x => x.trim()).filter(Boolean) : [];
   const objectArchetypes = Array.isArray(target.archetypes) ? target.archetypes.map(x => x && typeof x === 'object' ? x.name : '').filter(Boolean) : [];

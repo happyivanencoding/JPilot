@@ -262,7 +262,7 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
         const analysis=currentAnalysis(task.profileId,version,listMobileTasks(task.profileId));
         config.target_roles={...config.target_roles,contract_types:(analysis as any)?.suggestedContracts || []};
       }
-      const request = searchRequestFromConfig(String(task.input.query),config,knownUrls);
+      const request = searchRequestFromConfig(String(task.input.query),config,knownUrls,task.input.experience === "v1" ? "France" : "");
       task.phase = "Interrogation des sources d’offres structurées"; saveTask(task);
       const structured = await searchStructuredOffers(request, {
         trackedAts: { dataRoot: workspaceRoot(), enabled: process.env.JOBPILOT_SEARCH_ENABLE_TRACKED_ATS === "1" },

@@ -28,7 +28,7 @@ export async function createPreviewSession(root) {
     fs.mkdirSync(path.join(root, base), {recursive:true});
     fs.writeFileSync(path.join(root, profile.cvMarkdown), '', 'utf8');
     fs.writeFileSync(path.join(root, profile.notes), '', 'utf8');
-    fs.writeFileSync(path.join(root, profile.config), 'candidate: {}\ncv:\n  language: en\ntarget_roles:\n  primary: []\n  contract_types: []\n', 'utf8');
+    fs.writeFileSync(path.join(root, profile.config), 'candidate: {}\nlocation:\n  country: France\ncv:\n  language: en\ntarget_roles:\n  primary: []\n  contract_types: []\n', 'utf8');
     writeJson(path.join(root, profile.candidatures), {version:1, jobs:[], updatedAt:new Date().toISOString()});
     store.profiles.push(profile);
     store.defaultProfileId ||= id;
