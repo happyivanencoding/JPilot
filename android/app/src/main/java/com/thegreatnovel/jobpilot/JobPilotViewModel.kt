@@ -294,6 +294,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
                     } else {
                         mutable.update { it.copy(working = false) }
                         if (task.text("status") == "completed" || task.text("status") == "failed") openTaskResult(task)
+                        else if(previewMode) mutable.update {it.copy(notice=null,noticeTaskId=task.text("id"))}
                         else if(input.text("kind") in aiTaskKinds) mutable.update { it.copy(notice = null, noticeTaskId = task.text("id"), taskLaunch = TaskLaunchFeedback(listOf(task.text("id")),task.text("title",input.text("kind")),task.child("estimate").takeIf { value -> value.length()>0 } ?: estimate,task.text("createdAt",java.time.Instant.now().toString()))) }
                         else mutable.update { it.copy(notice = task.text("title") + " · " + task.child("estimate").text("label", estimateLabel), noticeTaskId = task.text("id")) }
                         refresh(silent = true)
@@ -358,9 +359,8 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
                 if(epoch==generation) {
                     val task=response.child("task");val jobId=response.text("jobId")
                     mutable.update { state -> state.copy(working=false,notice=when(state.language){"zh"->"正在准备这份岗位版简历，你可以继续浏览。";"en"->"Your role-specific CV is being prepared. You can keep browsing.";else->"Votre CV ciblé se prépare. Vous pouvez continuer à naviguer."},noticeTaskId=task.text("id").takeIf(String::isNotBlank)) }
-                    selectOffer(null)
                     if(task.text("status")=="completed") { mutable.update { it.copy(destination=json("tab" to 2)) };selectJob(jobId.takeIf(String::isNotBlank),1) }
-                    refresh(silent=true)
+                    refreshJob?.cancel();refreshJob=null;refresh(silent=true)
                 }
             } catch(e:Exception) { if(epoch==generation) failure(e) }
         }

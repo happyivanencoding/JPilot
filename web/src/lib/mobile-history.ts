@@ -1,3 +1,5 @@
+import {execFile} from "node:child_process";
+import {promisify} from "node:util";
 import * as yaml from "js-yaml";
 import { renderReferenceCv } from "@/lib/backend/cv-document.mjs";
 import fs from "node:fs";
@@ -138,12 +140,23 @@ export async function renderCvPreview(profileId: string, draftId?: string, versi
   const directory=historyDirectory(profileId);
   const draft = draftId ? readCvDraft(profileId,draftId) : null;
   const version = versionId ? loadCandidateVersion(directory,versionId) : await withProfileLock(directory,()=>currentCandidateVersion(profileId));
-  const id = draft ? `layout5-draft-${draft.id}` : `layout5-version-${version.id}`;
+  const id = draft ? `layout6-draft-${draft.id}` : `layout7-version-${version.id}`;
   const folder=path.join(directory,"cv-previews",id);
   const pdf=path.join(folder,"cv.pdf"), meta=path.join(folder,"render.json");
   if (!fs.existsSync(pdf) || !fs.existsSync(meta)) {
     fs.mkdirSync(folder,{recursive:true});
-    await renderReferenceCv({content:draft?.content || version.sources.cv.text,language:draft?.documentLanguage || documentLanguage(version),globalPlan:!!draft?.globalPlan},folder);
+    let layoutSource=null;
+    const professional=process.env.JOBPILOT_V1_PREVIEW==="1" && !draft;
+    if(professional) {
+      const taskFolder=path.join(directory,"tasks");
+      const imports=fs.existsSync(taskFolder)?fs.readdirSync(taskFolder).filter(name=>name.endsWith(".json")).map(name=>readJson(path.join(taskFolder,name))).filter(task=>task?.kind==="ingest"&&task?.status==="completed"&&task.result?.versionId&&task.uploadSource?.endsWith(".pdf")&&fs.existsSync(task.uploadSource)):[];
+      const source=imports.find(task=>loadCandidateVersion(directory,task.result.versionId).sources.cv.text===version.sources.cv.text);
+      if(source){
+        const out=await promisify(execFile)(process.env.JOBPILOT_PYTHON || "python",[path.resolve(process.cwd(),"scripts/cv-layout.py"),source.uploadSource],{timeout:30000,encoding:"utf8",maxBuffer:1024*1024,env:{...process.env,PYTHONIOENCODING:"utf-8"}});
+        layoutSource=JSON.parse(out.stdout);
+      }
+    }
+    await renderReferenceCv({content:draft?.content || version.sources.cv.text,language:draft?.documentLanguage || documentLanguage(version),globalPlan:!!draft?.globalPlan,professional,layoutSource},folder);
   }
   return { pdf, ...readJson(meta), draft, versionId:version.id, cvVersion:version.cvVersion };
 }

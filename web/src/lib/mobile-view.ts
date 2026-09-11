@@ -24,7 +24,7 @@ export function taskView(task: MobileTask, jobs: Array<Record<string, any>>, det
   const title=`${task.kind === "evaluate" && job ? job.company + " · " : ""}${productText(names[task.kind] || "Traitement",locale)}${completed ? " · " + productText("terminé",locale) : ""}`;
   const metrics=task.metrics || (completed ? {wallMs:Math.max(0,Date.parse(task.updatedAt)-Date.parse(task.createdAt)),totalTokens:null,estimatedCostUsd:null,actualCostUsd:null,tokenSource:"unavailable"} : null);
   const safeResult=task.kind === "evaluate" ? {...task.result,jobId:job?.id || null} : task.result;
-  return {id:task.id,profileId:task.profileId,kind:task.kind,status:task.status,createdAt:task.createdAt,updatedAt:task.updatedAt,
+  return {url:job?.url || task.input?.url || null,id:task.id,profileId:task.profileId,kind:task.kind,status:task.status,createdAt:task.createdAt,updatedAt:task.updatedAt,
     phase:completed ? `${choose(locale,"已更新：","Mis à jour : ","Updated: ")}${productText(location[task.kind] || "Dossier",locale)}` : productText(["failed","interrupted"].includes(task.status) ? "Une action est nécessaire" : task.status === "queued" ? "En attente de traitement" : task.status === "reconciling" ? "Vérification du traitement précédent" : "Traitement en cours — vous pouvez continuer à naviguer",locale),
     title,location:productText(location[task.kind] || "Dossier",locale),jobId:job?.id || null,error:task.error ? publicError(task.error,locale) : undefined,metrics,estimate:estimateView(task.estimate,locale),destination,
     reused:task.reused === true,cvVersion:task.cvVersion,inputVersionId:task.inputVersionId,

@@ -40,7 +40,7 @@ export function updateMobileJob(profileId: string, id: string, change: Record<st
 
 function v1MatchFromRaw(raw:any) {
   const fast=raw?.fastMatch,deep=raw?.deepMatch;
-  const current=Number(deep?.currentScore ?? fast?.score);
+  const current=Number(raw?.matchScore?.baseline ?? deep?.currentScore ?? fast?.score);
   if(!Number.isFinite(current))return null;
   const cvPotential=Math.max(current,Number(deep?.cvPotentialScore ?? current));
   const capabilityPotential=Math.max(cvPotential,Number(deep?.capabilityPotentialScore ?? cvPotential));
@@ -53,7 +53,7 @@ export async function saveMobileOffer(profileId: string, raw: unknown) {
   let store = readCandidatureStore(profileId);
   const existing = store.jobs.find(j => normalizeUrl(j.url) === normalizeUrl(offer.url));
   if (existing) {
-    if(v1Match){existing.v1Match=v1Match;if(!existing.sourceDescription&&offer.description)existing.sourceDescription=offer.description;writeCandidatureStore(profileId,store);}
+    if(v1Match){existing.v1Match={...existing.v1Match,...v1Match,...(existing.cv?.presentationDelta!=null?{displayScore:Math.min(Number(v1Match.cvPotentialScore),Number(v1Match.currentScore)+Math.max(0,Number(existing.cv.presentationDelta)))}:{})};if(!existing.sourceDescription&&offer.description)existing.sourceDescription=offer.description;writeCandidatureStore(profileId,store);}
     return existing;
   }
   // Persist through the shared writer in this runtime root, not another HTTP server.

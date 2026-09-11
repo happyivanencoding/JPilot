@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -34,6 +35,7 @@ import androidx.core.view.WindowCompat
 import kotlinx.coroutines.delay
 import org.json.JSONObject
 import java.time.Instant
+import kotlin.math.sin
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
@@ -113,10 +115,7 @@ private fun aiProgressTask(state: PilotState, kind: String, jobId: String?): JSO
         .asSequence()
         .filter { it.text("kind") == kind && (jobId.isNullOrBlank() || it.text("jobId") == jobId) }
         .maxByOrNull { epoch(it.text("createdAt")) }
-        ?.takeIf { task ->
-            val status = task.text("status")
-            status in aiProgressActiveStates || status in aiProgressTerminalStates && now - epoch(task.text("updatedAt", task.text("createdAt"))) <= 3200L
-        }
+
 }
 
 /**
@@ -125,75 +124,63 @@ private fun aiProgressTask(state: PilotState, kind: String, jobId: String?): JSO
  * stays below 100% while active, then snaps to 100% only on a real completed state.
  */
 @Composable fun AiProgressButton(
-    state: PilotState,
-    taskKind: String,
-    jobId: String? = null,
-    label: String,
-    enabled: Boolean = true,
-    outlined: Boolean = false,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
+    state:PilotState,taskKind:String,jobId:String?=null,label:String,enabled:Boolean=true,
+    outlined:Boolean=false,modifier:Modifier=Modifier,offerUrl:String?=null,onClick:()->Unit,
 ) {
-    val task = aiProgressTask(state, taskKind, jobId)
-    val status = task?.text("status").orEmpty()
-    val active = status in aiProgressActiveStates
-    val completed = status == "completed"
-    val failed = status == "failed" || status == "interrupted"
-    val estimate = task?.child("estimate")
-    val target = estimate?.optDouble("targetSeconds", estimate.optDouble("maxSeconds", 0.0)) ?: 0.0
-    val started = remember(task?.text("id"), task?.text("createdAt")) {
-        runCatching { Instant.parse(task?.text("createdAt").orEmpty()).toEpochMilli() }.getOrDefault(System.currentTimeMillis())
+    var clickedAt by remember(state.profileId,taskKind,jobId,offerUrl) { mutableLongStateOf(0L) }
+    var now by remember {mutableLongStateOf(System.currentTimeMillis())}
+    var finishedAt by remember(state.profileId,taskKind,jobId,offerUrl) {mutableLongStateOf(0L)}
+    val candidate=if(taskKind=="search") state.snapshot.child("v1").child("searchProgress").takeIf {it.text("id").isNotBlank()}
+        else if(offerUrl!=null)state.snapshot.objects("tasks").firstOrNull {it.text("kind")==taskKind&&it.text("url")==offerUrl}
+        else aiProgressTask(state,taskKind,jobId)
+    fun epoch(value:String)=runCatching {Instant.parse(value).toEpochMilli()}.getOrDefault(0L)
+    val fresh=candidate!=null&&(clickedAt==0L||epoch(candidate.text("createdAt"))>=clickedAt-1500L||candidate.text("id")==state.noticeTaskId&&!state.working)
+    val task=if(fresh)candidate else null
+    val status=when {
+        clickedAt>0&&state.error!=null&&!state.working -> "failed"
+        task!=null -> task.text("status")
+        clickedAt>0 -> "queued"
+        else -> ""
     }
-    var now by remember(task?.text("id")) { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(task?.text("id"), status, target) {
-        if(task != null && (active || status in aiProgressTerminalStates)) {
-            while(true) {
-                now = System.currentTimeMillis()
-                val updated = runCatching { Instant.parse(task.text("updatedAt", task.text("createdAt"))).toEpochMilli() }.getOrDefault(now)
-                if(!active && now - updated > 3200L) break
-                delay(250)
-            }
-        }
+    val active=status in aiProgressActiveStates
+    val completed=status=="completed"
+    val failed=status=="failed"||status=="interrupted"
+    val taskIdentity=task?.text("id").orEmpty()+":"+task?.text("createdAt").orEmpty()
+    var observedActive by remember(taskIdentity) {mutableStateOf(false)}
+    LaunchedEffect(taskIdentity,status,clickedAt) {
+        if(active){observedActive=true;finishedAt=0L}
+        else if((completed||failed)&&(observedActive||clickedAt>0)&&finishedAt==0L)finishedAt=System.currentTimeMillis()
+        while(active || finishedAt>0L&&System.currentTimeMillis()-finishedAt<1600L){now=System.currentTimeMillis();delay(80)}
+        now=System.currentTimeMillis()
     }
-    val elapsed = ((now - started).coerceAtLeast(0L) / 1000.0)
-    val estimated = when {
-        completed -> 1f
-        failed -> 1f
-        !active -> 0f
-        target <= 0.0 -> .18f
-        else -> (0.96 * (1.0 - exp(-3.0 * elapsed / target))).coerceIn(.04, .96).toFloat()
-    }
-    val animated by animateFloatAsState(estimated, tween(if(completed || failed) 260 else 450), label = "ai-inline-progress")
-    val primary = MaterialTheme.colorScheme.primary
-    val foreground = if(outlined) primary else MaterialTheme.colorScheme.onPrimary
-    val fill = when {
-        failed -> MaterialTheme.colorScheme.error.copy(alpha = .24f)
-        outlined -> primary.copy(alpha = .15f)
-        else -> MaterialTheme.colorScheme.onPrimary.copy(alpha = .18f)
-    }
-    val display = when {
-        completed -> tr("已完成", "Terminé", "Completed")
-        failed -> tr("处理失败", "Échec du traitement", "Processing failed")
-        active -> "$label  ≈${(animated * 100).roundToInt()}%"
+    val visible=active||failed&&clickedAt>0||(completed&&finishedAt>0&&now-finishedAt<1600L)
+    val start=if(clickedAt>0)clickedAt else epoch(task?.text("createdAt").orEmpty()).takeIf {it>0}?:now
+    val target=task?.child("estimate")?.optDouble("targetSeconds",90.0)?.coerceAtLeast(1.0)?:90.0
+    val elapsed=((if(finishedAt>0)finishedAt else now)-start).coerceAtLeast(0)/1000.0
+    val estimated=if(completed&&visible)1f else if(visible)(.96*(1-exp(-3*elapsed/target))).coerceIn(.04,.96).toFloat()else 0f
+    val progress by animateFloatAsState(estimated,tween(if(completed)220 else 350),label="liquid-progress")
+    val primary=MaterialTheme.colorScheme.primary
+    val tint=if(failed)MaterialTheme.colorScheme.error else primary
+    val foreground=if(visible||outlined)tint else MaterialTheme.colorScheme.onPrimary
+    val caption=when {
+        completed&&visible -> tr("已完成","Terminé","Completed")+" 100%"
+        failed&&visible -> tr("未完成，请重试","Réessayez","Please retry")
+        active -> (if(taskKind=="search")task?.text("label")?.ifBlank {label}?:label else label)+"  ≈${(progress*100).roundToInt()}%"
         else -> label
     }
-    Button(
-        onClick,
-        modifier.fillMaxWidth().heightIn(min = 48.dp),
-        enabled = enabled && !active,
-        shape = RoundedCornerShape(8.dp),
-        border = if(outlined) BorderStroke(1.dp, primary) else null,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if(outlined) Color.Transparent else primary,
-            contentColor = foreground,
-            disabledContainerColor = if(outlined) Color.Transparent else primary.copy(alpha = .72f),
-            disabledContentColor = foreground.copy(alpha = .92f),
-        ),
-        contentPadding = PaddingValues(0.dp),
-    ) {
-        Box(Modifier.fillMaxWidth().heightIn(min = 48.dp), contentAlignment = Alignment.Center) {
-            if(task != null) Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().fillMaxWidth(animated.coerceIn(0f, 1f)).background(fill))
-            Text(display, Modifier.padding(horizontal = 14.dp), fontWeight = FontWeight.SemiBold)
+    Button(onClick={clickedAt=System.currentTimeMillis();finishedAt=0;now=clickedAt;onClick()},modifier=modifier.fillMaxWidth().heightIn(min=48.dp),enabled=enabled&&!active,shape=RoundedCornerShape(8.dp),
+        colors=ButtonDefaults.buttonColors(containerColor=if(visible)tint.copy(alpha=.10f)else if(outlined)Color.Transparent else primary,contentColor=foreground,
+            disabledContainerColor=if(visible)tint.copy(alpha=.10f)else primary.copy(alpha=.10f),disabledContentColor=if(visible)foreground else primary.copy(alpha=.65f)),
+        border=if(visible||outlined)BorderStroke(1.dp,tint.copy(alpha=.25f))else null,contentPadding=PaddingValues(0.dp)) {
+        Box(Modifier.fillMaxWidth().height(52.dp),contentAlignment=Alignment.Center) {
+            if(visible)Canvas(Modifier.matchParentSize()) {
+                for(layer in 0..1) {
+                    val edge=size.width*progress
+                    val wave=Path().apply {moveTo(0f,0f);lineTo(edge,0f);for(i in 0..24){val y=size.height*i/24f;val x=edge+sin(y/14f+now/600f+layer*2)*if(completed)0f else 4.dp.toPx();lineTo(x,y)};lineTo(0f,size.height);close()}
+                    drawPath(wave,tint.copy(alpha=if(layer==0).16f else .10f))
+                }
+            }
+            Text(caption,Modifier.padding(horizontal=12.dp),fontWeight=FontWeight.SemiBold,fontSize=14.sp)
         }
     }
 }

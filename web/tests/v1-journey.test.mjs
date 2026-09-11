@@ -135,3 +135,22 @@ test('a tailored CV uses the same bounded exploration scale as accepting it',asy
  assert.equal(v1CvAssessment(job,{...raw,delta:-4}).draftScore,42);
  assert.equal(v1CvAssessment({},raw),raw);
 });
+
+
+test('snapshot exports the real search pipeline progress, translated query label and reuse notice',async()=>{
+ const task={id:'s-progress',kind:'search',status:'completed',createdAt:'2026-09-11T10:00:00Z',updatedAt:'2026-09-11T10:00:01Z',inputVersionId:version.id,input:{query:'business developer junior'}};
+ const journey={searchTaskId:task.id,query:task.input.query,searchRequestedAt:'2026-09-11T10:20:00Z',searchFeedback:'merged'};
+ const offer={url:'https://example.invalid/jobs/progress',title:'Junior Business Developer',fastMatch:{score:35},deepMatchState:'loading'};
+ const snapshot={...base(),discovery:{taskId:task.id,query:task.input.query,availableCount:1,offers:[offer],history:[]}};
+ let value=await prepareV1Display(a.profileId,'zh',snapshot,[task],journey);
+ assert.equal(value.v1.searchProgress.status,'running');assert.equal(value.v1.searchProgress.createdAt,journey.searchRequestedAt);
+ assert.deepEqual(value.discovery.offers,[]);
+ offer.deepMatchState='ready';offer.deepMatch={currentScore:70,cvPotentialScore:80,roleSummary:'Develop business opportunities.',outputLocale:'en',strengths:[],capabilityGaps:[]};
+ value=await waitFor(async()=>{const x=await prepareV1Display(a.profileId,'zh',snapshot,[task],journey);return x.v1.offersReady&&x;});
+ assert.equal(value.v1.searchProgress.status,'completed');assert.match(value.v1.journey.label,/业务/);assert.match(value.v1.searchNotice,/已并入/);
+ assert.equal(value.discovery.offers[0].matchScore.current,70);
+ const next={...task,id:'new-search',status:'running'};
+ value=await prepareV1Display(a.profileId,'zh',snapshot,[next,task],{...journey,searchTaskId:next.id});
+ assert.equal(value.v1.searchProgress.status,'running','an earlier ready batch cannot complete the new request');
+ assert.equal(value.v1.offersReady,false);
+});

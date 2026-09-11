@@ -173,7 +173,7 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
                     }
                     5 -> {
                         val empty=v1.text("searchState")=="completed"&&discovery.optInt("availableCount")==0
-                        if(!empty&&!v1.optBoolean("presentationFailed")) CircularProgressIndicator(Modifier.size(48.dp))
+                        AiProgressButton(state,"search",label=tr("搜索这个方向","Rechercher cette direction","Search this direction")){vm.retryV1()}
                         Text(if(empty)tr("这个方向暂时没有合适的岗位","Pas encore d’offre adaptée à cette piste","No suitable roles for this direction yet") else tr("为你挑选值得一试的工作","Une sélection qui vous correspond","Finding roles worth your time"),fontSize=29.sp,lineHeight=36.sp,fontWeight=FontWeight.SemiBold)
                         if(!empty) Hint(tr("每份工作都会带上匹配分、你的优势和提升建议。","Chaque offre avec son match, vos atouts et vos prochaines actions.","Each role comes with your match, strengths and ways to improve."))
                         if(v1.optBoolean("presentationFailed")) PrimaryButton(tr("再试一次","Réessayer","Try again"),!state.working) {vm.retryV1()}
@@ -224,7 +224,7 @@ private fun FirstRunOfferCard(offer: JSONObject, onClick: () -> Unit) {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 gaps.take(2).forEach { Pill("− $it", warm = true) }
             }
-            if (potential > score && score >= 0) Hint(tr("简历表达优化空间：约 $potential/100", "Potentiel CV : ~$potential/100", "CV presentation potential: ~$potential/100"))
+            if (potential > score && score >= 0) Hint(tr("简历优化：$score → 预计 $potential/100", "CV : $score → ~$potential/100", "CV edits: $score → ~$potential/100"))
             Spacer(Modifier.height(4.dp))
             Text(tr("点开看为什么适合、哪里还差一点", "Ouvrez pour voir le match et les écarts", "Open to see why it fits and what is missing"), fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
         }

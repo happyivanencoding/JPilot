@@ -15,11 +15,13 @@ export function TasksSheet() {
 }
 
 export function OfferSheet({offer}:{offer:Json}) {
-  const {data,tr,product,tailorOffer,busy}=usePilot();
+  const {data,tr,product,tailorOffer,busy,openJob}=usePilot();
   const deep=offer.deepMatch||{},fast=offer.fastMatch||{};
   const current=deep.currentScore ?? fast.score;
   const cvPotential=deep.cvPotentialScore ?? current;
-  const active=rows(data.tasks).some(task=>task.kind==="cv" && task.jobId===offer.jobId && ACTIVE.has(task.status));
+  const saved=rows(data.jobs).find(job=>job.url===offer.url);
+  const hasVersion=!!(saved?.cvDraft?.id || saved?.cv?.file);
+  const active=rows(data.tasks).some(task=>task.kind==="cv" && (task.jobId===saved?.id || task.url===offer.url) && ACTIVE.has(task.status));
   const strengths=rows(deep.strengths).length?rows(deep.strengths):rows(fast.strengths).map(item=>({title:item.title,evidence:item.evidence}));
   const capability=rows(deep.capabilityGaps).length?rows(deep.capabilityGaps):rows(fast.gaps).map(item=>({title:item.title,why:item.reason,nextAction:""}));
   return <Sheet title={<><div className="jp-subtitle">{offer.company}</div><div className="jp-row"><span className="jp-grow">{offer.title}</span><Match100 value={current}/></div></>} testId="offer-detail">
@@ -28,11 +30,11 @@ export function OfferSheet({offer}:{offer:Json}) {
       <Card><h3>{tr("你的简历与这个岗位","Votre CV pour ce poste","Your CV for this role")}</h3><div className="jp-v1-potential"><div><span>{tr("当前匹配","Match actuel","Current match")}</span><strong>{Math.round(Number(current)||0)}</strong></div><span>→</span><div><span>{tr("优化后预计","Après retouches, estimé","Estimated after edits")}</span><strong>~{Math.round(Number(cvPotential)||0)}</strong></div></div></Card>
       <Card><h3>{tr("这个岗位到底做什么？","Que fait-on concrètement dans ce poste ?","What does this role actually do?")}</h3><p>{deep.roleSummary || offer.why}</p>{offer.deepMatchState==="loading"&&<Hint>{tr("正在后台补充更具体的职责和要求，你可以继续看。","Les responsabilités détaillées arrivent en arrière-plan.","Detailed responsibilities are being added in the background.")}</Hint>}{texts(deep.responsibilities).slice(0,3).map((item,i)=><p className="jp-bullet" key={i}>{item}</p>)}</Card>
       {!!strengths.length&&<Card><h3>{tr("你的加分点","Vos points forts","Your strengths")}</h3>{strengths.slice(0,5).map((item,i)=><div className="jp-v1-evidence" key={i}><strong>+ {item.title}</strong><p>{item.evidence}</p></div>)}</Card>}
-      {!!rows(deep.presentationGaps).length&&<Card><h3>{tr("简历这样改","Mieux présenter votre CV","Sharpen your CV")}</h3>{rows(deep.presentationGaps).slice(0,5).map((item,i)=><div className="jp-v1-evidence" key={i}><strong>+{item.potential} · {item.title}</strong><p>{item.why}</p></div>)}{deep.cvPotentialReason&&<Hint>{deep.cvPotentialReason}</Hint>}</Card>}
+      {!!rows(deep.presentationGaps).length&&<Card><h3>{tr("简历这样改","Mieux présenter votre CV","Sharpen your CV")}</h3>{rows(deep.presentationGaps).slice(0,5).map((item,i)=><div className="jp-v1-evidence" key={i}><strong>{item.title}</strong><p>{item.why}</p></div>)}{deep.cvPotentialReason&&<Hint>{deep.cvPotentialReason}</Hint>}</Card>}
       {!!capability.length&&<Card><h3>{tr("值得补强的地方","Vos axes de progrès","Where to grow")}</h3>{capability.slice(0,6).map((item,i)=><div className="jp-v1-evidence" key={i}><strong>− {item.title}</strong><p>{item.why}</p>{item.nextAction&&<Hint>{item.nextAction}</Hint>}</div>)}</Card>}
       {!!rows(deep.requirements).length&&<Card><h3>{tr("岗位要求","Exigences du poste","Role requirements")}</h3>{rows(deep.requirements).slice(0,7).map((item,i)=><div className="jp-v1-evidence" key={i}><div className="jp-row"><strong className="jp-grow">{item.title}</strong><Pill>{item.kind==="must"?tr("核心","Essentiel","Core"):tr("加分","Bonus","Nice to have")}</Pill></div><p>{item.why}</p></div>)}{!!texts(deep.tools).length&&<div className="jp-chips">{texts(deep.tools).map((tool,i)=><Pill key={i}>{tool}</Pill>)}</div>}</Card>}
       <External url={offer.url}>{tr("打开原始职位页","Ouvrir l’annonce officielle","Open original posting")}</External>
-      <Button data-testid="tailor-offer" disabled={busy||active} onClick={()=>tailorOffer(offer)}>{active?tr("正在准备，可以继续浏览","Préparation en cours · continuez à naviguer","Preparing · keep browsing"):Number(cvPotential)>Number(current)?tr(`查看我的 ${Math.round(Number(cvPotential))} 分版本`,`Voir ma version ~${Math.round(Number(cvPotential))}/100`,`See my ~${Math.round(Number(cvPotential))}/100 version`):tr("看看这份岗位版简历","Voir mon CV adapté à ce poste","See my tailored CV for this role")}</Button>
+      {hasVersion&&saved ? <Button data-testid="tailor-offer" onClick={()=>openJob(saved.id,1)}>{tr("查看我的岗位版本","Voir ma version ciblée","View my role version")}</Button> : <AiProgressButton taskKind="cv" offerUrl={offer.url} data-testid="tailor-offer" disabled={busy} onClick={()=>tailorOffer(offer)}>{tr("生成岗位版简历","Créer mon CV ciblé","Create my role CV")}</AiProgressButton>}
 
     </div>
   </Sheet>;

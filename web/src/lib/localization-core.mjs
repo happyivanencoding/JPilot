@@ -102,6 +102,7 @@ export function displaySlots(value,scope) {
   else if(scope==='cards') rows(value,'jobs',[],(j,p)=>job(j,p,true));
   else if(scope==='analysis') analysis(value);
   else if(scope==='offer') offer(value,[]);
+  else if(scope==='directions') rows(value,'items',[],(r,p)=>put(r,'title',p,r.outputLocale || 'en'));
   else if(scope==='report') put(value,'markdown',[],detectedDocumentLanguage(value.markdown)||'fr');
   else if(scope==='meta') {put(value,'layoutNote',[],'fr');strings(value,'warnings',[],'fr');strings(value.layout,'issues',['layout'],'fr');}
   else {

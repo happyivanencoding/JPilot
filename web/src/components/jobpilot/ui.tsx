@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type CSS
 import { ArrowUpRight, ChevronRight, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import {estimatedProgress} from "@/lib/v1-progress.mjs";
 import { rows, usePilot, type Json } from "./pilot-context";
 import { validScore, safeExternalUrl } from "./model.mjs";
 
@@ -14,39 +15,29 @@ export function Button({ children, kind = "primary", className = "", disabled, .
   const { busy } = usePilot();
   return <button type="button" className={`jp-button ${kind} ${className}`} disabled={disabled || busy} {...props}>{children}</button>;
 }
-export function AiProgressButton({ taskKind, jobId, children, kind = "primary", className = "", disabled, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { taskKind: string; jobId?: string; kind?: "primary" | "outline" | "text" }) {
-  const { data, tr } = usePilot();
-  const [now, setNow] = useState(() => Date.now());
-  const candidates = rows(data.tasks).filter(task => task.kind === taskKind && (!jobId || task.jobId === jobId)).sort((a,b) => Date.parse(String(b.createdAt || "")) - Date.parse(String(a.createdAt || "")));
-  const latest = candidates[0];
-  const status = String(latest?.status || "");
-  const active = ["queued","running","reconciling"].includes(status);
-  const terminal = ["completed","failed","interrupted"].includes(status);
-  const updated = Date.parse(String(latest?.updatedAt || latest?.createdAt || ""));
-  const recent = active || terminal && Number.isFinite(updated) && now - updated <= 3200;
-  const task = recent ? latest : null;
-  useEffect(() => {
-    if (!latest) return;
-    const age = Date.now() - updated;
-    if (!active && (!terminal || !Number.isFinite(updated) || age > 3200)) return;
-    const id = window.setInterval(() => setNow(Date.now()), 250);
-    const stop = !active ? window.setTimeout(() => { window.clearInterval(id); setNow(Date.now()); }, Math.max(1, 3201 - age)) : undefined;
-    return () => { window.clearInterval(id); if (stop) window.clearTimeout(stop); };
-  }, [latest?.id, active, terminal, updated]);
-  const target = Number(task?.estimate?.targetSeconds || task?.estimate?.maxSeconds || 0);
-  const started = Date.parse(String(task?.createdAt || ""));
-  const elapsed = Number.isFinite(started) ? Math.max(0, (now - started) / 1000) : 0;
-  const completed = task?.status === "completed";
-  const failed = task?.status === "failed" || task?.status === "interrupted";
-  const estimated = active ? Math.min(.96, Math.max(.04, target > 0 ? .96 * (1 - Math.exp(-3 * elapsed / target)) : .18)) : 0;
-  const progress = completed || failed ? 1 : estimated;
-  const pct = Math.round(progress * 100);
-  const label = completed ? tr("已完成", "Terminé", "Completed") : failed ? tr("处理失败", "Échec du traitement", "Processing failed") : active ? <>{children} <span className="jp-ai-percent">≈{pct}%</span></> : children;
-  const style = { ...(props.style || {}), "--jp-ai-progress": `${pct}%` } as CSSProperties;
-  return <Button kind={kind} className={`jp-ai-button${failed ? " failed" : ""} ${className}`} disabled={disabled || active} aria-busy={active || undefined} {...props} style={style}>
-    {task && <span className="jp-ai-button-fill" aria-hidden="true" />}
-    <span className="jp-ai-button-label">{label}</span>
-  </Button>;
+export function AiProgressButton({taskKind,jobId,offerUrl,children,kind="primary",className="",disabled,onClick,...props}:ButtonHTMLAttributes<HTMLButtonElement>&{taskKind:string;jobId?:string;offerUrl?:string;kind?:"primary"|"outline"|"text"}) {
+  const {data,tr,busy,error,notice}=usePilot();
+  const [now,setNow]=useState(()=>Date.now()),[clickedAt,setClickedAt]=useState(0),[finishedAt,setFinishedAt]=useState(0);
+  const observed=useRef(false);
+  const candidate=taskKind==="search"?data.v1?.searchProgress:rows(data.tasks).filter(t=>t.kind===taskKind&&(!jobId||t.jobId===jobId)&&(!offerUrl||t.url===offerUrl)).sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt))[0];
+  const task=candidate&&(!clickedAt||Date.parse(candidate.createdAt)>=clickedAt-1500||!busy&&candidate.id===notice?.taskId)?candidate:null;
+  const status=clickedAt&&error&&!busy?"failed":task?.status || (clickedAt?"queued":"");
+  const active=["queued","running","reconciling"].includes(status),completed=status==="completed",failed=["failed","interrupted"].includes(status);
+  useEffect(()=>{
+    if(active){observed.current=true;setFinishedAt(0);}else if((completed||failed)&&(observed.current||clickedAt))setFinishedAt(old=>old||Date.now());
+    if(!active&&!(completed&&observed.current))return;
+    const timer=setInterval(()=>setNow(Date.now()),80);
+    const stop=!active?setTimeout(()=>{clearInterval(timer);setNow(Date.now());},1600):undefined;
+    return ()=>{clearInterval(timer);if(stop)clearTimeout(stop);};
+  },[task?.id,task?.createdAt,status,clickedAt]);
+  const visible=active||failed&&!!clickedAt||completed&&!!finishedAt&&now-finishedAt<1600;
+  const start=clickedAt||Date.parse(task?.createdAt||"")||now;
+  const elapsed=Math.max(0,((finishedAt||now)-start)/1000);
+  const pct=Math.round(estimatedProgress(elapsed,visible?status:"",Number(task?.estimate?.targetSeconds||90))*100);
+  const label=completed&&visible?<>{tr("已完成","Terminé","Completed")} 100%</>:failed&&visible?tr("未完成，请重试","Réessayez","Please retry"):active?<>{taskKind==="search"?task?.label||children:children} <span className="jp-ai-percent">≈{pct}%</span></>:children;
+  return <button type="button" {...props} onClick={e=>{setClickedAt(Date.now());setNow(Date.now());setFinishedAt(0);onClick?.(e);}} className={`jp-button ${kind} jp-ai-button ${visible?"liquid":""}${failed&&visible?" failed":""} ${className}`} disabled={disabled||busy||active} aria-busy={active||undefined} style={{...props.style,"--jp-ai-progress":`${pct}%`} as CSSProperties}>
+    {visible&&<span className="jp-ai-button-fill" aria-hidden="true"/>}<span className="jp-ai-button-label">{label}</span>
+  </button>;
 }
 export function IconButton({ label, children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) { return <button type="button" className="jp-icon-button" aria-label={label} title={label} {...props}>{children}</button>; }
 export function Chip({ children, selected = false, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { selected?: boolean }) { return <button type="button" className={`jp-chip ${selected ? "selected" : ""}`} aria-pressed={selected} {...props}>{children}</button>; }

@@ -18,6 +18,7 @@ object ProductStrings {
         return source
     }
     fun error(context: Context, locale: String, raw: String): String {
+        if(raw.startsWith("今天已探索") || raw.startsWith("You have explored") || raw.startsWith("Vous avez exploré"))return raw
         val known = text(context, locale, raw)
         if (known != raw || (locale == "zh" && raw.any { it.code in 0x4E00..0x9FFF })) return known
         return when(locale) {

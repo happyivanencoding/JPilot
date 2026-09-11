@@ -182,12 +182,7 @@ import java.time.ZoneOffset
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("system" to tr("系统","Système","System"),"light" to tr("亮色","Clair","Light"),"dark" to tr("暗色","Sombre","Dark")).forEach { (key,label) -> FilterChip(state.theme == key,{ vm.appearance(theme = key) },label = { Text(label) }) } }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("zh" to "中文","fr" to "Français","en" to "English").forEach { (key,label) -> FilterChip(state.language == key,{ vm.appearance(language = key) },modifier=Modifier.testTag("ui-language-$key"),label = { Text(label) }) } }
         } }
-        item { GlassCard {
-            Text(tr("账号","Compte","Account"),fontWeight = FontWeight.SemiBold)
-            if(!BuildConfig.APPLICATION_ID.endsWith(".v1")) Hint(tr("你的 JobPilot 数据会自动在手机和网页版之间同步。","Vos données JobPilot se synchronisent automatiquement entre mobile et Web.","Your JobPilot data syncs automatically between mobile and web."))
-            OutlinedButton({ vm.refresh() },Modifier.fillMaxWidth()) { Text(tr("刷新数据","Actualiser","Refresh data")) }
-            Hint("JobPilot Android ${BuildConfig.VERSION_NAME} · " + tr("与网页版共享数据","Données partagées avec le Web","Shared data with the Web"))
-        } }
+
         item { TextButton(vm::logout,Modifier.fillMaxWidth().testTag("sign-out")) {Text(tr("登出","Se déconnecter","Sign out"))} }
     }
     if(editCv) ModalBottomSheet(onDismissRequest = { editCv = false },sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),modifier = Modifier.imePadding()) {

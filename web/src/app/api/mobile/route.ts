@@ -1,3 +1,5 @@
+import {compactDirectionHistory} from "@/lib/v1-directions.mjs";
+import {projectV1JobScores} from "@/lib/v1-match.mjs";
 import path from "node:path";
 import {readJson,writeJson} from "@/lib/mobile-state.mjs";
 import {prepareV1Display} from "@/lib/v1-display";
@@ -49,7 +51,7 @@ export async function GET(req: Request) {
     if(url.searchParams.has("jobId")) {
       const job=readCandidatureStore(profileId).jobs.find(j=>j.id===url.searchParams.get("jobId"));
       if(!job)throw new Error("Candidature introuvable.");
-      const projected={...evaluationProjection(job,listMobileTasks(profileId)),stage:stageOf(job.status)};
+      const projected=projectV1JobScores({...evaluationProjection(job,listMobileTasks(profileId)),stage:stageOf(job.status)},listMobileTasks(profileId),currentCandidateVersion(profileId).id);
       return Response.json(await localizeDisplay(profileId,analysisLocale,projected,"job",{...localizationOptions,identity:job.id}),{headers:{"Cache-Control":"no-store"}});
     }
     if(url.searchParams.has("reportJobId")) {
@@ -71,7 +73,7 @@ export async function GET(req: Request) {
     const restricted = requestHeaders.get("x-jobpilot-profiles")?.split(",").map(value=>value.trim()).filter(Boolean);
     const role=requestHeaders.get("x-jobpilot-role") || (restricted ? "user" : "admin");
     const profiles = listProfiles().filter(p => !restricted || restricted.includes(p.id)).map(({ id, name, shortName }) => ({ id, name, shortName }));
-    const projectedJobs=store.jobs.map(j=>({...evaluationProjection(j,tasks),stage:stageOf(j.status)}));
+    const projectedJobs=store.jobs.map(j=>projectV1JobScores({...evaluationProjection(j,tasks),stage:stageOf(j.status)},tasks,version.id));
     const cv=read("cv");
     const foundAnalysis=currentAnalysis(profileId,version,tasks);
     const analysis=foundAnalysis?.stale ? null : foundAnalysis;
@@ -82,17 +84,17 @@ export async function GET(req: Request) {
     const activeAnalysis=tasks.find((t:MobileTask)=>t.kind==="analysis"&&t.inputVersionId===version.id&&["queued","running","reconciling"].includes(t.status));
     const failedV1Analysis=tasks.find((t:MobileTask)=>t.kind==="analysis"&&t.inputVersionId===version.id&&["failed","interrupted"].includes(t.status)&&(String(t.input?.source||"").startsWith("v1-")||String(t.operationKey||"").includes("analysis-v")));
     const selectedSearchTask=tasks.find((t:MobileTask)=>t.id===journey.searchTaskId&&t.kind==="search"&&t.inputVersionId===version.id);
-    const latestSearchTask=selectedSearchTask || tasks.find((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&["search-v6-live-providers","search-v7-v1-market"].some(key=>String(t.operationKey||"").includes(key)));
-    const completedSearches=tasks.filter((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&["search-v6-live-providers","search-v7-v1-market"].some(key=>String(t.operationKey||"").includes(key))&&t.status==="completed"&&Array.isArray(t.result?.offers));
+    const latestSearchTask=selectedSearchTask || tasks.find((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&["search-v6-live-providers","search-v7-v1-market","search-v8-v1-directions"].some(key=>String(t.operationKey||"").includes(key)));
+    const completedSearches=tasks.filter((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&["search-v6-live-providers","search-v7-v1-market","search-v8-v1-directions"].some(key=>String(t.operationKey||"").includes(key))&&t.status==="completed"&&Array.isArray(t.result?.offers));
     const latestSearch=selectedSearchTask?.status==="completed" ? selectedSearchTask : completedSearches[0];
     const projectDiscovery=(task?:MobileTask)=>{
       const result=discoveryProjection(task?.result || null,projectedJobs,currentVersionTasks(tasks,version.id));
       const eligible=result.offers.filter((o:any)=>contractMatches(o,(config as any)?.target_roles?.contract_types || []).matches);
-      return {...result,offers:topDiscoveryOffers(eligible).slice(0,preview?4:DISCOVERY_OFFER_LIMIT),displayLimit:DISCOVERY_OFFER_LIMIT,availableCount:eligible.length};
+      return {...result,offers:(preview?eligible:topDiscoveryOffers(eligible)).slice(0,preview?4:DISCOVERY_OFFER_LIMIT),displayLimit:DISCOVERY_OFFER_LIMIT,availableCount:eligible.length};
     };
     const currentDiscovery={...projectDiscovery(latestSearch),taskId:latestSearch?.id || null,query:String(latestSearch?.input?.query || "")};
     const seenOfferUrls=new Set((currentDiscovery.offers || []).map((offer:any)=>String(offer.url || "")));
-    const searchHistory=completedSearches.filter((t:MobileTask)=>t.id!==latestSearch?.id).slice(0,8).flatMap((task:MobileTask)=>{
+    const searchHistory=compactDirectionHistory(completedSearches.filter((t:MobileTask)=>t.id!==latestSearch?.id),analysis || {}).slice(0,24).flatMap((task:MobileTask)=>{
       const projected=projectDiscovery(task);
       const offers=(projected.offers || []).filter((offer:any)=>{
         const url=String(offer.url || "");
@@ -103,7 +105,7 @@ export async function GET(req: Request) {
       return [{taskId:task.id,query:String(task.input?.query || ""),searchedAt:task.updatedAt || task.createdAt || "",offers}];
     });
     const snapshot={
-      version: "0.4.3", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
+      version: "0.4.4", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
       access:{role,canSwitchProfiles:role!=="user"&&profiles.length>1,needsCv:role==="user"&&!cv.trim()},
       cv, cvState:{versionId:version.id,cvVersion:version.cvVersion,revision:version.revision,changedAt:version.createdAt},
       languageSettings:{uiLocale:locale,analysisLanguage:analysisLocale,applicationLanguage:applicationLanguage(config || {},read("cv")),documentLanguage:documentLanguage(version)},
@@ -122,7 +124,7 @@ export async function GET(req: Request) {
       flowEstimates:Object.fromEntries(Object.entries(FLOW_DEFAULTS).map(([kind,choice])=>[kind,estimateView(flowEstimate(tasks,kind,choice.model,choice.reasoning),locale)])),
       updatedAt: store.updatedAt,
     };
-    const display=preview ? await prepareV1Display(profileId,analysisLocale,snapshot,tasks,journey,localizationOptions.retry)
+    const display=preview ? await prepareV1Display(profileId,analysisLocale,snapshot,tasks,journey,localizationOptions.retry,locale)
       : await localizeDisplay(profileId,locale,snapshot,"snapshot",localizationOptions);
     // Full job prose is translated lazily on opening a detail. Cached translations
     // are reused here, but unrequested historical reports never consume Agents.
@@ -149,7 +151,10 @@ export async function POST(req: Request) {
       const tasks=currentVersionTasks(listMobileTasks(profileId),version.id);
       const analysis=tasks.find((t:any)=>t.kind==="analysis");
       if(!analysis || ["failed","interrupted"].includes(analysis.status)) await startMobileTask(profileId,{kind:"analysis",silent:true,retry:true,source:"v1-retry",uiLocale:locale});
-      for(const task of tasks.filter((t:any)=>["search","deep_match"].includes(t.kind)&&["failed","interrupted"].includes(t.status))) {
+      const journey=readJson(path.join(mobileDirectory(profileId),"journey.json")) || {};
+      const selected=tasks.find((t:any)=>t.id===journey.searchTaskId);
+      const urls=new Set((selected?.result?.offers || []).slice(0,4).map((o:any)=>o.url));
+      for(const task of tasks.filter((t:any)=>(t.id===selected?.id || t.kind==="deep_match"&&urls.has(t.input.url))&&["failed","interrupted"].includes(t.status))) {
         const retried=await startMobileTask(profileId,{...task.input,retry:true});
         if(task.kind==="search") await withProfileLock(mobileDirectory(profileId),()=>{
           const file=path.join(mobileDirectory(profileId),"journey.json"),journey=(readJson(file) || {});
@@ -166,7 +171,7 @@ export async function POST(req: Request) {
       const task = await startMobileTask(profileId, {...body.input,uiLocale:locale});
       if(body.input?.kind==="search") await withProfileLock(mobileDirectory(profileId),()=>{
         const file=path.join(mobileDirectory(profileId),"journey.json");
-        writeJson(file,{...(readJson(file) || {}),query:body.input.query,searchTaskId:task.id});
+        writeJson(file,{...(readJson(file) || {}),query:task.input.query,searchTaskId:task.id,searchRequestedAt:new Date().toISOString(),searchFeedback:(task as any).searchFeedback || "new"});
       });
       const view=taskView(task,readCandidatureStore(profileId).jobs,true,locale);
       if(view.result && task.kind!=="ingest")view.result=await localizeDisplay(profileId,locale,view.result,"result",{identity:task.id});
@@ -218,5 +223,8 @@ export async function POST(req: Request) {
     }
     if (body.action === "decideTailoredCvDraft") return Response.json(await decideTailoredCvDraft(profileId,String(body.draftId),String(body.decision)));
     return Response.json({ error: publicError("Action inconnue.",locale) }, { status: 400 });
-  } catch (e) { console.error("mobile action failed",e);return Response.json({ error: publicError(e,requestUiLocale(req)) }, { status: 400 }); }
+  } catch (e) {
+    if((e as any)?.code==="direction-budget") return Response.json({error:(e as Error).message,code:"direction-budget"},{status:429});
+    console.error("mobile action failed",e);return Response.json({error:publicError(e,requestUiLocale(req))},{status:400});
+  }
 }

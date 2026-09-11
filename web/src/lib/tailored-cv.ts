@@ -1,3 +1,4 @@
+import {projectV1JobScores} from "@/lib/v1-match.mjs";
 import { renderTailoredCv } from "@/lib/backend/cv-document.mjs";
 import fs from "node:fs";
 import path from "node:path";
@@ -302,6 +303,11 @@ export async function reviewTailoredCvDraft(profileId:string,draftId:string,loca
 export async function decideTailoredCvDraft(profileId:string,draftId:string,decision:string) {
   if(!["accept","reject"].includes(decision))throw new Error("Décision invalide.");
   const store=readStore(profileId),{job,draft}=findDraft(store,draftId);if(draft.status!=="pending")throw new Error("Ce brouillon a déjà été traité.");
+  if(job.v1Match) {
+    const taskDir=path.join(historyDirectory(profileId),"tasks");
+    const tasks=fs.existsSync(taskDir)?fs.readdirSync(taskDir).filter(name=>name.endsWith(".json")).map(name=>readJson(path.join(taskDir,name))).filter(Boolean).sort((a:any,b:any)=>Date.parse(b.createdAt)-Date.parse(a.createdAt)):[];
+    job.v1Match=projectV1JobScores(job,tasks,currentCandidateVersion(profileId).id).v1Match;
+  }
   draft.status=decision==="accept"?"accepted":"rejected";draft.updatedAt=new Date().toISOString();
   if(decision==="accept") {
     job.cv={...(job.cv||{}),language:draft.language,notesLocale:draft.notesLocale,label:`CV adapté — ${job.company}`,pdfCompany:job.company,file:draft.file,pages:draft.pages,atsScore:draft.atsScore,keywordCoverage:draft.keywordCoverage,generatedAt:draft.updatedAt,inputVersionId:draft.baseVersionId,changes:draft.changes,presentationScore:draft.assessment?.draftScore??null,baselinePresentationScore:draft.assessment?.baselineScore??null,presentationDelta:draft.assessment?.delta??null,draftId:draft.id};

@@ -1,3 +1,4 @@
+import {planDirectionSearch,directionNotice,v1CandidatePriority} from "@/lib/v1-directions.mjs";
 import {orientationPrompt,parseOrientation} from "@/lib/v1-journey.mjs";
 import {setProfileDisplayName} from "@/lib/v1-session.mjs";
 import fs from "node:fs";
@@ -263,6 +264,7 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
         config.target_roles={...config.target_roles,contract_types:(analysis as any)?.suggestedContracts || []};
       }
       const request = searchRequestFromConfig(String(task.input.query),config,knownUrls,task.input.experience === "v1" ? "France" : "");
+      if(task.input.experience==="v1"&&!request.seniority)request.seniority=/senior|director|directeur|lead/i.test(String(task.input.query))?"experienced":"junior";
       task.phase = "Interrogation des sources d’offres structurées"; saveTask(task);
       const structured = await searchStructuredOffers(request, {
         trackedAts: { dataRoot: workspaceRoot(), enabled: process.env.JOBPILOT_SEARCH_ENABLE_TRACKED_ATS === "1" },
@@ -278,6 +280,7 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
       task.metrics={...task.metrics,providers:structured.metrics.providers};saveTask(task);
       const combined = rankSearchResults(request,[...(structured.providerRuns || []).flatMap((r:any)=>r.offers || []),...fallbackOffers],structured.providerRuns || [],{limit:24});
       const offers = enrichOffersWithFastMatch(version,config,combined.offers);
+      if(task.input.experience==="v1") offers.sort((a:any,b:any)=>v1CandidatePriority(b,String(task.input.query))-v1CandidatePriority(a,String(task.input.query)));
       const originalStructured=structured.metrics;structured.metrics={...combined.metrics,wallMs:originalStructured.wallMs};
       const searchMetrics = finalSearchMetrics(offers,structured,fallbackMetrics,searchStarted);
       if (!fallbackMetrics) task.metrics={model:"structured-search",reasoning:"none",inputTokens:0,outputTokens:0,totalTokens:0,actualCostUsd:null,estimatedCostUsd:searchMetrics.estimatedApiCostUsd,costKind:"search-api-estimate",searchMode:"structured",providers:searchMetrics.providers};
@@ -294,6 +297,7 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
         onRun,onMetrics:metrics,onText:text=>{output+=text;},onFinalText:complete=>{output=complete;}});
       const parsed=extractJsonObject(output);
       if(parsed.truncated || !parsed.obj) throw new Error("L’analyse approfondie du poste n’a pas renvoyé un résultat structuré.");
+      if(task.input.experience==='v1' && (parsed.obj?.scoring_version!=='role-fit-2' || !parsed.obj?.score_components))throw new Error('Incomplete match rubric');
       const deepMatch={...normalizeDeepMatch(parsed.obj,fastMatch),outputLocale:task.input.uiLocale};
       writeJobIntelligence(String(task.input.url || offer.url || ""),deepMatch);
       task.text=String(deepMatch.roleSummary || "");
@@ -442,6 +446,20 @@ export async function startMobileTask(profileId: string, input: Record<string, u
     if (input.jobId && !jobs.some(j=>j.id===input.jobId)) throw new Error("Poste introuvable pour ce profil.");
     if (Array.isArray(input.jobIds) && input.jobIds.some(id=>!jobs.some(j=>j.id===id))) throw new Error("Comparaison contenant un poste d’un autre profil.");
     const tasks=prepareTaskHistory(profileId,version);
+    if(kind==="search" && input.experience==="v1") {
+      const plan=planDirectionSearch(tasks,input,version.id,currentAnalysis(profileId,version,tasks) || {});
+      if(plan.reason==="daily-limit") throw Object.assign(new Error(directionNotice(plan.reason,"",String(input.uiLocale))),{status:429,code:"direction-budget"});
+      if(plan.reuse) {
+        const selected={...plan.reuse,reused:true,searchFeedback:plan.reason} as MobileTask;
+        if(selected.status==="completed" && Array.isArray(selected.result?.offers)) {
+          selected.result={...selected.result,offers:[...selected.result.offers].sort((a:any,b:any)=>v1CandidatePriority(b,String(selected.input.query))-v1CandidatePriority(a,String(selected.input.query)))};
+          saveTask(selected);
+        }
+        return selected;
+      }
+      input={...input,query:plan.descriptor.searchQuery,directionKey:plan.descriptor.key,directionTitle:plan.descriptor.sourceTitle};
+    }
+
     if(kind === "ingest" && uploadPath) {
       const bytes=fs.readFileSync(uploadPath);
       const previous=tasks.find(t=>t.kind === "ingest" && t.uploadSource && ["queued","running","reconciling","completed"].includes(t.status)
@@ -472,6 +490,13 @@ export async function startMobileTask(profileId: string, input: Record<string, u
   });
   if (created) {
     const work=executeTask(task,uploadPath);running.set(task.id,work);void work.finally(()=>running.delete(task.id));
+  }
+  if(kind==="search" && input.experience==="v1" && task.status==="completed") {
+    // Explicit search click may upgrade at most the four visible cached roles;
+    // the operation key prevents duplicate model work across clicks/processes.
+    for(const offer of (task.result?.offers || []).slice(0,4)) {
+      await startMobileTask(profileId,{kind:"deep_match",url:offer.url,offer,fastMatch:offer.fastMatch,silent:true,source:"v1-search-open"});
+    }
   }
   return task;
 }

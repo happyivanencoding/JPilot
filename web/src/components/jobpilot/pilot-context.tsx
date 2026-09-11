@@ -220,6 +220,7 @@ function useController(profileId: string, preview: boolean) {
     invalidateReads(); await refresh();
     if(silent) return task;
     if (task.status === "completed" || task.status === "failed") navigate(destinationFor(task));
+    else if(preview) setNotice(null);
     else if (AI_TASK_KINDS.has(String(input.kind))) setTaskLaunch({ ids: [task.id], title: task.title || String(input.kind), estimate: task.estimate || dataRef.current.flowEstimates?.[String(input.kind)] || { label: tr("正在估算耗时", "Estimation en cours", "Estimating duration") }, createdAt: task.createdAt || new Date().toISOString() });
     else notify(`${task.title} · ${task.estimate?.label || tr("可继续使用其他页面", "Vous pouvez continuer à naviguer", "You can keep browsing")}`, task.id);
     return task;
@@ -243,7 +244,7 @@ function useController(profileId: string, preview: boolean) {
   }), [execute, request, profileId, refresh, notify, tr]);
   const tailorOffer = useCallback(async (offer: Json) => execute(async () => {
     const result = await request("/api/mobile", { method: "POST", body: JSON.stringify({ action: "tailorOffer", profileId, uiLocale: locale, offer }) });
-    await refresh();
+    invalidateReads(); await refresh();
     const task=result.task || {};
     if(task.status==="completed") navigate({tab:"profile",view:"job",job:result.jobId,jobTab:"1"});
     else notify(tr(`正在准备 ${offer.deepMatch?.cvPotentialScore ?? offer.fastMatch?.score ?? ""} 分版本，可继续浏览。`,`Préparation de votre version ciblée ; vous pouvez continuer à naviguer.`,`Preparing your targeted CV; you can keep browsing.`),task.id);

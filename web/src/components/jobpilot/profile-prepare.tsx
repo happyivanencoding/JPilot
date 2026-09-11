@@ -39,10 +39,7 @@ export function ProfilePage() {
     </Card>
     <Card><h3>{tr("分析语言","Langue des conseils","Insights language")}</h3><div className="jp-chips">{([["en","English"],["fr","Français"],["zh","中文"]] as const).map(([code,label])=><Chip key={code} selected={data.languageSettings?.analysisLanguage===code} disabled={busy} onClick={()=>p.changeAnalysisLanguage(code)}>{label}</Chip>)}</div></Card>
     <Card><h3>{tr("软件语言", "Langue de l’application", "App language")}</h3><Hint>{tr("用于菜单和按钮。", "Pour les menus et les boutons.", "For menus and buttons.")}</Hint><div className="jp-chips">{[["system", tr("系统", "Système", "System")], ["light", tr("亮色", "Clair", "Light")], ["dark", tr("暗色", "Sombre", "Dark")]].map(([key, label]) => <Chip key={key} selected={theme === key} data-testid={`theme-${key}`} onClick={() => setTheme(key)}>{label}</Chip>)}</div><div className="jp-chips">{([["zh", "中文"], ["fr", "Français"], ["en", "English"]] as const).map(([key, label]) => <Chip key={key} selected={locale === key} data-testid={`ui-language-${key}`} onClick={() => setLocale(key)}>{label}</Chip>)}</div></Card>
-    <Card><h3>{tr("账号", "Compte", "Account")}</h3>{!p.preview&&<Hint>{tr("你的 JobPilot 数据会自动在手机和网页版之间同步。", "Vos données JobPilot se synchronisent automatiquement entre mobile et Web.", "Your JobPilot data syncs automatically between mobile and web.")}</Hint>}<Button kind="outline" onClick={() => p.refresh()}>{tr("刷新数据", "Actualiser", "Refresh data")}</Button>
 
-      <Hint>{`JobPilot Web 0.6.3 · ${tr("与 Android 共享数据", "Données partagées avec Android", "Shared data with Android")}`}</Hint>
-    </Card>
     {(p.preview||authenticated)&&<Button kind="text" data-testid="sign-out" onClick={()=>p.logout()}>{tr("登出","Se déconnecter","Sign out")}</Button>}
   </div>;
 }

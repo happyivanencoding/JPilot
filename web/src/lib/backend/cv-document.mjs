@@ -1,3 +1,4 @@
+import {professionalReferenceHtml} from "./reference-template.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { chromium } from "playwright-core";
@@ -370,7 +371,7 @@ export async function renderTailoredCv(
 }
 
 export async function renderReferenceCv(payload, directory) {
-  const html = referenceHtml(payload),
+  const html = payload.professional ? professionalReferenceHtml(payload) : referenceHtml(payload),
     result = await render(html);
   const { layout, pages } = result;
   layout.acceptable =
@@ -399,12 +400,13 @@ export async function renderReferenceCv(payload, directory) {
     layout,
     renderedAt: new Date().toISOString(),
     warnings:
-      pages > 1
+      !payload.professional && pages > 1
         ? [
             `Le CV maître contient ${pages} pages. Cette prévisualisation conserve les preuves ; elle n’atteste pas un CV de candidature d’une page.`,
           ]
         : [],
-    layoutNote:
+    template:payload.professional?"professional":"reference",
+    layoutNote: payload.professional ? "" :
       "Rendu du contenu canonique. La mise en page originale d’un fichier Word/PDF importé n’est pas reconstruite.",
     atsCertified: false,
   };
