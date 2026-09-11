@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import "./jobpilot-mobile.css";
 import { ChevronDown, X } from "lucide-react";
 import { WorkOutline as BriefcaseBusiness, PendingActions as ClipboardClock, School as GraduationCap, Home as House, Search, PersonOutline as UserRound } from "./native-icons";
 import { PilotProvider, rows, usePilot } from "./pilot-context";

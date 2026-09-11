@@ -12,6 +12,8 @@
 		A10000000000000000000003 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* RootView.swift */; };
 		A10000000000000000000004 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* Theme.swift */; };
 		A10000000000000000000005 /* WebContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* WebContainer.swift */; };
+		A10000000000000000000008 /* AuthSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* AuthSession.swift */; };
+		A10000000000000000000009 /* JobPilotAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* JobPilotAPI.swift */; };
 		A10000000000000000000006 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* Assets.xcassets */; };
 		A10000000000000000000007 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* WebKit.framework */; };
 /* End PBXBuildFile section */
@@ -22,6 +24,8 @@
 		B10000000000000000000003 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		B10000000000000000000004 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		B10000000000000000000005 /* WebContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebContainer.swift; sourceTree = "<group>"; };
+		B10000000000000000000010 /* AuthSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSession.swift; sourceTree = "<group>"; };
+		B10000000000000000000011 /* JobPilotAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobPilotAPI.swift; sourceTree = "<group>"; };
 		B10000000000000000000006 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B10000000000000000000007 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
 		B10000000000000000000008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -57,6 +61,8 @@
 				B10000000000000000000003 /* RootView.swift */,
 				B10000000000000000000004 /* Theme.swift */,
 				B10000000000000000000005 /* WebContainer.swift */,
+				B10000000000000000000010 /* AuthSession.swift */,
+				B10000000000000000000011 /* JobPilotAPI.swift */,
 				B10000000000000000000006 /* Assets.xcassets */,
 				B10000000000000000000008 /* Info.plist */,
 			);
@@ -144,6 +150,8 @@
 				A10000000000000000000003 /* RootView.swift in Sources */,
 				A10000000000000000000004 /* Theme.swift in Sources */,
 				A10000000000000000000005 /* WebContainer.swift in Sources */,
+				A10000000000000000000008 /* AuthSession.swift in Sources */,
+				A10000000000000000000009 /* JobPilotAPI.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -155,9 +163,10 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				API_BASE_URL = "https://jobs-staging.thegreatnovel.com";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 22;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = JobPilot/Info.plist;
@@ -166,8 +175,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.thegreatnovel.jobpilot.ios;
+				PRODUCT_BUNDLE_IDENTIFIER = com.thegreatnovel.jobpilot.ios.staging;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				JOBPILOT_DISPLAY_NAME = "JobPilot Staging";
+				WEB_BASE_URL = "https://jobs-staging.thegreatnovel.com";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.9;
@@ -180,9 +191,10 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				API_BASE_URL = "https://jobs.thegreatnovel.com";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 22;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = JobPilot/Info.plist;
@@ -193,6 +205,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.thegreatnovel.jobpilot.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				JOBPILOT_DISPLAY_NAME = JobPilot;
+				WEB_BASE_URL = "https://jobs.thegreatnovel.com";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.9;

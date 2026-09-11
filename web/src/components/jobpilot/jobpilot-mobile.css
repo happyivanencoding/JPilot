@@ -1,0 +1,57 @@
+/* Embedded mobile browsers can retain a desktop minimum-content width. */
+html,
+body,
+#__next {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+/* iOS zooms the whole page when a focused control is smaller than 16px. */
+input,
+textarea,
+select {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+.jp-stage,
+.jp-envelope,
+.jp-phone,
+.jp-underlay,
+.jp-main,
+.jp-scroll,
+.jp-page {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.jp-stage,
+.jp-scroll,
+.jp-page {
+  width: 100%;
+}
+
+.jp-page {
+  overflow-x: clip;
+}
+
+.jp-page > *,
+.jp-page h1,
+.jp-page h2,
+.jp-page h3,
+.jp-page p {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.jp-action-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-width: 0;
+}
+
+.jp-action-metrics button {
+  min-width: 0;
+}

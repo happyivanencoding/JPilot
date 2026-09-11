@@ -1,13 +1,31 @@
 import SwiftUI
 
 struct RootView: View {
+    @StateObject private var auth = AuthSession()
     @State private var state: LoadState = .loading
     @State private var reloadID = UUID()
 
     var body: some View {
+        Group {
+            if !AppConfig.usesNativeAuthentication {
+                workspaceView
+            } else {
+                switch auth.state {
+                case .signedIn:
+                    workspaceView
+                case .signedOut, .starting, .waitingForBrowser, .failed:
+                    LoginView(state: auth.state, login: auth.beginLogin)
+                }
+            }
+        }
+        .background(JobPilotTheme.background)
+        .preferredColorScheme(nil)
+    }
+
+    private var workspaceView: some View {
         ZStack {
             WebContainer(
-                url: AppConfig.baseURL,
+                url: AppConfig.webBaseURL,
                 reloadID: reloadID,
                 onLoadStateChange: { state = $0 }
             )
@@ -29,8 +47,6 @@ struct RootView: View {
                 EmptyView()
             }
         }
-        .background(JobPilotTheme.background)
-        .preferredColorScheme(nil)
     }
 }
 
@@ -56,6 +72,61 @@ private struct LoadingView: View {
                     .font(.footnote)
                     .foregroundStyle(JobPilotTheme.muted)
             }
+        }
+    }
+}
+
+private struct LoginView: View {
+    let state: AuthSession.State
+    let login: () -> Void
+
+    private var message: String {
+        switch state {
+        case .signedOut: return "登录会在系统浏览器中完成，完成后返回 JobPilot 即可继续。"
+        case .starting: return "正在准备安全登录…"
+        case .waitingForBrowser: return "请在浏览器中完成登录，然后回到 JobPilot。App 会自动确认登录状态。"
+        case .failed(let message): return message
+        case .signedIn: return ""
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            JobPilotTheme.background.ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 20) {
+                BrandMark()
+                Text("登录 JobPilot")
+                    .font(.system(size: 30, weight: .semibold, design: .rounded))
+                    .foregroundStyle(JobPilotTheme.text)
+                Text("安全访问你的求职工作台")
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(JobPilotTheme.text)
+                Text(message)
+                    .font(.body)
+                    .foregroundStyle(JobPilotTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if case .starting = state {
+                    ProgressView()
+                        .tint(JobPilotTheme.primary)
+                } else if case .waitingForBrowser = state {
+                    ProgressView("等待浏览器完成登录…")
+                        .tint(JobPilotTheme.primary)
+                }
+
+                Button(action: login) {
+                    Label(
+                        state == .waitingForBrowser ? "重新打开登录页面" : "开始登录",
+                        systemImage: "safari"
+                    )
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(JobPilotPrimaryButtonStyle())
+                .disabled(state == .starting)
+            }
+            .padding(26)
+            .background(JobPilotTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .padding(22)
         }
     }
 }
