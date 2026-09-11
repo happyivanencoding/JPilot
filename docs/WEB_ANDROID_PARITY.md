@@ -4,7 +4,7 @@ Android 0.6.0/code28 and Web 0.8.0 now share the same Forest/Ivory/Sage visual t
 
 The cross-platform AI interaction remains one state contract: the established fast→slow ETA curve caps active work at 96%, real completion finishes at 100% and failure terminates it. Both clients now render that state as **Onward AI Liquid Progress**: a Forest surface with calm bottom-rising Sage/Leaf liquid; task-detail progress uses the same pattern rather than a separate generic indeterminate control. Web reduced-motion removes the decorative wave animation without changing progress semantics.
 
-Brand parity includes Android adaptive launcher/splash/header and Web header/favicon/PWA 192/512/app-icon assets. Tailored CV generation remains source-layout preserving; the deterministic identity/contact/layout-family test is 6/6 PASS. Android/Web production builds pass. Exact visual scope and rollout receipts are in `ONWARD_0_6_0_RELEASE.md`.
+Brand parity includes Android adaptive launcher/splash/header and Web header/favicon/PWA 192/512/app-icon assets. Tailored CV generation remains source-layout preserving; the deterministic identity/contact/layout-family test is 6/6 PASS. Android/Web production builds pass. Product SHA **`cbd582b097425a13b78a94f75e2d06c875454a91`** is deployed on the isolated V1 stack; the root gate returned `V1_DEPLOY_OK`, and a fresh public phone-viewport inspection shows Onward/Ivory metadata and UI with zero console errors. Exact visual scope and rollout receipts are in `ONWARD_0_6_0_RELEASE.md`.
 
 # Onward V1 0.5.0 / Web 0.7.0
 

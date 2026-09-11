@@ -59,4 +59,11 @@ Actual checks run for this revision:
 - Local production Web at phone viewport: Onward title/brand, Ivory background and editorial first-entry layout rendered with no page/console error in the captured inspection.
 - Samsung SM-S928U1 installed in place with `adb install -r`; package readback is **0.6.0/code28** and existing V1 data was not cleared. Physical screenshots confirm the Onward in-app header, Home/editorial hierarchy, launcher icon and recent-app icon. A dedicated splash capture confirmed the final smaller Onward symbol on Ivory.
 
-Final Git/deployment receipts are appended after the exact feature revision is pushed and the isolated V1 deployment gate completes.
+## Final delivery receipts
+
+- Product commit **`cbd582b097425a13b78a94f75e2d06c875454a91`** was pushed to `feature/v1-student-match-loop-20260910` and deployed by the existing isolated V1 root script. The deployment rebuilt only the `jobpilot-v1` image/stack and returned **`V1_DEPLOY_OK cbd582b097425a13b78a94f75e2d06c875454a91`**.
+- The VPS gate rebuilt Web **0.8.0** successfully and then passed V1 session/Profile isolation + logout, model-key readiness and structured search-provider configuration checks. Production main and Yifeng deployment commands were not invoked.
+- Public `https://jobs-v1.thegreatnovel.com` was opened after deployment at a phone viewport. It reports title/application name **Onward**, runtime theme color **`#FAF8F1`**, Onward SVG/favicon/PWA links, and no console errors. The captured first-entry screen was visually inspected: Ivory surface, Forest/Leaf branding, editorial headline and the minimal email entry are live.
+- Samsung **SM-S928U1** was upgraded in place with `adb install -r`. Package `com.thegreatnovel.jobpilot.v1` reads back **versionName 0.6.0 / versionCode 28**; no uninstall/data clear occurred. Physical captures verify the in-app Onward header/Home, launcher icon, recent-app icon and the final dedicated smaller splash symbol.
+- Final APK: `C:\dev\jpilot-v1-student-20260910\.career-ops-web\onward-060\Onward-V1-0.6.0-code28.apk`, **19,876,483 bytes**, SHA-256 **`FEEB492B5D2BC621B4EF2BAB90A4B3663133065BF4917D241725AB4D2515FFF0`**. The same versioned APK was copied to the phone at `Download/Onward-V1-0.6.0-code28.apk`.
+- No paid AI benchmark or bulk model rerun was performed for this visual release. Existing data and already-working business/AI contracts were reused; the deterministic CV continuity regression and build/deployment gates are the relevant release evidence.
