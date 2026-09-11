@@ -128,11 +128,11 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
             } catch(e:Exception) { if(epoch==generation) failure(e) }
         }
     }
-    fun previewLogin(invite:String) {
+    fun previewLogin(email:String) {
         loginJob?.cancel()
         loginJob=viewModelScope.launch {
             mutable.update { it.copy(working=true,error=null) }
-            try { val result=withContext(Dispatchers.IO) { api.request("/api/v1/session",body=json("action" to "login","invite" to invite)) }; acceptLogin(result) }
+            try { val result=withContext(Dispatchers.IO) { api.request("/api/v1/session",body=json("action" to "login","email" to email)) }; acceptLogin(result) }
             catch(e:Exception) { failure(e) }
         }
     }
@@ -524,7 +524,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         val profile = result.strings("profiles").firstOrNull() ?: ""
         prefs.edit().putString("profile",profile).apply()
         generation++; refreshJob?.cancel(); refreshJob = null
-        mutable.update { it.copy(snapshot=JSONObject(), task=null, selectedJob=null, selectedOffer=null, showV1FirstRun=previewMode, loggedIn = true, loginPending = false, working = false, server = api.base, profileId = profile, error = null, showWelcome = !previewMode && !prefs.getBoolean("onboarding_welcome_v1", false), walkthroughTab = null) }
+        mutable.update { it.copy(snapshot=JSONObject(), task=null, selectedJob=null, selectedOffer=null, showV1FirstRun=previewMode&&result.optBoolean("needsOnboarding",true), loggedIn = true, loginPending = false, working = false, server = api.base, profileId = profile, error = null, showWelcome = !previewMode && !prefs.getBoolean("onboarding_welcome_v1", false), walkthroughTab = null) }
         refresh()
     }
     fun beginLogin(openBrowser: (String) -> Unit) {

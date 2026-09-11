@@ -49,6 +49,12 @@ fun V1OverviewScreen(state: PilotState, vm: JobPilotViewModel, onExplore: () -> 
                 PrimaryButton(tr("上传我的简历", "Importer mon CV", "Upload my CV")) { onProfile() }
             }
         } else {
+            if(v1.child("cvProgress").text("status")=="failed") item {
+                GlassCard {
+                    Hint(v1.child("cvProgress").child("failure").text("message"))
+                    PrimaryButton(tr("继续分析","Reprendre l’analyse","Continue analysis"),!state.working) {vm.retryV1()}
+                }
+            }
             if (signals.isNotEmpty()) item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(tr("你的优势在哪", "Vos points forts", "Where your strengths are"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)

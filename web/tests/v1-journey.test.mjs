@@ -39,7 +39,7 @@ const waitFor=async work=>{let value;for(let i=0;i<400;i++){value=await work();i
 after(()=>{hooks.deregister();delete globalThis.__journeyModel;delete globalThis.__journeyTranslation;if(oldRoot===undefined)delete process.env.CAREER_OPS_ROOT;else process.env.CAREER_OPS_ROOT=oldRoot;if(oldPreview===undefined)delete process.env.JOBPILOT_V1_PREVIEW;else process.env.JOBPILOT_V1_PREVIEW=oldPreview;fs.rmSync(root,{recursive:true,force:true});});
 let a,b,version,analysis;
 test('new simulated sign-ins own empty profiles, not a shared default',async()=>{
-  [a,b]=await Promise.all([createPreviewSession(root),createPreviewSession(root)]);
+  [a,b]=await Promise.all([createPreviewSession(root,"yuki@example.com"),createPreviewSession(root,"mehdi@example.com")]);
   assert.notEqual(a.profileId,b.profileId);assert.notEqual(a.token,b.token);
   for(const session of [a,b]){
     assert.equal(readPreviewSession(root,session.token).profileId,session.profileId);
@@ -110,7 +110,7 @@ test('language failure hides the whole section and offers an explicit translatio
 test('logout revokes the old account without affecting another account; next login starts fresh',async()=>{
   revokePreviewSession(root,a.token);assert.equal(readPreviewSession(root,a.token),null);
   assert.equal(readPreviewSession(root,b.token).profileId,b.profileId);
-  const c=await createPreviewSession(root);assert.notEqual(c.profileId,a.profileId);assert.equal(fs.readFileSync(profileFile(c.profileId,'cv'),'utf8'),'');
+  const c=await createPreviewSession(root,"third@example.com");assert.notEqual(c.profileId,a.profileId);assert.equal(fs.readFileSync(profileFile(c.profileId,'cv'),'utf8'),'');
   await setProfileDisplayName(root,c.profileId,'Louis Martin','Mehdi Martin');assert.equal(getProfile(c.profileId).name,'');
   assert.equal(getProfile(a.profileId).name,'Yuki Tanaka','logout does not delete or rewrite the previous profile');
 });

@@ -1,5 +1,16 @@
 # JobPilot Android — implementation handoff
 
+## 2026-09-11 V1 0.4.5 — persistent test email and full-screen CV water
+
+- V1-only login now asks for an email, without a simulated Google button or invitation code. Normalized email-to-Profile records persist on the V1 data volume; logout revokes a session, not the Profile. A returning email with a saved CV enters the normal workspace. An interrupted account that never uploaded a CV resumes at the picker. New emails have independent empty Profiles. Legacy anonymous sessions/data are preserved; email from CV contents is not treated as proof of account ownership.
+- This is explicitly **unverified test access**, not production authentication. Use synthetic CVs. Existing session binding/foreign-Profile rejection remains intact; production and Yifeng are unchanged.
+- The reported Amina PDF was already read and saved successfully. Actual VPS failures were the primary provider's HTTP429 `no credits remaining`. No parser change or silent model substitution is justified. The app now distinguishes extraction failure from saved-CV analysis/translation failure, with a direct Continue analysis action in both onboarding and normal Home.
+- Android and Web fill the full viewport from below with two translucent waves. The displayed percentage is an estimate across upload/extraction, analysis and localized directions: it decelerates near 80–90%, caps at 96% while pending, freezes on failure and reaches 100% only when the result is display-ready. Completion fills quickly, holds briefly and opens the direction choices.
+- Versions: Android **0.4.5/code19**, Web **0.6.5**, mobile contract **0.4.5**. Android keeps the independent `.v1` package and V1 URL.
+- Validation before rollout: 29 focused Node assertions, TypeScript, production Web build and Android debug build passed. `scripts/qa-v1-email-water.mjs` used the actual Amina synthetic PDF/extractor/persistence with a deliberately controlled local model (not live AI); it verified moving full-screen waves, real state-gated 100%, directions, logout-to-email, case-normalized return to the same CV/workspace, another empty email and cross-Profile 403. Browser page errors: none. Initial QA failed because an API read omitted its locale header and unexpectedly requested French translation from the analysis fixture; the explicit test locale was corrected, then the full acceptance passed. No product behavior was bypassed.
+- Deployment/device acceptance and the live-credit blocker are updated after rollout. Do not equate successful build/model-key presence with available API credit or live AI success.
+
+
 ## 2026-09-11 V1 0.4.4 / Web 0.6.4
 
 Final app SHA `dd07f3e0f15cc85e6cd4b87eb4272f1adb2172d8` is deployed; final Android `0.4.4/code18` installed on the Samsung V1 package with existing account preserved. Actual phone Master CV is a visually verified one-page professional layout. Real Web liquid progress, four translated role cards, collapsed/expanded history, alias task reuse and CV score consistency (78 header / 78 baseline / 86 draft) passed. No main/Yifeng restart. Full facts and limits are in the V1 document.

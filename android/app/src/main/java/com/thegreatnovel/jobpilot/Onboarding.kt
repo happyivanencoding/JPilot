@@ -15,6 +15,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Home
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.rounded.PersonOutline
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +33,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -37,6 +46,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import org.json.JSONObject
+import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 private data class GuideTab(val icon: ImageVector, val title: String, val summary: String, val details: List<String>)
 
@@ -92,8 +103,10 @@ private data class GuideTab(val icon: ImageVector, val title: String, val summar
 fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
     val context=LocalContext.current
     val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.upload(it) } }
-    var languageChosen by rememberSaveable { mutableStateOf(false) }
-    var invite by rememberSaveable { mutableStateOf("V1TEST") }
+    var languageChosen by rememberSaveable { mutableStateOf(true) }
+    var email by rememberSaveable(state.loggedIn) { mutableStateOf("") }
+    val focus=LocalFocusManager.current
+    val validEmail=android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
     var chosenQuery by rememberSaveable(state.profileId) { mutableStateOf("") }
     var customQuery by rememberSaveable(state.profileId) { mutableStateOf("") }
     var chooseAgain by rememberSaveable(state.profileId) { mutableStateOf(false) }
@@ -104,17 +117,27 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
     val discovery=state.snapshot.child("discovery")
     val offers=discovery.objects("offers").take(4)
     val importFailed=v1.text("importState")=="failed"
-    val stage=when {
+    val targetStage=when {
         !state.loggedIn -> if(!languageChosen) 0 else 1
-        state.working || state.loading || v1.text("importState") in setOf("queued","running","reconciling") -> 3
+        (state.working || state.loading) && !state.snapshot.has("cv") || v1.text("importState") in setOf("queued","running","reconciling") -> 3
         importFailed || state.snapshot.text("cv").isBlank() -> 2
         !v1.optBoolean("analysisReady") -> 3
         chooseAgain || journey.text("query").isBlank() -> 4
         !v1.optBoolean("offersReady") -> 5
         else -> 6
     }
+    var stage by remember(state.profileId) { mutableStateOf(targetStage) }
+    LaunchedEffect(targetStage) {
+        if(stage==3 && targetStage==4 && v1.optBoolean("analysisReady")) delay(650)
+        stage=targetStage
+    }
+    val progress=v1.child("cvProgress")
+    val cvFailed=progress.text("status")=="failed" || (!v1.optBoolean("analysisReady") && v1.optBoolean("presentationFailed"))
+    val waterLevel=if(stage==3) rememberCvWaterLevel(progress,cvFailed||state.error!=null) else 0f
     val displayName=state.snapshot.child("profile").text("name")
     Surface(Modifier.fillMaxSize(),color=MaterialTheme.colorScheme.background) {
+        Box(Modifier.fillMaxSize()) {
+        if(stage==3) CvAnalysisWater(waterLevel,cvFailed||state.error!=null||progress.text("status")=="completed")
         AnimatedContent(targetState=stage,transitionSpec={fadeIn() togetherWith fadeOut()},label="first-steps") { page ->
             Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
                 Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
@@ -132,9 +155,10 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
                     }
                     1 -> {
                         Text(tr("找到属于你的机会","Trouvez votre prochaine opportunité","Find your next opportunity"),fontSize=29.sp,lineHeight=36.sp,fontWeight=FontWeight.SemiBold)
-                        OutlinedTextField(invite,{invite=it},Modifier.fillMaxWidth(),label={Text(tr("邀请码","Code d’invitation","Invitation code"))},singleLine=true,shape=RoundedCornerShape(12.dp))
-                        Hint(tr("预览账号 · 邀请码 V1TEST","Compte d’aperçu · code V1TEST","Preview account · code V1TEST"))
-                        PrimaryButton(tr("使用 Google 继续（模拟）","Continuer avec Google (simulation)","Continue with Google (preview)"),!state.working&&invite.isNotBlank()) { vm.previewLogin(invite) }
+                        Hint(tr("输入邮箱，开始探索或回到你的空间。","Votre e-mail pour commencer ou retrouver votre espace.","Enter your email to begin or return to your space."))
+                        OutlinedTextField(email,{email=it},Modifier.fillMaxWidth(),label={Text(tr("邮箱","E-mail","Email"))},placeholder={Text("name@example.com")},singleLine=true,shape=RoundedCornerShape(12.dp),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Email,imeAction=ImeAction.Done),keyboardActions=KeyboardActions(onDone={if(validEmail&&!state.working){focus.clearFocus();vm.previewLogin(email.trim())}}))
+                        PrimaryButton(tr("继续","Continuer","Continue"),!state.working&&validEmail) { focus.clearFocus();vm.previewLogin(email.trim()) }
+                        Hint(tr("V1 测试入口 · 暂不验证邮箱，请使用测试简历。","Accès test V1 · e-mail non vérifié, CV de test uniquement.","V1 test access · email is not verified; use test CVs."))
                         TextButton({languageChosen=false}) {Text(tr("更换语言","Changer de langue","Change language"))}
                     }
                     2 -> {
@@ -149,10 +173,16 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
                         Hint("PDF · Word · TXT · 12 MB")
                     }
                     3 -> {
-                        if(!v1.optBoolean("presentationFailed")&&state.error==null) CircularProgressIndicator(Modifier.size(48.dp))
                         Text(tr("你的下一步，可以有哪些可能？","Quelles possibilités pour la suite ?","What could your next step look like?"),fontSize=29.sp,lineHeight=36.sp,fontWeight=FontWeight.SemiBold)
-                        Hint(tr("即将为你呈现优势、提升空间和可探索的方向。","Vos atouts, vos pistes de progrès et des directions à explorer.","Your strengths, room to grow and directions to explore."))
-                        if(v1.optBoolean("presentationFailed")) PrimaryButton(tr("再试一次","Réessayer","Try again"),!state.working) {vm.retryV1()}
+                        if(cvFailed) {
+                            Text(progress.child("failure").text("message").ifBlank {tr("简历已保存，分析暂未完成。可以直接继续，无需重新上传。","Votre CV est enregistré. Reprenez l’analyse sans renvoyer le fichier.","Your CV is saved. Continue the analysis without uploading it again.")},color=MaterialTheme.colorScheme.onSurfaceVariant,lineHeight=24.sp)
+                            PrimaryButton(tr("继续分析","Reprendre l’analyse","Continue analysis"),!state.working) {vm.retryV1()}
+                        } else {
+                            Hint(progress.text("label").ifBlank {tr("正在读取简历","Lecture de votre CV","Reading your CV")})
+                            Spacer(Modifier.height(28.dp))
+                            Text(if(progress.text("status")=="completed") "100%" else "≈${(waterLevel*100).roundToInt()}%",fontSize=58.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary,modifier=Modifier.semantics {progressBarRangeInfo=ProgressBarRangeInfo(waterLevel,0f..1f)})
+                            Hint(tr("你的优势与方向，即将浮现。","Vos atouts et vos pistes prennent forme.","Your strengths and directions are taking shape."))
+                        }
                     }
                     4 -> {
                         Text(if(displayName.isBlank()) tr("这是你会闪光的地方。","Voici vos atouts.","Here is where you stand out.") else tr("你好，$displayName。","Bonjour $displayName.","Hi, $displayName."),fontSize=29.sp,lineHeight=36.sp,fontWeight=FontWeight.SemiBold)
@@ -193,6 +223,7 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
             }
         }
     }
+}
 }
 @Composable private fun JourneyLanguageChoices(selected:String, chinese:Boolean=true, onSelect:(String)->Unit) {
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {

@@ -1,0 +1,13 @@
+.jp-cv-water{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.jp-cv-water-level{position:absolute;inset:0;background:color-mix(in srgb,var(--jp-primary) 22%,transparent);transition:transform .16s linear;will-change:transform}
+.jp-cv-wave{position:absolute;top:-27px;left:0;width:200%;height:28px;fill:var(--jp-primary);animation:jp-cv-wave 4.8s linear infinite;opacity:.15}
+.jp-cv-wave.back{top:-32px;height:34px;opacity:.10;animation-direction:reverse;animation-duration:6.7s}
+.jp-cv-water.paused .jp-cv-wave{animation-play-state:paused}
+.jp-cv-water.complete .jp-cv-water-level{transition:transform .38s cubic-bezier(.2,.7,.2,1)}
+.jp-cv-water.complete .jp-cv-wave{opacity:0;transition:opacity .38s}
+.jp-v1-first-run-head,.jp-v1-first-run-body{position:relative;z-index:1}
+.jp-cv-progress{display:flex;flex-direction:column;gap:14px;margin-top:28px}
+.jp-cv-progress>strong{font-size:58px;font-weight:600;line-height:1.1;color:var(--jp-primary);font-variant-numeric:tabular-nums;letter-spacing:-2px}
+.jp-cv-failure{line-height:24px;color:var(--jp-muted)}
+@keyframes jp-cv-wave{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media(prefers-reduced-motion:reduce){.jp-cv-wave{animation:none}.jp-cv-water-level{transition:none}}

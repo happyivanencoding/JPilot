@@ -1,6 +1,7 @@
 import {directionDescriptor,directionNotice} from "@/lib/v1-directions.mjs";
 import {matchScoreView,friendlyOffer} from "@/lib/v1-match.mjs";
 import {searchProgress} from "@/lib/v1-progress.mjs";
+import {cvProgress} from "@/lib/v1-cv-progress.mjs";
 import {localizeDisplay} from '@/lib/display-localization';
 import {completedOfferBatch} from '@/lib/v1-journey.mjs';
 
@@ -41,13 +42,14 @@ export async function prepareV1Display(profileId:string, locale:string, snapshot
   const importTask=tasks.find(t=>t.kind==='ingest' && t.id===journey.ingestTaskId);
   const searchTask=tasks.find(t=>t.kind==='search' && t.id===journey.searchTaskId);
   const activeImport=importTask && ['queued','running','reconciling'].includes(importTask.status);
-  const failed=importTask?.status==='failed' || snapshot.v1.analysisState==='failed' || searchTask?.status==='failed' || current.failed || !!analysis?.localization?.failed;
+  const failed=['failed','interrupted'].includes(importTask?.status) || ['failed','interrupted'].includes(snapshot.v1.analysisState) || searchTask?.status==='failed' || current.failed || !!analysis?.localization?.failed;
   const hasNewSearch=searchTask && searchTask.id!==current.taskId;
   result.analysis=analysisReady && !activeImport ? analysis : null;
   if(analysisReady && analysis.candidateName) result.profile={...result.profile,name:analysis.candidateName};
   result.v1={...snapshot.v1,careerDirections:analysisReady&&!activeImport?displayDirections:[],
     analysisReady:analysisReady&&!activeImport,offersReady:current.ready&&labelsReady&&!hasNewSearch&&!activeImport,
     presentationFailed:!!failed||!!titles.localization?.failed,importState:importTask?.status || 'none',
+    cvProgress:cvProgress(snapshot,tasks,journey,{ready:analysisReady&&!activeImport,translationFailed:!!analysis?.localization?.failed||!!titles.localization?.failed},uiLocale),
     searchProgress:searchProgress(searchTask,{
       ...current,offers:hasNewSearch?[]:snapshot.discovery.offers || [],
       availableCount:hasNewSearch?undefined:snapshot.discovery.availableCount,
