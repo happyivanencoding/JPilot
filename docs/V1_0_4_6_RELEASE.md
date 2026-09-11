@@ -28,3 +28,7 @@ VPS cutover, live-model/CV preview acceptance and USB installation are pending a
 ### Live search correction
 Live acceptance found that the existing confirmed_only rule still demoted unknown contract types instead of excluding them, while general-role queries omitted the selected contracts. The provider planner now incorporates selected contract vocabulary in its existing three-query budget, and confirmed-only ranking excludes unknown contracts. Two targeted tests cover the actual former failure and preserve unrestricted profiles. No user data or search history was rewritten.
 
+
+### Real Chromium PDF overlay correction
+Live screenshots exposed misplaced marks: the rendered PDF left a scaled graphics state open, so appended highlights were transformed into the margin. The comparison now wraps existing page content before drawing in text coordinates. A third regression reproduces the inherited scale and asserts exact word/overlay alignment; all three PDF tests pass. The corrected real CV PDF was rendered and visually inspected. Comparison cache format v2 avoids reusing the earlier misaligned derivative without touching original CVs.
+

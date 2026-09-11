@@ -42,6 +42,10 @@ def compare(original, draft, destination):
         before, after = words(old), words(new)
         if not before or not after:
             raise ValueError('Both CVs must contain readable text to compare.')
+        # Chromium PDFs may leave a scaled graphics state open. Isolate it
+        # before drawing overlays in the extracted page coordinates.
+        for page in new:
+            page.wrap_contents()
         highlighted = changes(before, after)
         palette = {'added': (0.35, 0.77, 0.70), 'rewritten': (1.0, 0.76, 0.30)}
         for i, kind in highlighted.items():

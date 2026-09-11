@@ -29,4 +29,21 @@ class PdfComparisonTest(unittest.TestCase):
                 self.assertEqual(original[0].get_text('words'),highlight[0].get_text('words'))
                 self.assertNotEqual(original[0].get_pixmap().samples,highlight[0].get_pixmap().samples)
 
+    def test_overlay_ignores_inherited_chromium_scale(self):
+        with tempfile.TemporaryDirectory(prefix='jpilot-pdf-transform-') as folder:
+            folder=Path(folder)
+            for filename,text in [('before.pdf','Java API'),('after.pdf','Java API with automated tests')]:
+                with fitz.open() as doc:
+                    page=doc.new_page();page.insert_text((50,70),text)
+                    # Reproduce the trailing graphics transform of the real Chromium PDF.
+                    ref=page.get_contents()[-1]
+                    doc.update_stream(ref,doc.xref_stream(ref)+b'\n0.24 0 0 0.24 0 0 cm\n')
+                    doc.save(folder/filename)
+            module.compare(folder/'before.pdf',folder/'after.pdf',folder/'overlay.pdf')
+            with fitz.open(folder/'after.pdf') as source, fitz.open(folder/'overlay.pdf') as result:
+                self.assertEqual(source[0].get_text('words'),result[0].get_text('words'))
+                expected=source[0].get_text('words')[-1][:4]
+                actual=list(result[0].get_drawings()[-1]['rect'])
+                for before,after in zip(expected,actual):self.assertAlmostEqual(before,after,places=2)
+
 if __name__=='__main__':unittest.main()
