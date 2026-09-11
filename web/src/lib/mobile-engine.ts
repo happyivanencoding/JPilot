@@ -228,7 +228,7 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
       if (!uploadPath) throw new Error("Document manquant.");
       task.phase = "Extraction locale du document, sans modifier le CV actuel"; saveTask(task);
       try {
-        const result = await exec(process.env.JOBPILOT_PYTHON || "python", [path.join(workspaceRoot(), "web", "scripts", "extract-mobile-cv.py"), uploadPath], {
+        const result = await exec(process.env.JOBPILOT_PYTHON || "python", [path.resolve(process.cwd(), "scripts", "extract-mobile-cv.py"), uploadPath], {
           timeout: 45_000, windowsHide: true, encoding: "utf8", maxBuffer: 1024 * 1024,
           env: { ...process.env, PYTHONIOENCODING: "utf-8" },
         });

@@ -2,6 +2,12 @@
 
 > Branch-only product line for first external student tests. This document describes `feature/v1-student-match-loop-20260910`; it is not a statement that production `main` has switched to V1.
 
+## 2026-09-11 CV ingest deployment fix
+
+The first-run CV picker exposed two deployment-only assumptions that local development had hidden. Two real synthetic `louis` uploads of `CV_Test_10_Yuki_Tanaka.pdf` first failed with `spawn python ENOENT`; after the runtime image gained Python/PyMuPDF, the next task showed that the extractor path was incorrectly derived from `CAREER_OPS_ROOT=/data` and therefore tried `/data/web/scripts/extract-mobile-cv.py`. The uploaded PDF itself is valid and extracts readable text locally.
+
+The shared runtime image now provides `/usr/bin/python3` + `python3-fitz`, while V1 resolves the extractor from the running Web application root (`process.cwd()/scripts/extract-mobile-cv.py`) rather than from Candidate data storage. This is a server-side ingest fix: multipart upload, canonical CV confirmation/versioning and the Android first-run contract do not change.
+
 ## 2026-09-11 first-run match journey — 0.4.2/code16
 
 V1 now starts from a candidate journey rather than dropping a new tester into an already-populated workspace:

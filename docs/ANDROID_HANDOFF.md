@@ -1,5 +1,11 @@
 # JobPilot Android — implementation handoff
 
+## 2026-09-11 V1 first-run CV upload runtime fix
+
+- The Samsung V1 first-run `3/7` screen showed “这份简历没有成功读取” for `CV_Test_10_Yuki_Tanaka.pdf`. Raw VPS task evidence identified two server-runtime faults in sequence: first `spawn python ENOENT`, then `/usr/bin/python3: can't open file '/data/web/scripts/extract-mobile-cv.py'` after Python was added.
+- The PDF itself is readable and extracts correctly on the development machine. The shared JobPilot Docker runtime now includes `python3` + `python3-fitz` and sets `JOBPILOT_PYTHON=/usr/bin/python3`; V1 backend resolves `extract-mobile-cv.py` from the Web process working directory instead of `CAREER_OPS_ROOT` (which is Candidate storage `/data` on VPS).
+- No Android multipart/file-picker contract changed. The installed `0.4.2/code16` client can use the repaired server after deployment; a new APK is not required solely for this server-side fix.
+
 ## 2026-09-11 V1 first-run + retained search history — 0.4.2/code16
 
 - V1 Android/Web now share the same first-run product journey: invite code → clearly labelled simulated Google account → real CV picker/ingest → editable extraction confirmation → real profile analysis → inferred/custom direction → real structured search → horizontally swipeable first 3–4 scored roles. Opening one of those cards exits onboarding into the normal offer detail instead of a parallel demo screen.
