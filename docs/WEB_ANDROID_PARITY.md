@@ -2,6 +2,8 @@
 
 ## 2026-09-11 V1 0.4.4 / Web 0.6.4
 
+Final app SHA `dd07f3e0f15cc85e6cd4b87eb4272f1adb2172d8` is deployed; final Android `0.4.4/code18` installed on the Samsung V1 package with existing account preserved. Actual phone Master CV is a visually verified one-page professional layout. Real Web liquid progress, four translated role cards, collapsed/expanded history, alias task reuse and CV score consistency (78 header / 78 baseline / 86 draft) passed. No main/Yifeng restart. Full facts and limits are in the V1 document.
+
 Android and phone-first Web share one job-match score scale (current → estimated after CV edits), plain-language gaps, UI-language direction labels, collapsed history and estimated liquid-progress buttons. My retains logout but removes account-refresh/developer/status copy; the Home growth panel is removed. Master CV PDF uses the same server-side professional one-column template on both clients. New direction searches are grouped/cached conservatively and limited to six per Profile/day, while old results stay accessible. Full implementation/acceptance: `V1_STUDENT_MATCH_LOOP_2026-09-10.md`. Release does not merge or deploy main/Yifeng.
 
 
