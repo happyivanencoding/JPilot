@@ -1,5 +1,14 @@
 # JobPilot V1 — Student Match Loop
 
+## 2026-09-11 V1 0.4.5 rollout and phone email-entry fix
+
+- User's screenshot showed the old invitation/simulated-Google UI submitting to the new email-only backend. Device inspection confirmed **0.4.4/code18**, while the existing V1 deploy had already completed for **081d26e603ae4f7f96a31da327c344952b9998c9** (`V1_DEPLOY_OK`, authenticated session/profile/logout, model-key and search-provider gates passed). This was an incomplete Android rollout, not another email form or PDF-parser defect.
+- Installed the already-built **0.4.5/code19** APK with `adb install -r` to Samsung SM_S928U1, package `com.thegreatnovel.jobpilot.v1`; no uninstall or data clear. Device version readback and a 743ms successful cold launch were recorded. UI hierarchy **and visually inspected screenshot** show `邮箱` / `继续` and the unverified-test-access note, with no invitation/simulated-Google field. Phone was left on the empty email page for the user; no test identity was entered on the phone.
+- Fresh public-browser inspection of `https://jobs-v1.thegreatnovel.com` shows the matching Email/Continue input (`preview-email`, type=email), without an invitation code or simulated Google action; no console/page/network errors in this inspection. Existing feature revision is pushed to origin. No product-source change, re-build, re-deploy, main merge or Yifeng change was required in this follow-up.
+- The user reported replenishing API credit. **This follow-up did not submit a new paid AI analysis**, so it does not turn the earlier controlled-model acceptance into a live-model success claim. The prior successful local PDF/account/water-flow acceptance remains explicitly fixture-model testing. Existing invitation-era profiles are preserved, not automatically linked to an arbitrary newly entered email.
+- Private device/deploy evidence: `.career-ops-web/v145-delivery/`; keep screenshots, runtime data and sessions out of Git. This release follow-up updates documentation, not application source.
+
+
 ## 2026-09-11 V1 0.4.5 — persistent test email and full-screen CV water
 
 - V1-only login now asks for an email, without a simulated Google button or invitation code. Normalized email-to-Profile records persist on the V1 data volume; logout revokes a session, not the Profile. A returning email with a saved CV enters the normal workspace. An interrupted account that never uploaded a CV resumes at the picker. New emails have independent empty Profiles. Legacy anonymous sessions/data are preserved; email from CV contents is not treated as proof of account ownership.
