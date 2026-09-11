@@ -8,9 +8,9 @@ export function CvOutcome({value,detail=false}:{value:Json;detail?:boolean}) {
  const {tr}=usePilot(),outcome=value.cvOutcome||roleCvOutcome(value);
  if(outcome.gain>0 && detail)return <div className="onward-cv-impact" data-testid="cv-uplift">
   <div className="onward-score-pair">
-   <div><span>{tr('原始匹配','CV initial','Initial CV')}</span><strong>{outcome.baseline}%</strong></div>
+   <div className="onward-score-card baseline"><span>{tr('原始匹配','CV initial','Initial CV')}</span><strong>{outcome.baseline}%</strong><small>{tr('当前呈现','Présentation actuelle','Current presentation')}</small><i aria-hidden="true"><b style={{width:`${outcome.baseline}%`}}/></i></div>
    <b aria-hidden="true">→</b>
-   <div><span>{tr('优化后匹配','CV optimisé','Optimised CV')}</span><strong>{outcome.score}%</strong></div>
+   <div className="onward-score-card optimised"><span>{tr('优化后匹配','CV optimisé','Optimised CV')}</span><strong>{outcome.score}%</strong><small>{tr('岗位呈现','Présentation ciblée','Targeted presentation')}</small><i aria-hidden="true"><b style={{width:`${outcome.score}%`}}/></i></div>
   </div>
   <small>{tr(`提升 +${outcome.gain} 分`,`Gain +${outcome.gain} points`,`+${outcome.gain} point uplift`)}</small>
  </div>;

@@ -1,6 +1,7 @@
 package com.thegreatnovel.jobpilot
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -26,14 +27,22 @@ fun OnwardCvOutcome(value:JSONObject,detail:Boolean=false) {
     if(gain>0)Column(Modifier.fillMaxWidth().testTag("cv-uplift"),verticalArrangement=Arrangement.spacedBy(if(detail)10.dp else 4.dp)) {
         if(detail) {
             Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
-                    Hint(tr("原始匹配","CV initial","Initial CV"))
-                    Text("$baseline%",style=MaterialTheme.typography.headlineMedium,color=MaterialTheme.colorScheme.onSurface)
+                Surface(Modifier.weight(1f),shape=RoundedCornerShape(8.dp),color=MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.48f)) {
+                    Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(3.dp)) {
+                        Hint(tr("原始匹配","CV initial","Initial CV"))
+                        Text("$baseline%",style=MaterialTheme.typography.headlineMedium,color=MaterialTheme.colorScheme.onSurface)
+                        Hint(tr("当前呈现","Présentation actuelle","Current presentation"))
+                        LinearProgressIndicator(progress={baseline/100f},modifier=Modifier.fillMaxWidth().height(5.dp),color=MaterialTheme.colorScheme.onSurfaceVariant,trackColor=MaterialTheme.colorScheme.outlineVariant)
+                    }
                 }
                 Text("→",style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.primary)
-                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
-                    Hint(tr("优化后匹配","CV optimisé","Optimised CV"))
-                    Text("$score%",style=MaterialTheme.typography.headlineMedium,color=MaterialTheme.colorScheme.primary)
+                Surface(Modifier.weight(1f),shape=RoundedCornerShape(8.dp),color=MaterialTheme.colorScheme.primaryContainer.copy(alpha=.72f)) {
+                    Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(3.dp)) {
+                        Hint(tr("优化后匹配","CV optimisé","Optimised CV"))
+                        Text("$score%",style=MaterialTheme.typography.headlineMedium,color=MaterialTheme.colorScheme.primary)
+                        Hint(tr("岗位呈现","Présentation ciblée","Targeted presentation"))
+                        LinearProgressIndicator(progress={score/100f},modifier=Modifier.fillMaxWidth().height(5.dp),color=MaterialTheme.colorScheme.primary,trackColor=MaterialTheme.colorScheme.surfaceVariant)
+                    }
                 }
             }
             Text(tr("提升 +$gain 分","Gain +$gain points","+$gain point uplift"),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)

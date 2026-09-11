@@ -23,14 +23,15 @@ fun SearchAreaFields(scope:String,city:String,onScope:(String)->Unit,onCity:(Str
     }
 }
 @Composable
-fun SearchAreaSettings(state:PilotState,vm:JobPilotViewModel) {
+fun SearchAreaSettings(state:PilotState,vm:JobPilotViewModel,embedded:Boolean=false) {
     val stored=state.snapshot.child("config").child("target_roles").child("search_area")
     var scope by rememberSaveable(state.profileId) {mutableStateOf(stored.text("scope","city"))}
     var city by rememberSaveable(state.profileId) {mutableStateOf(stored.text("city","Paris"))}
-    GlassCard {
+    val content:@Composable ColumnScope.()->Unit = {
         SearchAreaFields(scope,city,{scope=it},{city=it})
         PrimaryButton(tr("应用搜索范围","Appliquer la zone","Apply search area"),!state.working&&(scope=="france"||city.isNotBlank())) {vm.saveProfile(json("searchArea" to json("scope" to scope,"city" to city)))}
     }
+    if(embedded) Column(verticalArrangement=Arrangement.spacedBy(10.dp),content=content) else GlassCard(content=content)
 }
 @Composable
 fun TrackingSaveState(state:String?,retry:()->Unit) {

@@ -96,11 +96,32 @@ import java.time.ZoneOffset
     }
 }
 
-@Composable private fun ProfileMetric(icon:ImageVector,value:Int,label:String,modifier:Modifier=Modifier) {
-    Column(modifier,horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(2.dp)) {
+private val profileAppliedStages=setOf("applied","responded","interview","offer","hired","rejected")
+private fun profileHasApplied(job:JSONObject):Boolean {
+    if(job.text("stage") in profileAppliedStages)return true
+    val history=(listOf(job.text("status"))+job.objects("statusHistory").flatMap { listOf(it.text("status"),it.text("from")) }).joinToString(" ").lowercase()
+    return listOf("envoy","applied","réponse","respond","entretien","interview","offre reçue","embauch","hired","refus","reject").any { history.contains(it) }
+}
+
+@Composable private fun ProfileMetric(icon:ImageVector,value:Int,label:String,modifier:Modifier=Modifier,onClick:()->Unit) {
+    Column(modifier.clickable(onClick=onClick).padding(vertical=3.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(2.dp)) {
         Icon(icon,null,Modifier.size(17.dp),tint=MaterialTheme.colorScheme.primary)
         Text(value.toString(),style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.primary)
         Text(label,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1)
+    }
+}
+
+@Composable private fun ProfileAccordion(title:String,summary:String="",expanded:Boolean,onToggle:()->Unit,content:@Composable ColumnScope.()->Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().clickable(onClick=onToggle).padding(vertical=14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(2.dp)) {
+                Text(title,style=MaterialTheme.typography.titleLarge)
+                if(summary.isNotBlank()) Text(summary,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2)
+            }
+            Icon(if(expanded)Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,null,Modifier.size(20.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if(expanded) Column(Modifier.fillMaxWidth().padding(bottom=14.dp),verticalArrangement=Arrangement.spacedBy(10.dp),content=content)
+        HorizontalDivider(thickness=.6.dp,color=MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
@@ -121,15 +142,21 @@ import java.time.ZoneOffset
     var contracts by remember(state.profileId) { mutableStateOf(config.child("target_roles").strings("contract_types").toSet()) }
     val needsCv=state.snapshot.child("access").optBoolean("needsCv")
     val jobs=state.snapshot.objects("jobs")
-    var profileTab by rememberSaveable(state.profileId) { mutableIntStateOf(0) }
+    var expandedSection by rememberSaveable(state.profileId) { mutableStateOf<String?>(null) }
+    var profileDrawer by rememberSaveable(state.profileId) { mutableIntStateOf(0) }
     var applicationStatus by rememberSaveable(state.profileId) { mutableStateOf("") }
     var applicationQuery by rememberSaveable(state.profileId) { mutableStateOf("") }
     var applicationMenu by remember { mutableStateOf(false) }
-    val applications=jobs.filter { (applicationStatus.isBlank() || it.text("status")==applicationStatus) &&
+    val appliedJobs=jobs.filter(::profileHasApplied)
+    val roleCvJobs=jobs.filter {it.child("cvDraft").text("id").isNotBlank()||it.child("cv").text("file").isNotBlank()}
+    val applications=appliedJobs.filter { (applicationStatus.isBlank() || it.text("status")==applicationStatus) &&
         (it.text("company")+" "+it.text("role")).contains(applicationQuery.trim(),ignoreCase=true) }
         .sortedByDescending { it.text("updatedAt",it.text("createdAt")) }
     val directions=state.snapshot.child("v1").objects("careerDirections")
-    val roleCvCount=jobs.count {it.child("cvDraft").text("id").isNotBlank()||it.child("cv").text("file").isNotBlank()}
+    val area=config.child("target_roles").child("search_area")
+    val areaLabel=if(area.text("scope")=="france")tr("全法国","Toute la France","All of France")else area.text("city")
+    val preferenceSummary=listOf(config.child("target_roles").strings("primary").joinToString(", "),areaLabel,config.child("compensation").text("location_flexibility")).filter {it.isNotBlank()}.joinToString(" · ")
+    fun toggleSection(key:String){expandedSection=if(expandedSection==key)null else key}
     LazyColumn(Modifier.fillMaxSize().imePadding().testTag("profile-content"),state=analyticsListState(vm),contentPadding = PaddingValues(22.dp),verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item {
             Column(verticalArrangement=Arrangement.spacedBy(5.dp)) {
@@ -140,43 +167,15 @@ import java.time.ZoneOffset
         }
         item {
             Row(Modifier.fillMaxWidth().border(.6.dp,MaterialTheme.colorScheme.outlineVariant).padding(vertical=10.dp),verticalAlignment=Alignment.CenterVertically) {
-                ProfileMetric(Icons.Rounded.Work,jobs.size,tr("投递 / 跟踪","Candidatures","Applications"),Modifier.weight(1f))
+                ProfileMetric(Icons.Rounded.Work,appliedJobs.size,tr("投递 / 跟踪","Candidatures","Applications"),Modifier.weight(1f)) {profileDrawer=1}
                 VerticalDivider(Modifier.height(42.dp),thickness=.6.dp,color=MaterialTheme.colorScheme.outlineVariant)
-                ProfileMetric(Icons.Rounded.Bookmark,jobs.size,tr("已保存岗位","Offres suivies","Saved roles"),Modifier.weight(1f))
+                ProfileMetric(Icons.Rounded.Bookmark,jobs.size,tr("已保存岗位","Offres suivies","Saved roles"),Modifier.weight(1f)) {profileDrawer=2}
                 VerticalDivider(Modifier.height(42.dp),thickness=.6.dp,color=MaterialTheme.colorScheme.outlineVariant)
-                ProfileMetric(Icons.Rounded.Description,roleCvCount,tr("岗位版 CV","Versions de CV","CV versions"),Modifier.weight(1f))
+                ProfileMetric(Icons.Rounded.Description,roleCvJobs.size,tr("岗位版 CV","Versions de CV","CV versions"),Modifier.weight(1f)) {profileDrawer=3}
             }
         }
-        item {
-            TabRow(profileTab) {
-                listOf(tr("个人资料","Mon profil","Profile"),tr("投递情况","Candidatures","Applications")).forEachIndexed { i,label ->
-                    Tab(profileTab==i,{profileTab=i},modifier=Modifier.testTag("profile-tab-$i"),text={Text(label)})
-                }
-            }
-        }
-        if(profileTab==1) {
-            item {
-                Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                    Text(tr("投递情况","Mes candidatures","My applications"),style=MaterialTheme.typography.headlineSmall)
-                    Hint(tr("全部 ${jobs.size} 个岗位 · 当前显示 ${applications.size} 个","${jobs.size} offres · ${applications.size} affichées","${jobs.size} roles · ${applications.size} shown"))
-                    OutlinedTextField(applicationQuery,{applicationQuery=it},Modifier.fillMaxWidth().testTag("application-query"),singleLine=true,label={Text(tr("搜索公司或岗位","Rechercher une entreprise ou un poste","Search company or role"))})
-                    Box {
-                        OutlinedButton({applicationMenu=true},Modifier.fillMaxWidth()) {Text(if(applicationStatus.isBlank())tr("全部状态","Tous les statuts","All statuses")else product(applicationStatus),Modifier.weight(1f));Icon(Icons.Rounded.ExpandMore,null)}
-                        DropdownMenu(applicationMenu,{applicationMenu=false}) {
-                            (listOf("")+state.snapshot.strings("statuses")+jobs.map {it.text("status")}).distinct().forEach { value ->
-                                DropdownMenuItem(text={Text(if(value.isBlank())tr("全部状态","Tous les statuts","All statuses")else product(value))},onClick={applicationStatus=value;applicationMenu=false})
-                            }
-                        }
-                    }
-                    if(applications.isEmpty()) Hint(if(jobs.isEmpty())tr("保存或跟踪的岗位会显示在这里。","Vos offres enregistrées et suivies apparaîtront ici.","Saved and tracked roles will appear here.")else tr("没有符合筛选的岗位。","Aucune offre ne correspond aux filtres.","No roles match these filters."))
-                }
-            }
-            items(applications,key={it.text("id")}) { job -> ProfileApplicationCard(job,vm) }
-        } else {
-        item {SearchAreaSettings(state,vm)}
-        item { GlassCard(accent = true) {
+        item { ProfileAccordion(tr("我的简历","Mon CV","My CV"),state.snapshot.child("cvState").optInt("cvVersion",-1).takeIf {it>=0}?.let {"CV $it"} ?: tr("未上传","Non importé","Not uploaded"),expandedSection=="cv",{toggleSection("cv")}) {
             Icon(Icons.Rounded.Description,null,Modifier.size(34.dp),tint = MaterialTheme.colorScheme.primary)
-            Text(tr("让简历成为起点","Le CV comme point de départ","Start with your CV"),style=MaterialTheme.typography.headlineSmall)
             Hint(tr("PDF、Word、TXT · 最大 12 MB","PDF, Word, TXT · 12 Mo maximum","PDF, Word, TXT · up to 12 MB"))
             TextButton({privacyMode=2}) {Text(tr("简历信息如何使用","Utilisation des informations du CV","How your CV information is used"),fontSize=12.sp)}
             PrimaryButton(tr("从手机上传简历","Importer un CV du téléphone","Upload a CV from my phone"),!state.working) {privacyMode=1}
@@ -185,34 +184,8 @@ import java.time.ZoneOffset
                 TextButton({ editCv = true },Modifier.weight(1f)) { Text(tr("编辑内容","Modifier le contenu","Edit content")) }
             }
         } }
-        if(!BuildConfig.APPLICATION_ID.endsWith(".v1")) item { GlassCard { AnalysisEntry(state,vm) } }
-        if(!needsCv) item { GlassCard {
-            Row(verticalAlignment=Alignment.CenterVertically) { Text(tr("我的岗位版本","Mes versions par offre","My role-specific versions"),Modifier.weight(1f),style=MaterialTheme.typography.headlineSmall);Hint(jobs.size.toString()) }
-            Hint(tr("为不同岗位准备的简历，都在这里。","Retrouvez ici vos CV adaptés à chaque offre.","Your tailored CVs, organised by role."))
-            if(jobs.isEmpty()) Hint(tr("当你在岗位页点击“查看我的 XX 分版本”，它会出现在这里。","Une offre apparaîtra ici lorsque vous demanderez votre version ciblée.","A role appears here after you request its tailored version."))
-            jobs.forEach { job ->
-                val hasRoleCv = job.child("cvDraft").text("id").isNotBlank() || job.child("cv").text("file").isNotBlank()
-                Column(
-                    Modifier.fillMaxWidth().clickable { vm.selectJob(job.text("id"), if (hasRoleCv) 1 else 0) }.padding(vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) { Text(job.text("company"), style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary); Text(job.text("role"), style=MaterialTheme.typography.titleLarge) }
-                        val match = job.child("v1Match")
-                        if (match.has("displayScore")) Text("${match.optInt("displayScore")}/100", style=MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
-                    }
-                    Hint(when { job.child("cvDraft").text("status") == "pending" -> tr("候选 CV 等待你确认", "Brouillon à confirmer", "CV draft awaiting your decision"); job.child("cv").text("file").isNotBlank() -> tr("已有岗位版 CV", "CV adapté conservé", "Tailored CV saved"); else -> tr("已保存岗位", "Offre enregistrée", "Role saved") })
-                    HorizontalDivider()
-                }
-            }
-        } }
-        if(!BuildConfig.APPLICATION_ID.endsWith(".v1") && !needsCv && directions.isNotEmpty()) item { GlassCard {
-            Text(tr("AI 建议的探索方向","Directions suggérées","Suggested directions"),fontWeight=FontWeight.SemiBold)
-            Hint(tr("这些是建议，不会覆盖你明确填写的目标。点击一个方向会填入编辑框，由你决定是否保存。","Ce sont des suggestions ; elles ne remplacent pas vos objectifs explicites.","These are suggestions and never override your explicit goals."))
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { directions.forEach { direction -> FilterChip(false,{roles=direction.text("title");preferences=true},label={Text(direction.text("title"),maxLines=1)}) } }
-        } }
-        item { GlassCard {
-            Text(tr("语言","Langues","Languages"),style=MaterialTheme.typography.headlineSmall)
+        if(!BuildConfig.APPLICATION_ID.endsWith(".v1")) item { ProfileAccordion(tr("职业分析","Analyse du profil","Career analysis"),if(state.snapshot.child("analysis").text("markdown").isNotBlank())tr("已更新","À jour","Updated")else tr("待生成","À préparer","Pending"),expandedSection=="analysis",{toggleSection("analysis")}) { AnalysisEntry(state,vm) } }
+        item { ProfileAccordion(tr("语言","Langues","Languages"),when(state.language){"zh"->"中文";"fr"->"Français";else->"English"},expandedSection=="language",{toggleSection("language")}) {
             Text(tr("界面与分析","Application et conseils","App and insights"),fontWeight=FontWeight.Medium)
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) { listOf("zh" to "中文","fr" to "Français","en" to "English").forEach { (key,label) ->
                 FilterChip(state.language==key,{vm.experienceLanguage(key)},enabled=!state.working,modifier=Modifier.testTag("ui-language-$key"),label={Text(label)})
@@ -226,25 +199,52 @@ import java.time.ZoneOffset
             } }
             Hint(tr("只决定新生成简历的语言，不限制岗位搜索。","La langue de vos prochains CV, pas un filtre sur les offres.","The language of new CVs, not a filter on job opportunities."))
         } }
-        item { GlassCard {
-            Row(verticalAlignment = Alignment.CenterVertically) { Text(tr("求职偏好","Mes critères","Job preferences"),Modifier.weight(1f),style=MaterialTheme.typography.headlineSmall); TextButton({ preferences = !preferences }) { Text(tr("编辑","Modifier","Edit")) } }
-            Hint(listOf(roles,location,remote).filter { it.isNotBlank() }.joinToString("\n").ifBlank { tr("填写目标岗位与工作地点","Définissez les rôles et lieux ciblés.","Set target roles and locations.") })
+        item { ProfileAccordion(tr("求职偏好","Mes critères","Job preferences"),preferenceSummary.ifBlank {tr("目标岗位、地点与合同类型","Rôles, lieux et types de contrat","Roles, location and contract types")},expandedSection=="preferences",{toggleSection("preferences")}) {
+            SearchAreaSettings(state,vm,embedded=true)
+            Row(verticalAlignment = Alignment.CenterVertically) { Text(tr("岗位与合同","Postes et contrats","Roles and contracts"),Modifier.weight(1f),fontWeight=FontWeight.Medium); TextButton({ preferences = !preferences }) { Text(if(preferences)tr("收起","Réduire","Collapse")else tr("编辑","Modifier","Edit")) } }
             Text(tr("合同／职位类型","Types de contrat","Contract types"),fontWeight = FontWeight.Medium,fontSize = 14.sp)
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("Stage","Alternance","CDI","CDD").forEach { type -> FilterChip(type in contracts,{ contracts = if(type in contracts) contracts - type else contracts + type; vm.saveProfile(json("contractTypes" to JSONArray(contracts.toList()))) },label = { Text(product(type)) },enabled = !state.working) } }
             if(contracts.isEmpty()) Hint(tr("不限制合同类型","Tous les types de contrat","All contract types"))
             if(preferences) {
                 OutlinedTextField(roles,{ roles = it },Modifier.fillMaxWidth(),label = { Text(tr("目标岗位（逗号分隔）","Rôles ciblés (séparés par virgule)","Target roles (comma separated)")) },shape = RoundedCornerShape(7.dp))
-                OutlinedTextField(location,{ location = it },Modifier.fillMaxWidth(),label = { Text(tr("城市","Localisation","Location")) },shape = RoundedCornerShape(7.dp))
+                OutlinedTextField(location,{ location = it },Modifier.fillMaxWidth(),label = { Text(tr("个人所在地","Localisation actuelle","Current location")) },shape = RoundedCornerShape(7.dp))
                 OutlinedTextField(remote,{ remote = it },Modifier.fillMaxWidth(),label = { Text(tr("远程办公偏好","Préférence télétravail","Remote preference")) },shape = RoundedCornerShape(7.dp))
                 PrimaryButton(tr("保存偏好","Enregistrer mes critères","Save preferences"),!state.working) { vm.saveProfile(json("roles" to JSONArray(roles.split(',').map { it.trim() }.filter { it.isNotBlank() }),"location" to location,"remote" to remote)); preferences = false }
             }
+            if(!BuildConfig.APPLICATION_ID.endsWith(".v1") && !needsCv && directions.isNotEmpty()) {
+                HorizontalDivider()
+                Text(tr("建议的探索方向","Directions suggérées","Suggested directions"),fontWeight=FontWeight.Medium)
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { directions.forEach { direction -> FilterChip(false,{roles=direction.text("title");preferences=true},label={Text(direction.text("title"),maxLines=1)}) } }
+            }
         } }
-        item { GlassCard {
-            Text(tr("外观","Apparence","Appearance"),style=MaterialTheme.typography.headlineSmall)
+        item { ProfileAccordion(tr("外观","Apparence","Appearance"),when(state.theme){"dark"->tr("暗色","Sombre","Dark");"light"->tr("亮色","Clair","Light");else->tr("跟随系统","Système","System")},expandedSection=="appearance",{toggleSection("appearance")}) {
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("system" to tr("系统","Système","System"),"light" to tr("亮色","Clair","Light"),"dark" to tr("暗色","Sombre","Dark")).forEach { (key,label) -> FilterChip(state.theme == key,{ vm.appearance(theme = key) },label = { Text(label) }) } }
         } }
 
         item { TextButton(vm::logout,Modifier.fillMaxWidth().testTag("sign-out")) {Text(tr("登出","Se déconnecter","Sign out"))} }
+    }
+    if(profileDrawer>0) ModalBottomSheet(onDismissRequest={profileDrawer=0},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
+        Column(Modifier.fillMaxWidth().fillMaxHeight(.78f).blockSheetEdgeMotion().padding(horizontal=22.dp,vertical=10.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+            Text(when(profileDrawer){1->tr("投递跟踪","Mes candidatures","Applications");2->tr("已保存岗位","Offres suivies","Saved roles");else->tr("岗位版 CV","Versions de CV","CV versions")},style=MaterialTheme.typography.headlineMedium)
+            if(profileDrawer==1) {
+                Hint(tr("全部 ${appliedJobs.size} 个投递 · 当前显示 ${applications.size} 个","${appliedJobs.size} candidatures · ${applications.size} affichées","${appliedJobs.size} applications · ${applications.size} shown"))
+                OutlinedTextField(applicationQuery,{applicationQuery=it},Modifier.fillMaxWidth().testTag("application-query"),singleLine=true,label={Text(tr("搜索公司或岗位","Rechercher une entreprise ou un poste","Search company or role"))})
+                Box {
+                    OutlinedButton({applicationMenu=true},Modifier.fillMaxWidth()) {Text(if(applicationStatus.isBlank())tr("全部状态","Tous les statuts","All statuses")else product(applicationStatus),Modifier.weight(1f));Icon(Icons.Rounded.ExpandMore,null)}
+                    DropdownMenu(applicationMenu,{applicationMenu=false}) {(listOf("")+state.snapshot.strings("statuses")+appliedJobs.map {it.text("status")}).distinct().forEach { value -> DropdownMenuItem(text={Text(if(value.isBlank())tr("全部状态","Tous les statuts","All statuses")else product(value))},onClick={applicationStatus=value;applicationMenu=false}) }}
+                }
+            }
+            val drawerJobs=when(profileDrawer){1->applications;2->jobs;else->roleCvJobs}
+            LazyColumn(Modifier.fillMaxWidth().weight(1f),verticalArrangement=Arrangement.spacedBy(0.dp),overscrollEffect=null) {
+                if(drawerJobs.isEmpty()) item {Hint(when(profileDrawer){1->tr("还没有已投递岗位。","Aucune candidature envoyée.","No applications yet.");2->tr("还没有保存岗位。","Aucune offre enregistrée.","No saved roles yet.");else->tr("还没有岗位版 CV。","Aucun CV ciblé.","No role-specific CV yet.")})}
+                items(drawerJobs,key={it.text("id")}) { job ->
+                    Column(Modifier.fillMaxWidth().clickable {val tab=if(profileDrawer==3)1 else 0;profileDrawer=0;vm.selectJob(job.text("id"),tab)}.padding(vertical=12.dp),verticalArrangement=Arrangement.spacedBy(3.dp)) {
+                        Row(verticalAlignment=Alignment.CenterVertically) {Column(Modifier.weight(1f)){Text(job.text("company"),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary);Text(job.text("role"),style=MaterialTheme.typography.titleMedium,maxLines=2)};job.child("v1Match").takeIf {it.has("displayScore")}?.let {Text("${it.optInt("displayScore")}/100",color=MaterialTheme.colorScheme.primary)}}
+                        Hint(listOf(job.text("location"),product(job.text("status"))).filter {it.isNotBlank()}.joinToString(" · "))
+                        HorizontalDivider(Modifier.padding(top=8.dp),thickness=.6.dp,color=MaterialTheme.colorScheme.outlineVariant)
+                    }
+                }
+            }
         }
     }
     if(editCv) ModalBottomSheet(onDismissRequest = { editCv = false },sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),modifier = Modifier.imePadding()) {

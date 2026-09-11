@@ -11,9 +11,10 @@ export function SearchAreaFields({value,onChange}:{value:Json;onChange:(v:Json)=
   {value.scope==='city'&&<><Input label={tr('城市','Ville','City')} data-testid="search-city" value={value.city||''} placeholder="Paris" maxLength={80} list="onward-cities" onChange={e=>onChange({...value,city:e.target.value})}/><datalist id="onward-cities">{['Paris','Lyon','Marseille','Toulouse','Bordeaux','Lille','Nantes','Strasbourg','Nice','Rennes','Montpellier','Grenoble'].map(city=><option key={city} value={city}/>)}</datalist></>}
  </div>;
 }
-export function SearchAreaSettings() {
+export function SearchAreaSettings({embedded=false}:{embedded?:boolean}={}) {
  const p=usePilot(),{tr}=p;
  const stored=p.data.config?.target_roles?.search_area;
  const [value,setValue]=useState<Json>(stored||{scope:'city',city:'Paris'});
- return <Card><SearchAreaFields value={value} onChange={setValue}/><Button disabled={p.busy||value.scope==='city'&&!String(value.city||'').trim()} onClick={()=>p.act({searchArea:value},'/api/profile')}>{tr('应用搜索范围','Appliquer la zone','Apply search area')}</Button></Card>;
+ const content=<><SearchAreaFields value={value} onChange={setValue}/><Button disabled={p.busy||value.scope==='city'&&!String(value.city||'').trim()} onClick={()=>p.act({searchArea:value},'/api/profile')}>{tr('应用搜索范围','Appliquer la zone','Apply search area')}</Button></>;
+ return embedded?<div className="jp-stack onward-search-area-settings">{content}</div>:<Card>{content}</Card>;
 }

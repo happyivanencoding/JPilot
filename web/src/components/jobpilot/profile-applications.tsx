@@ -4,14 +4,14 @@ import {rows,texts,usePilot,type Json} from './pilot-context';
 import {applicationRows} from './model.mjs';
 import {Hint,Input,Pill,Select} from './ui';
 
-/** All canonical roles, including rejected/archived ones; this list never triggers AI. */
-export function ProfileApplications() {
+/** Read-only candidature history; callers may pass a pre-filtered collection. */
+export function ProfileApplications({jobs:providedJobs,heading=true}:{jobs?:Json[];heading?:boolean}={}) {
  const {data,tr,product,openJob}=usePilot();
  const [status,setStatus]=useState(''),[query,setQuery]=useState('');
- const jobs=rows(data.jobs),visible=applicationRows(jobs,status,query) as Json[];
+ const jobs=providedJobs||rows(data.jobs),visible=applicationRows(jobs,status,query) as Json[];
  const statuses=[...new Set([...texts(data.statuses),...jobs.map(j=>j.status).filter(Boolean)])];
  return <div className="jp-stack" data-testid="profile-applications">
-  <h2>{tr('投递情况','Mes candidatures','My applications')}</h2>
+  {heading&&<h2>{tr('投递情况','Mes candidatures','My applications')}</h2>}
   <Hint>{tr(`全部 ${jobs.length} 个岗位 · 当前显示 ${visible.length} 个`,`${jobs.length} offres · ${visible.length} affichées`,`${jobs.length} roles · ${visible.length} shown`)}</Hint>
   <Input label={tr('搜索公司或岗位','Rechercher une entreprise ou un poste','Search company or role')} value={query} data-testid="application-query" onChange={e=>setQuery(e.target.value)}/>
   <Select label={tr('状态','Statut','Status')} value={status} onChange={setStatus}><option value="">{tr('全部状态','Tous les statuts','All statuses')}</option>{statuses.map(s=><option key={s} value={s}>{product(s)}</option>)}</Select>

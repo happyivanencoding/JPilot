@@ -62,8 +62,8 @@ fun V1OverviewScreen(state: PilotState, vm: JobPilotViewModel, onExplore: () -> 
         overscrollEffect = null,
     ) {
         item {
-            Box(Modifier.fillMaxWidth().heightIn(min=if(hasCv)170.dp else 136.dp)) {
-                OnwardHalo(Modifier.size(220.dp).align(Alignment.TopEnd).offset(x=82.dp,y=(-35).dp))
+            Box(Modifier.fillMaxWidth().heightIn(min=if(hasCv)118.dp else 124.dp)) {
+                OnwardHalo(Modifier.size(132.dp).align(Alignment.TopEnd).offset(x=48.dp,y=(-22).dp))
                 Column(Modifier.fillMaxWidth(.86f),verticalArrangement=Arrangement.spacedBy(5.dp)) {
                     Text(
                         if(name!=null)tr("你好，$name。","Bonjour, $name.","Hello, $name.")else tr("你好。","Bonjour.","Hello."),
@@ -272,8 +272,8 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
     var note by rememberSaveable(roleKey) { mutableStateOf(job.child("followup").text("note")) }
     ModalBottomSheet(onDismissRequest = { if(offer!=null)vm.selectOffer(null)else vm.selectJob(null) }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), modifier = Modifier.imePadding()) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(.92f).blockSheetEdgeMotion().testTag("v1-saved-job-detail")) {
-            Box(Modifier.fillMaxWidth().padding(horizontal=22.dp,vertical=10.dp)) {
-                OnwardHalo(Modifier.size(190.dp).align(Alignment.TopEnd).offset(x=74.dp,y=(-34).dp))
+            Box(Modifier.fillMaxWidth().padding(horizontal=22.dp,vertical=7.dp)) {
+                OnwardHalo(Modifier.size(132.dp).align(Alignment.TopEnd).offset(x=48.dp,y=(-22).dp))
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                     CompanyMark(job.text("company"),size=48)
                     Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(5.dp)) {
