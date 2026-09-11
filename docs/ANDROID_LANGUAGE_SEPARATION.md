@@ -1,5 +1,12 @@
 # JobPilot 0.3.2 — display language and application documents
 
+## 2026-09-11 V1 0.4.6 / Web 0.6.6 — first-run and role-CV continuity
+
+Implemented in the independent V1 feature branch: required contract choice at upload; shared full-screen CV/search waves without approximate signs; simpler first-result deck; unified language settings with optional independent insights language; bilingual role recall without a document-language filter; prominent role-CV card/detail entries; frozen match basis and consistently reviewed draft scores; real-PDF change overlays with original-version comparison. Android 0.4.6/code20 and Web 0.6.6 remain paired.
+
+Local Node/PDF/build/browser gates have passed; live rollout and phone receipts are recorded separately in `docs/V1_0_4_6_RELEASE.md`. The controlled-model browser check is not a live AI acceptance. Preserve main/Yifeng and existing private data.
+
+
 ## V1 override — 2026-09-11 / Android 0.4.3 / Web 0.6.3
 
 The isolated V1 line supersedes the historical two-language UI rule below: **UI language** controls menus/buttons and starts in English for new installations; **insight language** (`config.display.analysis_language`) independently controls strengths, growth suggestions, directions and role-match explanations; **CV/source language** is chosen during upload, with the existing application-document language kept separate from display translation. English and French source/document choices, and Chinese/French/English UI/insight choices are available. A source upload initializes document preference to its selected source language; My can change later document preference.

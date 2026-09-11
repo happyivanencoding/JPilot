@@ -1,3 +1,6 @@
+import {execFile} from "node:child_process";
+import {promisify} from "node:util";
+import {roleCvReviewPrompt,normalizeRoleCvReview} from "@/lib/v1-cv-review.mjs";
 import {projectV1JobScores} from "@/lib/v1-match.mjs";
 import { renderTailoredCv } from "@/lib/backend/cv-document.mjs";
 import fs from "node:fs";
@@ -10,7 +13,7 @@ import { getProfile, profileFile } from "@/lib/profile-context";
 import { runModelTransport } from "@/lib/model-transport";
 import { extractJsonObject } from "@/lib/model-json.mjs";
 import { atomicWrite } from "@/lib/backend/files.mjs";
-import { currentCandidateVersion, historyDirectory } from "@/lib/mobile-history";
+import { currentCandidateVersion, historyDirectory, renderCvPreview } from "@/lib/mobile-history";
 import { withProfileLock, loadCandidateVersion, operationKey, readJson, writeJson } from "@/lib/mobile-state.mjs";
 import { FLOW_DEFAULTS } from "@/lib/ai-metrics.mjs";
 import {applicationLanguage,requestUiLocale,explanationDirective,contradictsDocumentLanguage,choose} from "@/lib/language-contract.mjs";
@@ -38,6 +41,7 @@ type CvInfo = {
   baselinePresentationScore?: number | null;
   presentationDelta?: number | null;
   draftId?: string;
+  matchBasis?: Record<string,any>;
 };
 
 type Job = {
@@ -69,11 +73,12 @@ export type TailoredPayload = {
 };
 
 export type TailoredAssessment = {
-  baselineScore:number; draftScore:number; delta:number; summary:string;
+  scoringVersion?:string; baselineScore:number; draftScore:number; delta:number; summary:string;
   improvements:string[]; remainingGaps:string[]; assessedAt:string; revision:number; needsSubstantiveImprovement:boolean;
 };
 
 export type TailoredDraft = {
+  matchBasis?:Record<string,any>;
   id:string; status:"pending"|"accepted"|"rejected"; baseVersionId:string; language:string; notesLocale:string; revision:number;
   createdAt:string; updatedAt:string; payload:TailoredPayload; file:string; htmlFile:string; pages:number; atsScore:number; atsPass:boolean;
   atsGrade?:string; atsIssues:Array<{severity?:string;message?:string}>; keywordCoverage:number|null; changes:string[]; baselinePresentationScore?:number|null; assessment?:TailoredAssessment|null;
@@ -177,7 +182,7 @@ ${JSON.stringify(target, null, 2)}
 LANGUAGE: every candidate-facing CV field (summary, experience, project, education and skills) MUST be written in ${cvOptions.language}. Only change_notes are user-facing explanations, in ${uiLocale}. ${explanationDirective(uiLocale)}
 
 CONTENT BUDGET — respect the configured ${cvOptions.preferredPages}-page target and keep the CV compact:
-- Summary: direct and role-specific. No generic enthusiasm.
+- Summary: direct and role-specific. No generic enthusiasm. Never put missing skills, negative self-assessments, unproven-ability disclaimers, or analysis instructions into the CV itself. Keep only relevant positive factual content; discuss gaps in change_notes instead.
 - Experience: normally 2-4 strongest entries, ordered by relevance. Keep bullets short and evidence-led.
 - Projects: 0-2 entries, only when they strengthen this job.
 - Education: keep the most useful degrees/programs for this role.
@@ -258,10 +263,16 @@ async function renderDraftFiles(profileId:string,job:Job,version:Record<string,a
 }
 
 async function compareCvPresentation(profileId:string,job:Job,version:Record<string,any>,payload:TailoredPayload,locale:string,revision:number,hooks?:{onRun?:(run:any)=>void;onMetrics?:(metrics:any)=>void}) {
-  const prompt=`You are comparing how well TWO CV versions PRESENT the same candidate for ONE job. This is not hiring probability and not a new candidate-fit evaluation. The candidate's real capability is unchanged. Score only how clearly each CV surfaces documented, job-relevant evidence without exaggeration.\n\nUse the exact same 0-100 rubric for both versions: relevance/selection 35, specificity of evidence 30, recruiter scan clarity 20, honest keyword/requirement alignment 15. Do not reward keyword stuffing. Penalize invented or unsupported claims.\n\nReturn ONE JSON object only: {"baseline_score":0,"draft_score":0,"summary":"...","improvements":["..."],"remaining_gaps":["..."]}. Scores are integers 0-100.\n\nJOB DATA:\n${JSON.stringify({company:job.company,role:job.role,location:job.location,summary:job.summary,angle:job.angle,strengths:job.strengths,gaps:job.gaps,match:job.match,description:boundedText(job.sourceDescription||job.description,18000)},null,2)}\n\nMASTER CV:\n${boundedText(version.sources.cv.text,35000)}\n\nTAILORED DRAFT:\n${payloadText(payload)}\n\nOUTPUT LANGUAGE: ${locale}. ${explanationDirective(locale)}`;
+  const legacyPrompt=`You are comparing how well TWO CV versions PRESENT the same candidate for ONE job. This is not hiring probability and not a new candidate-fit evaluation. The candidate's real capability is unchanged. Score only how clearly each CV surfaces documented, job-relevant evidence without exaggeration.\n\nUse the exact same 0-100 rubric for both versions: relevance/selection 35, specificity of evidence 30, recruiter scan clarity 20, honest keyword/requirement alignment 15. Do not reward keyword stuffing. Penalize invented or unsupported claims.\n\nReturn ONE JSON object only: {"baseline_score":0,"draft_score":0,"summary":"...","improvements":["..."],"remaining_gaps":["..."]}. Scores are integers 0-100.\n\nJOB DATA:\n${JSON.stringify({company:job.company,role:job.role,location:job.location,summary:job.summary,angle:job.angle,strengths:job.strengths,gaps:job.gaps,match:job.match,description:boundedText(job.sourceDescription||job.description,18000)},null,2)}\n\nMASTER CV:\n${boundedText(version.sources.cv.text,35000)}\n\nTAILORED DRAFT:\n${payloadText(payload)}\n\nOUTPUT LANGUAGE: ${locale}. ${explanationDirective(locale)}`;
+  const basis=job.v1Match as Record<string,any>|undefined;
+  const prompt=basis ? roleCvReviewPrompt({basis,master:boundedText(version.sources.cv.text,35000),draft:payloadText(payload),job:tailoredJobContext(job),locale}) : legacyPrompt;
   let output="",metrics:any={};
   await runModelTransport({cwd:workspaceRoot(),prompt,model:FLOW_DEFAULTS.cv.model as any,reasoning:FLOW_DEFAULTS.cv.reasoning as any,timeoutMs:180_000,onRun:run=>hooks?.onRun?.(run),onMetrics:m=>{metrics=m;hooks?.onMetrics?.(m);},onText:text=>{output+=text;},onFinalText:complete=>{output=complete;}});
   const parsed=extractJsonObject(output).obj as any;if(!parsed)throw new Error("La comparaison du CV n'a pas renvoyé de résultat structuré.");
+  if(basis) {
+    const assessment={...normalizeRoleCvReview(basis,parsed),assessedAt:new Date().toISOString(),revision};
+    return {assessment,metrics};
+  }
   if(!Number.isFinite(Number(parsed.baseline_score))||!Number.isFinite(Number(parsed.draft_score)))throw new Error("Score de présentation du CV invalide.");
   const floored=floorTailoredPresentationScore(parsed.baseline_score,parsed.draft_score);
   const {baselineScore,rawDraftScore,draftScore:effectiveDraftScore,needsSubstantiveImprovement}=floored;
@@ -289,7 +300,7 @@ export async function updateTailoredCvDraft(profileId:string,draftId:string,payl
 
 export async function reviewTailoredCvDraft(profileId:string,draftId:string,locale:string,hooks?:{onRun?:(run:any)=>void;onMetrics?:(metrics:any)=>void}) {
   const store=readStore(profileId),{job,draft}=findDraft(store,draftId);if(draft.status!=="pending")throw new Error("Ce brouillon a déjà été traité.");
-  const version=loadCandidateVersion(historyDirectory(profileId),draft.baseVersionId);const result=await compareCvPresentation(profileId,job,version,draft.payload,locale,draft.revision,hooks);
+  const version=loadCandidateVersion(historyDirectory(profileId),draft.baseVersionId);const result=await compareCvPresentation(profileId,draft.matchBasis?{...job,v1Match:draft.matchBasis}:job,version,draft.payload,locale,draft.revision,hooks);
   const fixedBaseline=Number(draft.baselinePresentationScore);
   if(Number.isFinite(fixedBaseline)){
     const floored=floorTailoredPresentationScore(fixedBaseline,(result.assessment as any).rawDraftScore ?? result.assessment.draftScore);
@@ -310,7 +321,7 @@ export async function decideTailoredCvDraft(profileId:string,draftId:string,deci
   }
   draft.status=decision==="accept"?"accepted":"rejected";draft.updatedAt=new Date().toISOString();
   if(decision==="accept") {
-    job.cv={...(job.cv||{}),language:draft.language,notesLocale:draft.notesLocale,label:`CV adapté — ${job.company}`,pdfCompany:job.company,file:draft.file,pages:draft.pages,atsScore:draft.atsScore,keywordCoverage:draft.keywordCoverage,generatedAt:draft.updatedAt,inputVersionId:draft.baseVersionId,changes:draft.changes,presentationScore:draft.assessment?.draftScore??null,baselinePresentationScore:draft.assessment?.baselineScore??null,presentationDelta:draft.assessment?.delta??null,draftId:draft.id};
+    job.cv={...(job.cv||{}),matchBasis:draft.matchBasis,language:draft.language,notesLocale:draft.notesLocale,label:`CV adapté — ${job.company}`,pdfCompany:job.company,file:draft.file,pages:draft.pages,atsScore:draft.atsScore,keywordCoverage:draft.keywordCoverage,generatedAt:draft.updatedAt,inputVersionId:draft.baseVersionId,changes:draft.changes,presentationScore:draft.assessment?.draftScore??null,baselinePresentationScore:draft.assessment?.baselineScore??null,presentationDelta:draft.assessment?.delta??null,draftId:draft.id};
     const v1Match=job.v1Match as Record<string,any>|undefined;
     if(v1Match && Number.isFinite(Number(v1Match.currentScore))) {
       const current=Math.max(0,Math.min(100,Math.round(Number(v1Match.currentScore))));
@@ -342,7 +353,20 @@ export async function downloadTailoredCv(req: Request) {
     const abs = path.resolve(workspaceRoot(), rel);
     const outputRoot = path.resolve(workspaceRoot(), "output") + path.sep;
     if (!abs.startsWith(outputRoot)) return new Response("invalid CV path", { status: 400 });
-    const bytes = fs.readFileSync(abs);
+    const compare=url.searchParams.get("compare");
+    let output=abs;
+    if(compare) {
+      if(!["baseline","highlight"].includes(compare))return new Response("Invalid comparison mode",{status:400});
+      const baseVersionId=draft?.baseVersionId || job?.cv?.inputVersionId;
+      if(!baseVersionId)return new Response("Original CV version not found",{status:404});
+      const baseline=await renderCvPreview(profileId,undefined,baseVersionId);
+      if(compare==="baseline")output=baseline.pdf;
+      else {
+        output=abs.replace(/\.pdf$/i,`-changes-r${draft?.revision || 1}.pdf`);
+        if(!fs.existsSync(output))await promisify(execFile)(process.env.JOBPILOT_PYTHON || "python",[path.resolve(process.cwd(),"scripts/cv-compare.py"),baseline.pdf,abs,output],{timeout:30000,maxBuffer:1024*1024,env:{...process.env,PYTHONIOENCODING:"utf-8"}});
+      }
+    }
+    const bytes = fs.readFileSync(output);
     return new Response(new Uint8Array(bytes), {
       headers: {
         "Content-Type": "application/pdf",
@@ -377,9 +401,14 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
     return Response.json({ error: error instanceof Error ? error.message : "Impossible de lire les candidatures." }, { status: 500 });
   }
   if (!job) return Response.json({ error: "Candidature introuvable" }, { status: 404 });
+  if(job.v1Match) {
+    const taskDir=path.join(historyDirectory(profileId),"tasks");
+    const tasks=fs.existsSync(taskDir)?fs.readdirSync(taskDir).filter(name=>name.endsWith(".json")).map(name=>readJson(path.join(taskDir,name))).filter(Boolean).sort((a:any,b:any)=>Date.parse(b.createdAt)-Date.parse(a.createdAt)):[];
+    job=projectV1JobScores(job,tasks,inputVersion.id) as Job;
+  }
   const locale=requestUiLocale(req,body.uiLocale);
   const material=["fr","en"].includes(String(body.applicationLanguage)) ? String(body.applicationLanguage) : profileCvOptions(profileId).language;
-  const generationKey=JSON.stringify(["tailored-cv-v2-draft-review",operationKey("cv",{jobId:job.id,applicationLanguage:material},inputVersion,[job])]);
+  const generationKey=JSON.stringify(["tailored-cv-v3-role-basis",operationKey("cv",{jobId:job.id,applicationLanguage:material},inputVersion,[job])]);
   const generationFile=path.join(historyDirectory(profileId),"cv-generations",inputVersion.id,encodeURIComponent(job.id)+"-"+material+".json");
 
   const encoder = new TextEncoder();
@@ -432,7 +461,7 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
           onMetrics:m=>{assessmentMetrics=m;},
         });
         const changes=cleanArray(payload.change_notes),now=new Date().toISOString();
-        const draft:TailoredDraft={id:draftId,status:"pending",baseVersionId:inputVersion.id,language:material,notesLocale:locale,revision,createdAt:now,updatedAt:now,payload,...rendered,changes:changes.length?changes:job!.cv?.changes??[],baselinePresentationScore:comparison.assessment.baselineScore,assessment:comparison.assessment};
+        const draft:TailoredDraft={matchBasis:job!.v1Match?structuredClone(job!.v1Match as Record<string,any>):undefined,id:draftId,status:"pending",baseVersionId:inputVersion.id,language:material,notesLocale:locale,revision,createdAt:now,updatedAt:now,payload,...rendered,changes:changes.length?changes:job!.cv?.changes??[],baselinePresentationScore:comparison.assessment.baselineScore,assessment:comparison.assessment};
         const latestStore=readStore(profileId),latestJob=latestStore.jobs.find(item=>item.id===body.id);
         if(!latestJob)return fail("La candidature a été supprimée pendant la génération ; le PDF de brouillon est conservé dans output.");
         (latestJob as any).cvDraft=draft;writeStore(profileId,latestStore);

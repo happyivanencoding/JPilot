@@ -165,7 +165,7 @@ private fun aiProgressTask(state: PilotState, kind: String, jobId: String?): JSO
     val caption=when {
         completed&&visible -> tr("已完成","Terminé","Completed")+" 100%"
         failed&&visible -> tr("未完成，请重试","Réessayez","Please retry")
-        active -> (if(taskKind=="search")task?.text("label")?.ifBlank {label}?:label else label)+"  ≈${(progress*100).roundToInt()}%"
+        active -> (if(taskKind=="search")task?.text("label")?.ifBlank {label}?:label else label)+"  ${(progress*100).roundToInt()}%"
         else -> label
     }
     Button(onClick={clickedAt=System.currentTimeMillis();finishedAt=0;now=clickedAt;onClick()},modifier=modifier.fillMaxWidth().heightIn(min=48.dp),enabled=enabled&&!active,shape=RoundedCornerShape(8.dp),

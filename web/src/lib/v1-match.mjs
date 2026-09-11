@@ -105,7 +105,7 @@ export function enrichOffersWithFastMatch(candidate,config,offers){
 export function deepMatchPrompt({candidate,offer,fastMatch,jobIntelligence,language='en'}){
  return `You are a practical career guide assessing ONE real role for this candidate. Use the original CV, not assumptions about nationality, names or job titles. No tools, applications or invented achievements.
 OUTPUT LANGUAGE: ${language}.
-Give one coherent job-match score on a 0-100 scale. The supplied fastMatch is a lexical retrieval hint ONLY, not the final score. English CVs and French vacancies must be compared by meaning, not shared word counts.
+Give one coherent job-match score on a 0-100 scale. The supplied fastMatch is a lexical retrieval hint ONLY, not the final score. English CVs and French vacancies must be compared by meaning, not shared word counts. Never infer language proficiency from the language of the CV, UI, name or nationality. Only compare a documented proficiency with an explicit job-language requirement; unknown proficiency is a question, not a failure.
 Rubric: role/domain relevance 0-30, relevant duties and transferable experience 0-30, tools and required languages 0-20, level/experience and actual stated requirements 0-20. Give these components in score_components and current_score equal to their sum.
 Anchors: below 40 = major role/domain gaps; 40-59 = a stretch with important experience/skill gaps; 60-74 = a credible junior candidate with relevant education and transferable experience; 75-89 = a strong direct fit; 90-100 = unusually complete match. A junior posting does NOT require a senior's experience; association/student projects count as transferable work, not senior ownership. Do not invent a floor or award points just to please the user. A clearly senior/specialised unrelated role can legitimately score below 60.
 cv_potential_score is an estimate after selecting and expressing EXISTING facts better, current_score to at most current_score+18. Better writing cannot add missing years, specialist qualifications or language fluency. capability_potential_score may reflect actually learning later but is not the visible CV-edit score.
@@ -128,7 +128,7 @@ export function normalizeDeepMatch(result,fastMatch){
   const list=(value,limit)=>Array.isArray(value)?value.filter(x=>x&&typeof x==='object').slice(0,limit):[];
   const strings=(value,limit)=>Array.isArray(value)?value.map(x=>String(x||'').trim()).filter(Boolean).slice(0,limit):[];
   return {
-    currentScore:current,scoringVersion:rubric?"role-fit-2":"legacy-fast",
+    currentScore:current,scoreComponents:rubric ? {...rubric} : null,scoringVersion:rubric?"role-fit-2":"legacy-fast",
     roleSummary:clean(result?.role_summary,1800),
     responsibilities:strings(result?.responsibilities,6),
     requirements:list(result?.requirements,8).map(x=>({title:clean(x.title,220),kind:x.kind==='must'?'must':'nice',why:clean(x.why,900)})).filter(x=>x.title),
@@ -160,7 +160,8 @@ export function searchQueryFromAnalysis(analysis,config={}){
  * @param {Record<string, any>} assessment
  * @returns {Record<string, any>} */
 export function v1CvAssessment(job, assessment={}) {
-  const match=job?.v1Match;
+  const match=job?.cvDraft?.matchBasis || job?.v1Match;
+  if(assessment.scoringVersion==="role-fit-2-cv") return assessment;
   if(match?.currentScore==null || assessment.draftScore==null)return assessment;
   const baselineScore=Math.max(0,Math.min(100,Math.round(Number(match.currentScore))));
   const ceiling=Math.max(baselineScore,Math.min(100,Math.round(Number(match.cvPotentialScore ?? baselineScore))));
@@ -169,16 +170,21 @@ export function v1CvAssessment(job, assessment={}) {
 }
 
 export function matchScoreView(value={}) {
- const match=value.v1Match || value.deepMatch || value;
+ const match=value.cvDraft?.matchBasis || value.v1Match || value.deepMatch || value;
  const baseline=clamp(match.currentScore ?? value.fastMatch?.score);
- const ceiling=clamp(Math.max(baseline,Number(match.cvPotentialScore ?? baseline)));
- const current=clamp(Math.max(baseline,Math.min(ceiling,Number(match.displayScore ?? baseline))));
- return {current,potential:ceiling,baseline};
+ const forecast=clamp(Math.max(baseline,Number(match.cvPotentialScore ?? baseline)));
+ const current=clamp(Math.max(baseline,Math.min(forecast,Number(value.v1Match?.displayScore ?? match.displayScore ?? baseline))));
+ const assessment=value.cvDraft?.status!=='rejected' && value.cvDraft?.assessment?.draftScore!=null ? v1CvAssessment(value,value.cvDraft.assessment) : null;
+ const reviewed=!!assessment || !!value.cv?.file && value.cv?.presentationDelta!=null;
+ const potential=assessment ? assessment.draftScore : reviewed ? current : forecast;
+ return {current,potential,baseline,forecast,reviewed};
 }
 export function projectV1JobScores(job,tasks=[],versionId='') {
  if(!job.v1Match)return job;
+ const frozen=job.cvDraft?.matchBasis || job.cv?.matchBasis;
+ if(frozen) job={...job,v1Match:{...frozen,displayScore:job.v1Match.displayScore ?? frozen.currentScore}};
  const latest=tasks.find(t=>t.kind==='deep_match'&&t.status==='completed'&&t.inputVersionId===versionId&&normalizeUrl(t.input?.url)===normalizeUrl(job.url)&&t.result?.deepMatch?.scoringVersion==='role-fit-2');
- if(latest && (!job.cvDraft?.baseVersionId || job.cvDraft.baseVersionId===versionId) && (!job.cv?.inputVersionId || job.cv.inputVersionId===versionId)) {
+ if(!frozen && latest && (!job.cvDraft?.baseVersionId || job.cvDraft.baseVersionId===versionId) && (!job.cv?.inputVersionId || job.cv.inputVersionId===versionId)) {
    const deep=latest.result.deepMatch;
    const gain=Math.max(0,Number(job.cv?.presentationDelta || 0));
    job={...job,v1Match:{...job.v1Match,currentScore:deep.currentScore,cvPotentialScore:deep.cvPotentialScore,displayScore:Math.min(deep.cvPotentialScore,deep.currentScore+gain),deepMatch:deep}};

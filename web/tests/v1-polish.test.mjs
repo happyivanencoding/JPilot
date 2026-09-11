@@ -31,7 +31,7 @@ test('final rubric understands fit independently of retrieval score without an a
  assert.equal(match.currentScore,72);assert.equal(match.cvPotentialScore,80);
  const weak=normalizeDeepMatch({...source,score_components:{role:8,duties:6,tools_languages:4,level:5},cv_potential_score:28},{score:35});
  assert.equal(weak.currentScore,23);assert.equal(weak.cvPotentialScore,28);
- assert.deepEqual(matchScoreView({deepMatch:match}),{baseline:72,current:72,potential:80});
+ assert.deepEqual(matchScoreView({deepMatch:match}),{baseline:72,current:72,potential:80,forecast:80,reviewed:false});
 });
 test('draft/header/card share the same baseline and capped upside; internal assessments are not rewritten',()=>{
  const job={v1Match:{currentScore:41,cvPotentialScore:49},cvDraft:{atsScore:85,assessment:{baselineScore:56,draftScore:76,delta:20}}};

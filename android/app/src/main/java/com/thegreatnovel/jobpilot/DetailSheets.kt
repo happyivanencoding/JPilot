@@ -134,7 +134,7 @@ import org.json.JSONArray
 @Composable fun TailoredCvDraftCard(job:JSONObject,state:PilotState,vm:JobPilotViewModel) {
     val draft=job.child("cvDraft");val assessment=JSONObject(draft.child("assessment").toString());val pending=draft.text("status")=="pending"
     val v1=job.child("v1Match")
-    if(v1.has("currentScore")&&assessment.has("draftScore")) {
+    if(v1.has("currentScore")&&assessment.has("draftScore")&&assessment.text("scoringVersion")!="role-fit-2-cv") {
         val current=v1.optInt("currentScore").coerceIn(0,100)
         val ceiling=v1.optInt("cvPotentialScore",current).coerceIn(current,100)
         val projected=(current+assessment.optInt("delta").coerceAtLeast(0)).coerceAtMost(ceiling)
@@ -148,7 +148,7 @@ import org.json.JSONArray
         if(assessment.has("draftScore")) Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f)){Hint(tr("当前主简历","CV actuel","Current master CV"));Text(assessment.text("baselineScore"),fontSize=29.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}
             Text("→",fontSize=20.sp,color=MaterialTheme.colorScheme.primary)
-            Column(Modifier.weight(1f)){Hint(if(v1.has("currentScore"))tr("这个版本预计","Estimation pour ce CV","Estimated with this CV")else tr("这个草稿","Ce brouillon","This draft"));Text(assessment.text("draftScore"),fontSize=29.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}
+            Column(Modifier.weight(1f)){Hint(if(v1.has("currentScore"))tr("岗位简历复核","CV revu","Reviewed role CV")else tr("这个草稿","Ce brouillon","This draft"));Text(assessment.text("draftScore"),fontSize=29.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}
             val delta=assessment.optInt("delta");Pill((if(delta>=0)"+" else "")+delta,warm=delta<0)
         }
         if(!v1.has("currentScore")) Hint(tr("“呈现匹配度”衡量这份简历是否把你已有的相关证据清楚地呈现给当前岗位；它不是录用概率，也不会改变正式岗位评分。","Le score mesure uniquement la présentation de vos preuves existantes pour ce poste ; ce n’est pas une probabilité d’embauche et il ne modifie pas le score officiel.","Presentation score measures how clearly existing evidence is shown for this role; it is not hiring probability and does not change the formal job score."))

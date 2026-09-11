@@ -30,3 +30,7 @@
 @keyframes jp-liquid-wave{from{transform:translateX(-4px) rotate(-8deg)}to{transform:translateX(3px) rotate(8deg)}}
 @media(prefers-reduced-motion:reduce){.jp-ai-button-fill:after{animation:none!important}}
 .jp-history-group{border:1px solid var(--jp-outline);border-radius:10px;background:var(--jp-surface);overflow:hidden}.jp-history-group summary{cursor:pointer;padding:14px;display:flex;align-items:center;gap:9px;font-weight:600}.jp-history-group summary:before{content:'›';font-size:20px;transition:transform .18s}.jp-history-group[open] summary:before{transform:rotate(90deg)}.jp-history-group summary small{margin-left:auto;color:var(--jp-muted);font-weight:400;white-space:nowrap}.jp-history-body{padding:0 10px 12px;display:grid;gap:12px}
+
+.jp-contract-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.jp-contract-grid .jp-chip{white-space:normal;text-align:center;min-height:42px}.jp-v1-swipe-card{border-radius:14px;flex-basis:min(292px,85vw)}
+
+.jp-v1-role-card.has-role-cv{background:color-mix(in srgb,var(--jp-primary-container) 44%,var(--jp-surface));border-color:var(--jp-primary)}.jp-role-cv-label{color:var(--jp-primary);font-weight:650;font-size:12px;line-height:18px}

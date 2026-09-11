@@ -9,7 +9,7 @@ import { workspaceRoot } from "@/lib/backend/workspace";
 import { getProfile, profileFile } from "@/lib/profile-context";
 import { atomicWriteWithBackup } from "@/lib/backend/files.mjs";
 import {compileGlobalPlan,globalPlanView,preservePresentationLanguage} from "@/lib/cv-global-plan.mjs";
-import {documentLanguage,contradictsDocumentLanguage} from "@/lib/language-contract.mjs";
+import {detectedDocumentLanguage, documentLanguage,contradictsDocumentLanguage} from "@/lib/language-contract.mjs";
 import { candidateVersion, loadCandidateVersion, readJson, writeJson, withProfileLock, resolvedIssues, normalizeAnalysis, applyEvidenceEdits } from "@/lib/mobile-state.mjs";
 
 export function historyDirectory(profileId: string) {
@@ -161,13 +161,14 @@ export async function renderCvPreview(profileId: string, draftId?: string, versi
   return { pdf, ...readJson(meta), draft, versionId:version.id, cvVersion:version.cvVersion };
 }
 
-export async function saveImportedCv(profileId:string, content:string, expectedVersionId:string, sourceLanguage:string, analysisLanguage:string) {
+export async function saveImportedCv(profileId:string, content:string, expectedVersionId:string, sourceLanguage:string, analysisLanguage:string, contractTypes?:string[]) {
   return withProfileLock(historyDirectory(profileId),()=>{
     const before=currentCandidateVersion(profileId);
     if(before.id!==expectedVersionId) throw new Error("Le CV a changé. Réessayez avec votre nouveau fichier.");
     const config=(yaml.load(fs.readFileSync(profileFile(profileId,"config"),"utf8")) || {}) as any;
-    config.cv={...config.cv,language:sourceLanguage,source_language:sourceLanguage};
+    config.cv={...config.cv,language:sourceLanguage,source_language:detectedDocumentLanguage(content) || sourceLanguage};
     config.display={...config.display,analysis_language:analysisLanguage};
+    if(contractTypes?.length) config.target_roles={...config.target_roles,contract_types:[...new Set(contractTypes)],contract_policy:"confirmed_only"};
     atomicWriteWithBackup(profileFile(profileId,"config"),yaml.dump(config));
     if(before.sources.cv.text!==content) atomicWriteWithBackup(profileFile(profileId,"cv"),content);
     const after=currentCandidateVersion(profileId);

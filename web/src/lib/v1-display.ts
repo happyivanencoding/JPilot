@@ -12,7 +12,10 @@ export async function prepareV1Display(profileId:string, locale:string, snapshot
   const analysis=snapshot.analysis && !snapshot.analysis.stale ? await localizeDisplay(profileId,locale,snapshot.analysis,'analysis',{retry}) : null;
   let analysisReady=!!analysis && !analysis.localization?.pending && snapshot.v1.analysisState==='completed';
   const localizeBatch=async(group:any)=>{
-    const offers=group.offers || [];
+    const offers=(group.offers || []).map((offer:any)=>{
+      const saved=(snapshot.jobs || []).find((job:any)=>job.url===offer.url);
+      return saved?.v1Match?.deepMatch ? {...offer,deepMatch:saved.v1Match.deepMatch} : offer;
+    });
     const deepReady=offers.filter((offer:any)=>offer.deepMatchState==='ready');
     const localized=await localizeDisplay(profileId,locale,{offers:deepReady},'discovery',{retry});
     const ready=completedOfferBatch(offers) && !localized.localization?.pending;
@@ -65,10 +68,11 @@ export async function prepareV1Display(profileId:string, locale:string, snapshot
   const format=(offer:any)=>{
     const saved=(snapshot.jobs || []).find((job:any)=>job.url===offer.url && job.v1Match);
     const match=saved?matchScoreView(saved):matchScoreView(offer);
-    return {...friendlyOffer(offer),matchScore:match,
+    const roleCv=saved?.cvDraft?.status==='pending' ? {jobId:saved.id,status:"pending",draftId:saved.cvDraft.id} : saved?.cv?.file ? {jobId:saved.id,status:"accepted"} : saved && tasks.some(t=>t.kind==='cv'&&t.input?.jobId===saved.id&&['queued','running','reconciling'].includes(t.status)) ? {jobId:saved.id,status:"generating"} : null;
+    return {...friendlyOffer(offer),matchScore:match,roleCv,
       deepMatch:offer.deepMatch?{...friendlyOffer(offer).deepMatch,currentScore:match.current,cvPotentialScore:match.potential}:offer.deepMatch};
   };
-  result.discovery.offers=result.discovery.offers.map(format);
+  result.discovery.offers=result.discovery.offers.map(format).sort((a:any,b:any)=>b.matchScore.current-a.matchScore.current);
   result.discovery.history=result.discovery.history.map((group:any)=>({...group,offers:group.offers.map(format)}));
   result.localization={locale,pending:!analysisReady && !!snapshot.analysis,failed:!!analysis?.localization?.failed};
   return result;

@@ -18,8 +18,8 @@ import kotlin.math.exp
 import kotlin.math.min
 import kotlin.math.sin
 
-internal fun cvWaterFraction(elapsedSeconds: Double, completed: Boolean): Float =
-    if (completed) 1f else (.96 * (1 - exp(-3 * elapsedSeconds.coerceAtLeast(0.0) / 55))).coerceIn(.04, .96).toFloat()
+internal fun cvWaterFraction(elapsedSeconds: Double, completed: Boolean, targetSeconds: Double = 55.0): Float =
+    if (completed) 1f else (.96 * (1 - exp(-3 * elapsedSeconds.coerceAtLeast(0.0) / targetSeconds.coerceAtLeast(1.0)))).coerceIn(.04, .96).toFloat()
 
 /** Estimated progress; server readiness is the only route to 100%. */
 @Composable
@@ -36,7 +36,7 @@ fun rememberCvWaterLevel(progress: JSONObject, paused: Boolean): Float {
         }
     }
     val end = if (paused) runCatching { Instant.parse(progress.text("updatedAt")).toEpochMilli() }.getOrDefault(now) else now
-    val target = cvWaterFraction((end - created).coerceAtLeast(0L) / 1000.0, status == "completed")
+    val target = cvWaterFraction((end - created).coerceAtLeast(0L) / 1000.0, status == "completed", progress.child("estimate").optDouble("targetSeconds",55.0))
     val level by animateFloatAsState(target, tween(if (status == "completed") 380 else 160), label = "cv-water-level")
     return level
 }

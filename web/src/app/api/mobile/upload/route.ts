@@ -1,3 +1,4 @@
+import {profileFile} from "@/lib/profile-context";
 import {readJson,writeJson,withProfileLock} from "@/lib/mobile-state.mjs";
 import {requestUiLocale,uiLocale} from "@/lib/language-contract.mjs";
 import fs from "node:fs";
@@ -28,9 +29,13 @@ export async function POST(req: Request) {
     const destination = path.join(directory, "source" + extension);
     fs.writeFileSync(destination, Buffer.from(await file.arrayBuffer()));
     const autoImport=process.env.JOBPILOT_V1_PREVIEW === "1";
+    const rawContracts=form.get("contractTypes");
+    const contractTypes=rawContracts==null ? undefined : JSON.parse(String(rawContracts));
+    if(contractTypes!==undefined && (!Array.isArray(contractTypes) || !contractTypes.length || contractTypes.some((type:unknown)=>!['Stage','Alternance','CDI','CDD'].includes(String(type))))) throw new Error("Choisissez au moins un type de contrat.");
+    if(autoImport && !fs.readFileSync(profileFile(profileId,"cv"),"utf8").trim() && !contractTypes?.length) throw new Error("Choisissez au moins un type de contrat avant votre CV.");
     const sourceLanguage=["en","fr"].includes(String(form.get("sourceLanguage"))) ? String(form.get("sourceLanguage")) : "en";
     const analysisLanguage=uiLocale(form.get("analysisLanguage") || requestUiLocale(req));
-    const task = await startMobileTask(profileId, {kind:"ingest",filename:path.basename(file.name),uiLocale:requestUiLocale(req),autoImport,sourceLanguage,analysisLanguage,silent:autoImport}, destination);
+    const task = await startMobileTask(profileId, {kind:"ingest",filename:path.basename(file.name),uiLocale:requestUiLocale(req),autoImport,sourceLanguage,analysisLanguage,contractTypes,silent:autoImport}, destination);
     if(autoImport) await withProfileLock(mobileDirectory(profileId),()=>writeJson(path.join(mobileDirectory(profileId),"journey.json"),{completed:false,ingestTaskId:task.id,query:"",searchTaskId:null}));
     if(task.reused && directory) fs.rmSync(directory,{recursive:true,force:true});
     return Response.json(taskView(task,readCandidatureStore(profileId).jobs,true,requestUiLocale(req)), { status: task.status === "completed" ? 200 : 202 });

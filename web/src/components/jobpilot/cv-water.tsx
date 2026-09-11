@@ -19,7 +19,7 @@ export function useCvWaterProgress(progress:Json, enabled:boolean, paused:boolea
   },[enabled,paused,status,progress.id,progress.createdAt]);
   const start=Date.parse(progress.createdAt || "")||started.current;
   const end=paused?(Date.parse(progress.updatedAt || "")||now):now;
-  return Math.round(estimatedProgress(Math.max(0,(end-start)/1000),status,55)*100);
+  return Math.round(estimatedProgress(Math.max(0,(end-start)/1000),status,Number(progress.estimate?.targetSeconds)||55)*100);
 }
 
 export function CvAnalysisWater({percent,paused,complete}:{percent:number;paused:boolean;complete:boolean}) {

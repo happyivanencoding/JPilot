@@ -61,7 +61,7 @@ test('preview auth rejects anonymous, cross-profile and forged admin headers',()
 test('upload commits facts automatically then analyses only that profile, without a raw-text confirmation result',async()=>{
   const file=path.join(mobileDirectory(a.profileId),'uploads','synthetic','source.txt');fs.mkdirSync(path.dirname(file),{recursive:true});
   fs.writeFileSync(file,'Yuki Tanaka\nMSc International Business. Export sales support and market research.\nLooking for a first full-time business development role.');
-  const task=await startMobileTask(a.profileId,{kind:'ingest',filename:'synthetic.txt',autoImport:true,sourceLanguage:'en',analysisLanguage:'zh',silent:true},file);
+  const task=await startMobileTask(a.profileId,{kind:'ingest',filename:'synthetic.txt',autoImport:true,sourceLanguage:'fr',analysisLanguage:'zh',contractTypes:['Stage','Alternance'],silent:true},file);
   await waitFor(()=>{const t=readMobileTask(a.profileId,task.id);if(t.status==='failed')throw new Error(t.error);return t.status==='completed'&&t;});
   const done=readMobileTask(a.profileId,task.id);
   assert.equal(done.result.imported,true);assert.equal(done.result.proposal,undefined);
@@ -75,6 +75,10 @@ test('upload commits facts automatically then analyses only that profile, withou
   version=currentCandidateVersion(a.profileId);analysis=currentAnalysis(a.profileId,version,listMobileTasks(a.profileId));
   assert.equal(analysis.stale,false);assert.equal(analysis.outputLocale,'en');
   assert.match(version.sources.config.text,/analysis_language: zh/);
+  assert.match(version.sources.config.text,/source_language: en/);
+  assert.match(version.sources.config.text,/language: fr/);
+  assert.match(version.sources.config.text,/contract_types:[\s\S]*Stage[\s\S]*Alternance/);
+  assert.match(version.sources.config.text,/contract_policy: confirmed_only/);
   assert.equal(version.sources.notes.text,'');
 });
 const base=()=>({profile:{id:a.profileId,name:'Yuki Tanaka'},analysis,cvState:{versionId:version.id},v1:{analysisState:'completed',backgroundActive:false},discovery:{offers:[],history:[]}});

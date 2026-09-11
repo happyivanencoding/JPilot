@@ -243,7 +243,7 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
         const proposal = result.stdout.trim();
         if (!proposal) throw new Error("Aucun texte extrait.");
         task.result = task.input.autoImport === true
-          ? {...await saveImportedCv(task.profileId,proposal,String(task.inputVersionId),String(task.input.sourceLanguage),String(task.input.analysisLanguage)),filename:task.input.filename}
+          ? {...await saveImportedCv(task.profileId,proposal,String(task.inputVersionId),String(task.input.sourceLanguage),String(task.input.analysisLanguage),Array.isArray(task.input.contractTypes)?task.input.contractTypes.map(String):undefined),filename:task.input.filename}
           : { proposal, filename: task.input.filename, confirmed: false };
         task.phase = "Aperçu prêt. Confirmation requise avant de remplacer le CV.";
       } catch (e) {
@@ -463,7 +463,7 @@ export async function startMobileTask(profileId: string, input: Record<string, u
     if(kind === "ingest" && uploadPath) {
       const bytes=fs.readFileSync(uploadPath);
       const previous=tasks.find(t=>t.kind === "ingest" && t.uploadSource && ["queued","running","reconciling","completed"].includes(t.status)
-        && t.input.autoImport===input.autoImport && t.input.sourceLanguage===input.sourceLanguage && t.input.analysisLanguage===input.analysisLanguage
+        && t.input.autoImport===input.autoImport && t.input.sourceLanguage===input.sourceLanguage && t.input.analysisLanguage===input.analysisLanguage && JSON.stringify(t.input.contractTypes)===JSON.stringify(input.contractTypes)
         && (!t.result?.imported || t.result.versionId===version.id) && fs.existsSync(t.uploadSource) && fs.statSync(t.uploadSource).size===bytes.length && fs.readFileSync(t.uploadSource).equals(bytes));
       if(previous)return {...previous,reused:true};
     }

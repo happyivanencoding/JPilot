@@ -64,7 +64,7 @@ class JobPilotApi(private val context: Context) {
             return JSONObject(String(checkedBytes(c), Charsets.UTF_8))
         } finally { c.disconnect() }
     }
-    fun upload(uri: Uri, profile: String): JSONObject {
+    fun upload(uri: Uri, profile: String, contractTypes: List<String>? = null): JSONObject {
         val resolver = context.contentResolver
         val filename = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
             if (cursor.moveToFirst()) cursor.getString(0) else null
@@ -78,7 +78,7 @@ class JobPilotApi(private val context: Context) {
         val safeName = filename.replace(Regex("[\r\n\"\\\\]"), "_")
         val prefix = "--$boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"$safeName\"\r\nContent-Type: application/octet-stream\r\n\r\n".toByteArray(Charsets.UTF_8)
         val preferences=context.getSharedPreferences("jobpilot",0)
-        val fields=listOf("sourceLanguage" to (preferences.getString("cvLanguage","en") ?: "en"),"analysisLanguage" to (preferences.getString("analysisLanguage",uiLocale) ?: uiLocale))
+        val fields=listOf("sourceLanguage" to (preferences.getString("cvLanguage","en") ?: "en"),"analysisLanguage" to (preferences.getString("analysisLanguage",uiLocale) ?: uiLocale)) + (contractTypes?.let { listOf("contractTypes" to org.json.JSONArray(it).toString()) } ?: emptyList())
         val suffix = (fields.joinToString("") { (name,value) -> "\r\n--$boundary\r\nContent-Disposition: form-data; name=\"$name\"\r\n\r\n$value" } + "\r\n--$boundary--\r\n").toByteArray()
         val c = connection("/api/mobile/upload?profileId=${Uri.encode(profile)}", profile, "POST")
         try {

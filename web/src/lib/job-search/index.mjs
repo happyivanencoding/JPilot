@@ -1,3 +1,4 @@
+import {bilingualRoleQueries,bilingualRoleRelevance} from "./role-vocabulary.mjs";
 import {candidateConstraints} from './candidate-constraints.mjs';
 import { searchJSearch } from './providers/jsearch.mjs';
 import { searchFranceTravail } from './providers/france-travail.mjs';
@@ -80,6 +81,7 @@ function franceTravailQueries(query, roles, hasExplicitIntent, contractTypes = [
     if (/crm/.test(text)) add(only === 'Stage' ? 'stage crm' : only === 'Alternance' ? 'alternance crm' : 'crm');
     add(only === 'Stage' ? 'stage communication' : only === 'Alternance' ? 'alternance communication' : 'chef de produit');
   }
+  for (const variant of bilingualRoleQueries(query)) add(variant);
   if (hasExplicitIntent) {
     const explicitTokens = tokens(query).filter(token => token !== 'cdi').slice(0, 3);
     if (explicitTokens.length) add(explicitTokens.join(' '));
@@ -95,6 +97,7 @@ export function buildProviderInput({ query, targetRoles = [], city = '', country
   const fallbackMode = clean(fallbackPolicy, 40).toLowerCase();
   const queries = [];
   if (hasExplicitIntent) queries.push(explicit);
+  for(const variant of bilingualRoleQueries(hasExplicitIntent ? explicit : roles[0] || explicit)) if(!queries.some(q=>normalize(q)===normalize(variant)))queries.push(variant);
   if (!hasExplicitIntent && fallbackMode === 'closest' && roles.some(role => /marketing|brand|crm|consumer insights|growth|e-commerce|product marketing/i.test(role))) {
     const only = contractTypes.length === 1 ? contractTypes[0] : '';
     const contractHint = only === 'Stage' ? 'internship' : only === 'Alternance' ? 'alternance apprenticeship' : only === 'CDD' ? 'fixed term' : 'junior';
@@ -168,10 +171,11 @@ function freshnessScore(days) {
 function contractSignals(value) {
   const text = normalize(value);
   const types = [];
-  if (/\b(?:alternance|apprentissage|apprentice|ausbildung)\b/.test(text)) types.push('Alternance');
+  if (/\b(?:alternance|alternant|alternante|apprentissage|apprentice|ausbildung)\b/.test(text)) types.push('Alternance');
   if (/\b(?:intern|internship|stage|stagiaire|praktik\w*)\b/.test(text)) types.push('Stage');
   if (/\bcdd\b|fixed[- ]term/.test(text)) types.push('CDD');
   if (/\bcdi\b|permanent contract/.test(text)) types.push('CDI');
+  if (/\b(?:freelance|freelancer|independant)\b/.test(text)) types.push('Freelance');
   return [...new Set(types)];
 }
 
@@ -232,6 +236,8 @@ function searchRelevance(offer, input) {
   const title = normalize(offer.title);
   const body = normalize(offer.description).slice(0, 5000);
   const phrases = input.targetRoles.map(normalize).filter(Boolean);
+  const bilingual=bilingualRoleRelevance(input.hasExplicitIntent?input.query:input.targetRoles.join(' '),offer.title);
+  if(bilingual)return bilingual;
   // A concrete search such as "fixed income quant" must not be diluted by every
   // long-term profile direction (e.g. an AI Product Engineer target). Profile
   // targets are the fallback only when the user used the generic "based on my CV" search.

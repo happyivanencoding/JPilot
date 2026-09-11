@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.PersonOutline
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
+import androidx.compose.runtime.key
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -102,7 +103,8 @@ private data class GuideTab(val icon: ImageVector, val title: String, val summar
 @Composable
 fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
     val context=LocalContext.current
-    val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.upload(it) } }
+    var contracts by rememberSaveable(state.profileId) { mutableStateOf(state.snapshot.child("config").child("target_roles").strings("contract_types")) }
+    val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.upload(it, contracts) } }
     var languageChosen by rememberSaveable { mutableStateOf(true) }
     var email by rememberSaveable(state.loggedIn) { mutableStateOf("") }
     val focus=LocalFocusManager.current
@@ -128,16 +130,17 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
     }
     var stage by remember(state.profileId) { mutableStateOf(targetStage) }
     LaunchedEffect(targetStage) {
-        if(stage==3 && targetStage==4 && v1.optBoolean("analysisReady")) delay(650)
+        if((stage==3 && targetStage==4 && v1.optBoolean("analysisReady")) || (stage==5 && targetStage==6 && v1.optBoolean("offersReady"))) delay(650)
         stage=targetStage
     }
-    val progress=v1.child("cvProgress")
+    val progress=if(stage==5) v1.child("searchProgress") else v1.child("cvProgress")
     val cvFailed=progress.text("status")=="failed" || (!v1.optBoolean("analysisReady") && v1.optBoolean("presentationFailed"))
-    val waterLevel=if(stage==3) rememberCvWaterLevel(progress,cvFailed||state.error!=null) else 0f
+    val waveFailed=if(stage==5) progress.text("status")=="failed" || v1.optBoolean("presentationFailed") else cvFailed
+    val waterLevel=if(stage==3 || stage==5) key(stage) { rememberCvWaterLevel(progress,waveFailed||state.error!=null) } else 0f
     val displayName=state.snapshot.child("profile").text("name")
     Surface(Modifier.fillMaxSize(),color=MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
-        if(stage==3) CvAnalysisWater(waterLevel,cvFailed||state.error!=null||progress.text("status")=="completed")
+        if(stage==3 || stage==5) CvAnalysisWater(waterLevel,waveFailed||state.error!=null||progress.text("status")=="completed")
         AnimatedContent(targetState=stage,transitionSpec={fadeIn() togetherWith fadeOut()},label="first-steps") { page ->
             Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
                 Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
@@ -164,12 +167,19 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
                     2 -> {
                         Text(tr("从你的简历开始","Tout commence avec votre CV","It starts with your CV"),fontSize=29.sp,lineHeight=36.sp,fontWeight=FontWeight.SemiBold)
                         Hint(tr("看看你擅长什么，以及哪些工作值得一试。","Découvrez vos atouts et les postes à explorer.","See what you bring and which roles are worth exploring."))
-                        Text(tr("简历语言","Langue du CV","CV language"),fontWeight=FontWeight.SemiBold)
+                        Text(tr("你想找哪类机会？","Quel type d’opportunité ?","What are you looking for?"),fontWeight=FontWeight.SemiBold)
+                        listOf("Stage","Alternance","CDI","CDD").chunked(2).forEach { row ->
+                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                                row.forEach { type -> FilterChip(selected=type in contracts,onClick={contracts=if(type in contracts)contracts-type else contracts+type},modifier=Modifier.weight(1f),label={Text(product(type))}) }
+                            }
+                        }
+                        if(contracts.isEmpty()) Hint(tr("至少选择一项，可以多选。","Choisissez au moins une option, plusieurs sont possibles.","Select at least one. You can choose several."))
+                        Text(tr("求职简历语言","Langue du CV de candidature","Application CV language"),fontWeight=FontWeight.SemiBold)
                         JourneyLanguageChoices(state.cvLanguage,false) {vm.journeyLanguages(cvLanguage=it)}
                         Text(tr("我希望用这种语言看分析","Langue de mes conseils","My insights in"),fontWeight=FontWeight.SemiBold)
                         JourneyLanguageChoices(state.analysisLanguage) {vm.journeyLanguages(analysisLanguage=it)}
                         if(importFailed) Text(tr("这份文件暂时打不开，请换一份 PDF 或 Word。","Ce fichier ne s’ouvre pas. Essayez un autre PDF ou Word.","This file could not be opened. Try another PDF or Word file."),color=MaterialTheme.colorScheme.error)
-                        PrimaryButton(tr("选择简历","Choisir mon CV","Choose my CV"),!state.working) {picker.launch(arrayOf("application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain","text/markdown"))}
+                        PrimaryButton(tr("选择简历","Choisir mon CV","Choose my CV"),!state.working&&contracts.isNotEmpty()) {picker.launch(arrayOf("application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain","text/markdown"))}
                         Hint("PDF · Word · TXT · 12 MB")
                     }
                     3 -> {
@@ -180,7 +190,7 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
                         } else {
                             Hint(progress.text("label").ifBlank {tr("正在读取简历","Lecture de votre CV","Reading your CV")})
                             Spacer(Modifier.height(28.dp))
-                            Text(if(progress.text("status")=="completed") "100%" else "≈${(waterLevel*100).roundToInt()}%",fontSize=58.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary,modifier=Modifier.semantics {progressBarRangeInfo=ProgressBarRangeInfo(waterLevel,0f..1f)})
+                            Text(if(progress.text("status")=="completed") "100%" else "${(waterLevel*100).roundToInt()}%",fontSize=58.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary,modifier=Modifier.semantics {progressBarRangeInfo=ProgressBarRangeInfo(waterLevel,0f..1f)})
                             Hint(tr("你的优势与方向，即将浮现。","Vos atouts et vos pistes prennent forme.","Your strengths and directions are taking shape."))
                         }
                     }
@@ -203,23 +213,26 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
                     }
                     5 -> {
                         val empty=v1.text("searchState")=="completed"&&discovery.optInt("availableCount")==0
-                        AiProgressButton(state,"search",label=tr("搜索这个方向","Rechercher cette direction","Search this direction")){vm.retryV1()}
                         Text(if(empty)tr("这个方向暂时没有合适的岗位","Pas encore d’offre adaptée à cette piste","No suitable roles for this direction yet") else tr("为你挑选值得一试的工作","Une sélection qui vous correspond","Finding roles worth your time"),fontSize=29.sp,lineHeight=36.sp,fontWeight=FontWeight.SemiBold)
-                        if(!empty) Hint(tr("每份工作都会带上匹配分、你的优势和提升建议。","Chaque offre avec son match, vos atouts et vos prochaines actions.","Each role comes with your match, strengths and ways to improve."))
-                        if(v1.optBoolean("presentationFailed")) PrimaryButton(tr("再试一次","Réessayer","Try again"),!state.working) {vm.retryV1()}
-                        TextButton({chooseAgain=true}) {Text(tr("换个方向看看","Explorer une autre piste","Explore another direction"))}
+                        if(!empty && !waveFailed) {
+                            Hint(progress.text("label").ifBlank {tr("正在找岗位","Recherche des offres","Finding roles")})
+                            Spacer(Modifier.height(28.dp))
+                            Text(if(progress.text("status")=="completed") "100%" else "${(waterLevel*100).roundToInt()}%",fontSize=58.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary,modifier=Modifier.semantics {progressBarRangeInfo=ProgressBarRangeInfo(waterLevel,0f..1f)})
+                            Hint(tr("匹配、优势和建议，准备好后一起呈现。","Match, atouts et conseils arrivent ensemble.","Your match, strengths and insights arrive together."))
+                        }
+                        if(waveFailed) PrimaryButton(tr("再试一次","Réessayer","Try again"),!state.working) {vm.retryV1()}
+                        if(empty || waveFailed) TextButton({chooseAgain=true}) {Text(tr("换个方向看看","Explorer une autre piste","Explore another direction"))}
                         if(empty) TextButton({vm.completeV1FirstRun()}) {Text(tr("先进入首页","Aller à l’accueil","Go to Home"))}
                     }
                     else -> {
                         Text(tr("这几份工作，值得你看看。","Ces offres méritent votre attention.","These roles are worth a look."),fontSize=29.sp,lineHeight=36.sp,fontWeight=FontWeight.SemiBold)
+                        Hint(tr("左右滑动，点开查看匹配与提升建议。","Faites défiler, puis ouvrez une offre pour voir le match.","Swipe, then open a role to explore your fit."))
                         LazyRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp),contentPadding=PaddingValues(end=24.dp)) {
                             items(offers,key={it.text("url")}) {offer->FirstRunOfferCard(offer) {vm.completeV1FirstRun();vm.selectOffer(offer.text("url"))}}
                         }
-                        PrimaryButton(tr("继续探索","Continuer à explorer","Keep exploring")) {vm.completeV1FirstRun()}
                     }
                 }
                 state.error?.let {message->Text(message,color=MaterialTheme.colorScheme.error,fontSize=14.sp);if(page==3) TextButton({vm.retryV1()}) {Text(tr("重试","Réessayer","Retry"))}}
-                if(state.loggedIn) TextButton({languageChosen=false;vm.logout()},enabled=!state.working) {Text(tr("登出","Se déconnecter","Sign out"))}
             }
         }
     }
@@ -257,7 +270,6 @@ private fun FirstRunOfferCard(offer: JSONObject, onClick: () -> Unit) {
             }
             if (potential > score && score >= 0) Hint(tr("简历优化：$score → 预计 $potential/100", "CV : $score → ~$potential/100", "CV edits: $score → ~$potential/100"))
             Spacer(Modifier.height(4.dp))
-            Text(tr("点开看为什么适合、哪里还差一点", "Ouvrez pour voir le match et les écarts", "Open to see why it fits and what is missing"), fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
         }
     }
 }

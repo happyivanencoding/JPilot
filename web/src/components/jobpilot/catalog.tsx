@@ -44,11 +44,12 @@ function OfferCard({offer}:{offer:Json}) {
   const score=offer.matchScore?.current ?? deep.currentScore ?? fast.score;
   const strengths=rows(deep.strengths).length?rows(deep.strengths).map(x=>x.title):rows(fast.strengths).map(x=>x.title);
   const gaps=rows(deep.capabilityGaps).length?rows(deep.capabilityGaps).map(x=>x.title):rows(fast.gaps).map(x=>x.title);
-  return <button type="button" className="jp-v1-role-card jp-offer" data-testid="discovery-offer" onClick={()=>openOffer(String(offer.url))}>
+  return <button type="button" className={`jp-v1-role-card jp-offer${offer.roleCv?" has-role-cv":""}`} data-testid="discovery-offer" onClick={()=>openOffer(String(offer.url))}>
+    {offer.roleCv&&<span className="jp-role-cv-label">{offer.roleCv.status==="generating"?tr("岗位简历准备中","CV en préparation","Preparing role CV"):offer.roleCv.status==="pending"?tr("岗位简历已就绪 · 待确认","CV prêt · à confirmer","Role CV ready · review"):tr("已保留岗位简历","CV ciblé conservé","Role CV saved")}</span>}
     <div className="jp-row"><div className="jp-grow"><div className="jp-company">{offer.company}</div><h2>{offer.title}</h2></div><Match100 value={score}/></div>
     <Hint>{[offer.location,offer.contractType!=="unknown"?product(offer.contractType):""].filter(Boolean).join(" · ")}</Hint>
     <div className="jp-v1-signal-row">{strengths.slice(0,2).map((x,i)=><span className="jp-v1-plus" key={`s-${i}`}>+ {x}</span>)}{gaps.slice(0,2).map((x,i)=><span className="jp-v1-minus" key={`g-${i}`}>− {x}</span>)}</div>
-    <Hint>{offer.deepMatchState==="loading"?tr("正在补充岗位匹配…","Match détaillé en cours…","Adding detailed match…"):deep.cvPotentialScore>deep.currentScore?tr(`简历优化：${score} → 预计 ${deep.cvPotentialScore}/100`,`CV : ${score} → ~${deep.cvPotentialScore}/100`,`CV edits: ${score} → ~${deep.cvPotentialScore}/100`):tr("点开看详细匹配","Ouvrez pour voir le match détaillé","Open for the detailed match")}</Hint>
+    <Hint>{offer.deepMatchState==="loading"?tr("正在补充岗位匹配…","Match détaillé en cours…","Adding detailed match…"):offer.matchScore?.reviewed?tr(`岗位简历复核：${offer.matchScore.baseline} → ${offer.matchScore.potential}/100`,`CV revu : ${offer.matchScore.baseline} → ${offer.matchScore.potential}/100`,`Reviewed CV: ${offer.matchScore.baseline} → ${offer.matchScore.potential}/100`):deep.cvPotentialScore>deep.currentScore?tr(`简历优化：${score} → 预计 ${deep.cvPotentialScore}/100`,`CV : ${score} → ~${deep.cvPotentialScore}/100`,`CV edits: ${score} → ~${deep.cvPotentialScore}/100`):tr("点开看详细匹配","Ouvrez pour voir le match détaillé","Open for the detailed match")}</Hint>
   </button>;
 }
 export function OffersPage() {

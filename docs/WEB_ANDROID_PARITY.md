@@ -1,5 +1,12 @@
 # JobPilot Web 0.6.1 — Android-aligned product
 
+## 2026-09-11 V1 0.4.6 / Web 0.6.6 — first-run and role-CV continuity
+
+Implemented in the independent V1 feature branch: required contract choice at upload; shared full-screen CV/search waves without approximate signs; simpler first-result deck; unified language settings with optional independent insights language; bilingual role recall without a document-language filter; prominent role-CV card/detail entries; frozen match basis and consistently reviewed draft scores; real-PDF change overlays with original-version comparison. Android 0.4.6/code20 and Web 0.6.6 remain paired.
+
+Local Node/PDF/build/browser gates have passed; live rollout and phone receipts are recorded separately in `docs/V1_0_4_6_RELEASE.md`. The controlled-model browser check is not a live AI acceptance. Preserve main/Yifeng and existing private data.
+
+
 ## 2026-09-11 V1 0.4.5 rollout and phone email-entry fix
 
 - User's screenshot showed the old invitation/simulated-Google UI submitting to the new email-only backend. Device inspection confirmed **0.4.4/code18**, while the existing V1 deploy had already completed for **081d26e603ae4f7f96a31da327c344952b9998c9** (`V1_DEPLOY_OK`, authenticated session/profile/logout, model-key and search-provider gates passed). This was an incomplete Android rollout, not another email form or PDF-parser defect.

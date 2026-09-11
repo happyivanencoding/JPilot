@@ -33,6 +33,7 @@ import java.io.File
 @Composable fun CvPreviewDialog(state: PilotState,vm: JobPilotViewModel) {
     val preview = state.cvPreview
     val tailored=preview?.tailoredJobId!=null
+    var compareMode by remember(preview?.tailoredJobId,preview?.draftId) { mutableIntStateOf(0) }
     var tab by remember(preview?.draftId,preview?.files,tailored) { mutableIntStateOf(if(preview?.draftId != null && !tailored) 1 else 0) }
     Dialog(onDismissRequest = vm::closePreview,properties = DialogProperties(usePlatformDefaultWidth = false,decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize(),color = MaterialTheme.colorScheme.background) {
@@ -45,7 +46,17 @@ import java.io.File
                 preview?.meta?.let { LocalizationNotice(it.child("localization"),vm::retryLocalization) }
                 preview?.meta?.strings("warnings")?.forEach { Text(product(it),Modifier.padding(horizontal = 16.dp,vertical = 6.dp),fontSize = 12.sp,color = MaterialTheme.colorScheme.error) }
                 if(state.previewLoading) Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally,verticalArrangement = Arrangement.spacedBy(12.dp)) { CircularProgressIndicator(Modifier.size(28.dp)); Hint(tr("正在打开简历","Ouverture du CV","Opening your CV")) } }
-                else preview?.files?.getOrNull(tab)?.let { file -> NativePdf(file,Modifier.weight(1f).fillMaxWidth()) }
+                else (if(compareMode>0) preview?.comparisonFiles?.getOrNull(compareMode-1) ?: preview?.files?.getOrNull(tab) else preview?.files?.getOrNull(tab))?.let { file -> NativePdf(file,Modifier.weight(1f).fillMaxWidth()) }
+                if(tailored) Column(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=6.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                    OutlinedButton({if(compareMode==0){compareMode=1;vm.loadCvComparison()}else compareMode=0},Modifier.fillMaxWidth().testTag("compare-role-cv"),enabled=!state.previewLoading) {Text(if(compareMode==0)tr("对比原简历 · 高光改动","Comparer au CV original · surligner","Compare original · highlight changes")else tr("关闭对比","Fermer la comparaison","Close comparison"))}
+                    if(compareMode>0) {
+                        Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                            FilterChip(compareMode==1,{compareMode=1;vm.loadCvComparison()},label={Text(tr("高光改动","Modifications","Changes"))})
+                            FilterChip(compareMode==2,{compareMode=2;vm.loadCvComparison()},label={Text(tr("原简历","CV original","Original CV"))})
+                        }
+                        Hint(tr("绿色：新增文字 · 黄色：改写。不是新增经历。","Vert : texte ajouté · jaune : reformulé. Pas de nouvelles expériences.","Green: added wording · yellow: rewritten. Not new experience."))
+                    }
+                }
                 if(tailored && preview?.draftId != null) {
                     val assessment=preview.meta.child("assessment")
                     Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {

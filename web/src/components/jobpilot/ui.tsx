@@ -34,7 +34,7 @@ export function AiProgressButton({taskKind,jobId,offerUrl,children,kind="primary
   const start=clickedAt||Date.parse(task?.createdAt||"")||now;
   const elapsed=Math.max(0,((finishedAt||now)-start)/1000);
   const pct=Math.round(estimatedProgress(elapsed,visible?status:"",Number(task?.estimate?.targetSeconds||90))*100);
-  const label=completed&&visible?<>{tr("已完成","Terminé","Completed")} 100%</>:failed&&visible?tr("未完成，请重试","Réessayez","Please retry"):active?<>{taskKind==="search"?task?.label||children:children} <span className="jp-ai-percent">≈{pct}%</span></>:children;
+  const label=completed&&visible?<>{tr("已完成","Terminé","Completed")} 100%</>:failed&&visible?tr("未完成，请重试","Réessayez","Please retry"):active?<>{taskKind==="search"?task?.label||children:children} <span className="jp-ai-percent">{pct}%</span></>:children;
   return <button type="button" {...props} onClick={e=>{setClickedAt(Date.now());setNow(Date.now());setFinishedAt(0);onClick?.(e);}} className={`jp-button ${kind} jp-ai-button ${visible?"liquid":""}${failed&&visible?" failed":""} ${className}`} disabled={disabled||busy||active} aria-busy={active||undefined} style={{...props.style,"--jp-ai-progress":`${pct}%`} as CSSProperties}>
     {visible&&<span className="jp-ai-button-fill" aria-hidden="true"/>}<span className="jp-ai-button-label">{label}</span>
   </button>;

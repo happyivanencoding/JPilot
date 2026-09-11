@@ -25,7 +25,7 @@ export function applicationLanguage(config={}, cv='') {
   return APPLICATION_LANGUAGES.includes(config?.cv?.language) ? config.cv.language : detectedDocumentLanguage(cv) || 'fr';
 }
 export function documentLanguage(candidate) {
-  const config=yaml.load(candidate?.sources?.config?.text || '') || {};
+  const config=yaml.load(candidate?.sources?.config?.text || '{}') || {};
   return APPLICATION_LANGUAGES.includes(config?.cv?.source_language) ? config.cv.source_language : detectedDocumentLanguage(candidate?.sources?.cv?.text) || applicationLanguage(config);
 }
 export function explanationDirective(locale) {

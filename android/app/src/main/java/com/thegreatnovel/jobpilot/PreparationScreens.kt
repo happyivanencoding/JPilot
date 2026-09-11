@@ -111,6 +111,7 @@ import java.time.ZoneOffset
     val needsCv=state.snapshot.child("access").optBoolean("needsCv")
     val jobs=state.snapshot.objects("jobs")
     val directions=state.snapshot.child("v1").objects("careerDirections")
+    var separateInsights by remember(state.profileId) { mutableStateOf(state.analysisLanguage!=state.language) }
     LazyColumn(Modifier.fillMaxSize().imePadding().testTag("profile-content"),contentPadding = PaddingValues(22.dp),verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item { SectionTitle(if(needsCv)tr("从你的简历开始","Commençons par votre CV","Start with your CV")else tr("我的","Moi","My"),if(needsCv)tr("先上传一份简历，JobPilot 才能建立你的个人档案。","Importez d’abord votre CV pour créer votre dossier personnel.","Upload a CV first so JobPilot can build your personal profile.")else state.snapshot.child("profile").text("name")) }
         item { GlassCard(accent = true) {
@@ -150,14 +151,23 @@ import java.time.ZoneOffset
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { directions.forEach { direction -> FilterChip(false,{roles=direction.text("title");preferences=true},label={Text(direction.text("title"),maxLines=1)}) } }
         } }
         item { GlassCard {
-            Text(tr("默认简历语言","Langue par défaut du CV","Default CV language"),fontWeight=FontWeight.SemiBold)
-            Hint(tr("新生成的求职材料使用这种语言。","Pour vos prochains documents de candidature.","For your next application documents."))
-            val material=state.snapshot.child("languageSettings").text("applicationLanguage",config.child("cv").text("language","fr"))
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                listOf("fr" to "Français","en" to "English").forEach { (key,label) ->
-                    FilterChip(material==key,{vm.saveProfile(json("applicationLanguage" to key))},modifier=Modifier.testTag("material-language-$key"),enabled=!state.working,label={Text(label)})
-                }
+            Text(tr("语言","Langues","Languages"),fontWeight=FontWeight.SemiBold,fontSize=18.sp)
+            Text(tr("界面与分析","Application et conseils","App and insights"),fontWeight=FontWeight.Medium)
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) { listOf("zh" to "中文","fr" to "Français","en" to "English").forEach { (key,label) ->
+                FilterChip(state.language==key,{if(separateInsights)vm.appearance(language=key) else vm.experienceLanguage(key)},enabled=!state.working,modifier=Modifier.testTag("ui-language-$key"),label={Text(label)})
+            } }
+            TextButton({separateInsights=!separateInsights;if(!separateInsights)vm.changeAnalysisLanguage(state.language)},enabled=!state.working) {Text(tr("单独设置分析语言","Choisir une autre langue de conseils","Use a different insights language"))}
+            if(separateInsights) {
+                Hint(tr("分析与建议用这种语言，菜单保持不变。","Les conseils dans cette langue, sans changer les menus.","Your insights in this language, without changing menus."))
+                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf("en" to "English","fr" to "Français","zh" to "中文").forEach {(code,label)->FilterChip(state.analysisLanguage==code,{vm.changeAnalysisLanguage(code)},enabled=!state.working,label={Text(label)})}}
             }
+            HorizontalDivider()
+            Text(tr("求职简历","CV de candidature","Application CV"),fontWeight=FontWeight.Medium)
+            val material=state.snapshot.child("languageSettings").text("applicationLanguage",config.child("cv").text("language","fr"))
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) { listOf("fr" to "Français","en" to "English").forEach { (key,label) ->
+                FilterChip(material==key,{vm.saveProfile(json("applicationLanguage" to key))},modifier=Modifier.testTag("material-language-$key"),enabled=!state.working,label={Text(label)})
+            } }
+            Hint(tr("只决定新生成简历的语言，不限制岗位搜索。","La langue de vos prochains CV, pas un filtre sur les offres.","The language of new CVs, not a filter on job opportunities."))
         } }
         item { GlassCard {
             Row(verticalAlignment = Alignment.CenterVertically) { Text(tr("求职偏好","Mes critères","Job preferences"),Modifier.weight(1f),fontWeight = FontWeight.SemiBold); TextButton({ preferences = !preferences }) { Text(tr("编辑","Modifier","Edit")) } }
@@ -173,14 +183,8 @@ import java.time.ZoneOffset
             }
         } }
         item { GlassCard {
-            Text(tr("分析语言","Langue des conseils","Insights language"),fontWeight=FontWeight.SemiBold)
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf("en" to "English","fr" to "Français","zh" to "中文").forEach {(code,label)->FilterChip(selected=state.snapshot.child("languageSettings").text("analysisLanguage")==code,onClick={vm.changeAnalysisLanguage(code)},enabled=!state.working,label={Text(label)})}}
-        } }
-        item { GlassCard {
-            Text(tr("软件语言","Langue de l’application","App language"),fontWeight = FontWeight.SemiBold)
-            Hint(tr("用于菜单和按钮。","Pour les menus et les boutons.","For menus and buttons."))
+            Text(tr("外观","Apparence","Appearance"),fontWeight = FontWeight.SemiBold)
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("system" to tr("系统","Système","System"),"light" to tr("亮色","Clair","Light"),"dark" to tr("暗色","Sombre","Dark")).forEach { (key,label) -> FilterChip(state.theme == key,{ vm.appearance(theme = key) },label = { Text(label) }) } }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("zh" to "中文","fr" to "Français","en" to "English").forEach { (key,label) -> FilterChip(state.language == key,{ vm.appearance(language = key) },modifier=Modifier.testTag("ui-language-$key"),label = { Text(label) }) } }
         } }
 
         item { TextButton(vm::logout,Modifier.fillMaxWidth().testTag("sign-out")) {Text(tr("登出","Se déconnecter","Sign out"))} }

@@ -11,7 +11,7 @@ import {chromium} from 'playwright-core';
 const cv=process.argv[2];
 if(!cv||!fs.existsSync(cv))throw new Error('Pass an existing synthetic PDF path.');
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'jpilot-v1-water-'));
-const artifacts=path.resolve('../.career-ops-web/qa-v1-email-water');
+const artifacts=path.resolve(process.env.QA_ARTIFACT_DIR || '../.career-ops-web/qa-v1-email-water');
 fs.mkdirSync(artifacts,{recursive:true});
 let modelCalls=0;
 const server=http.createServer(async(req,res)=>{
@@ -40,6 +40,11 @@ try {
   await input.fill('water-student@example.com');await input.press('Enter');
   await page.getByTestId('onboarding-cv-input').waitFor({state:'attached'});
   const session=await (await context.request.get(base+'/api/v1/session')).json();
+  assert.equal(await page.getByTestId('onboarding-logout').count(),0);
+  assert.ok(await page.getByTestId('onboarding-upload').isDisabled());
+  await page.getByTestId('onboarding-contract-Stage').click();
+  assert.equal(await page.getByTestId('onboarding-upload').isDisabled(),false);
+  await page.screenshot({path:path.join(artifacts,'contract-before-cv.png')});
   await page.getByTestId('onboarding-cv-input').setInputFiles(cv);
   await page.getByTestId('cv-analysis-progress').waitFor({state:'visible'});
   await page.waitForTimeout(2200);
@@ -55,7 +60,9 @@ try {
   const own=await (await context.request.get(base+'/api/mobile?profileId='+session.profileId)).json();
   assert.match(own.cv,/Amina/i);assert.equal(own.v1.analysisReady,true);
   assert.equal(modelCalls,1);
-  await page.getByTestId('onboarding-logout').click();
+  assert.deepEqual(own.config.target_roles.contract_types,['Stage']);
+  assert.equal(await page.getByTestId('onboarding-logout').count(),0);
+  await context.request.post(base+'/api/v1/session',{data:{action:'logout'}});await page.goto(base);
   await input.waitFor({state:'visible'});assert.equal(await input.inputValue(),'');
   await page.screenshot({path:path.join(artifacts,'email-entry.png')});
   await input.fill(' WATER-STUDENT@EXAMPLE.COM ');await page.getByTestId('preview-login').click();
@@ -66,6 +73,10 @@ try {
   const restored=await (await context.request.get(base+'/api/mobile?profileId='+returned.profileId)).json();
   assert.equal(restored.cv,own.cv);assert.equal(restored.v1.journey.completed,true);assert.equal(modelCalls,1);
   await page.screenshot({path:path.join(artifacts,'returning-home.png')});
+  await page.goto(base+'/?tab=profile');
+  await page.getByTestId('material-language-fr').waitFor({state:'visible'});
+  assert.equal(await page.getByTestId('separate-insights').count(),1);
+  await page.screenshot({path:path.join(artifacts,'unified-languages.png')});
   await context.request.post(base+'/api/v1/session',{data:{action:'logout'}});await page.goto(base);
   await input.fill('another-student@example.com');await page.getByTestId('preview-login').click();
   await page.getByTestId('onboarding-cv-input').waitFor({state:'attached'});
@@ -74,7 +85,7 @@ try {
   const empty=await (await context.request.get(base+'/api/mobile?profileId='+next.profileId)).json();assert.equal(empty.cv,'');
   assert.equal((await context.request.get(base+'/api/mobile?profileId='+session.profileId)).status(),403);
   assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(artifacts,'result.json'),JSON.stringify({ok:true,model:'controlled local fixture, not live AI',realPdf: path.basename(cv),modelCalls,progressSamples:[first,second,100],emailPersistence:true,returningHome:true,newEmailEmpty:true,errors},null,2));
+  fs.writeFileSync(path.join(artifacts,'result.json'),JSON.stringify({ok:true,model:'controlled local fixture, not live AI',realPdf: path.basename(cv),modelCalls,contractsPersisted:['Stage'],progressSamples:[first,second,100],emailPersistence:true,returningHome:true,newEmailEmpty:true,errors},null,2));
   console.log('PASS: real PDF import + fixture analysis; animated full-screen water -> 100 -> directions; logout -> email; same email -> same CV/workspace; another email isolated.');
   console.log('Artifacts:',artifacts);
 } finally {

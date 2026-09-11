@@ -250,10 +250,11 @@ function useController(profileId: string, preview: boolean) {
     else notify(tr(`正在准备 ${offer.deepMatch?.cvPotentialScore ?? offer.fastMatch?.score ?? ""} 分版本，可继续浏览。`,`Préparation de votre version ciblée ; vous pouvez continuer à naviguer.`,`Preparing your targeted CV; you can keep browsing.`),task.id);
     return result;
   }), [execute, request, profileId, locale, refresh, navigate, notify, tr]);
-  const upload = useCallback(async (file: File, sourceLanguage="en", analysisLanguage:Locale=locale) => execute(async () => {
+  const upload = useCallback(async (file: File, sourceLanguage="en", analysisLanguage:Locale=locale, contractTypes?:string[]) => execute(async () => {
     if (!/\.(pdf|docx|txt|md)$/i.test(file.name) || !file.size || file.size > 12 * 1024 * 1024) throw new Error(tr("请选择 PDF、DOCX、TXT 或 MD，最大 12 MB。", "PDF, DOCX, TXT ou MD · 12 Mo maximum.", "Choose PDF, DOCX, TXT or MD, up to 12 MB."));
     const form = new FormData(); form.set("file", file);
     form.set("sourceLanguage",sourceLanguage); form.set("analysisLanguage",analysisLanguage);
+    if(contractTypes) form.set("contractTypes",JSON.stringify(contractTypes));
     if(preview) { setData(old=>({...empty(),profile:old.profile,languageSettings:old.languageSettings,v1:{importState:"queued",backgroundActive:true,journey:{completed:false}}})); setDetail(null); }
 
     const task = await request("/api/mobile/upload", { method: "POST", body: form });

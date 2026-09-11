@@ -166,10 +166,11 @@ private fun V1OfferCard(offer: JSONObject, onClick: () -> Unit) {
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().testTag("offer-${offer.text("url").hashCode()}"),
         shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surface,
+        color = if(offer.child("roleCv").length()>0) MaterialTheme.colorScheme.primaryContainer.copy(alpha=.42f) else MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if(offer.child("roleCv").length()>0) Pill(when(offer.child("roleCv").text("status")) {"generating"->tr("岗位简历准备中","CV en préparation","Preparing role CV");"pending"->tr("岗位简历已就绪 · 待确认","CV prêt · à confirmer","Role CV ready · review");else->tr("已保留岗位简历","CV ciblé conservé","Role CV saved")})
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(offer.text("company"), fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
@@ -185,6 +186,7 @@ private fun V1OfferCard(offer: JSONObject, onClick: () -> Unit) {
             val potential = deep.optInt("cvPotentialScore", score)
             Hint(when {
                 offer.text("deepMatchState") == "loading" -> tr("正在补充岗位匹配…", "Match détaillé en cours…", "Adding detailed match…")
+                offer.child("matchScore").optBoolean("reviewed") -> tr("岗位简历复核：${offer.child("matchScore").optInt("baseline",score)} → $potential/100","CV revu : ${offer.child("matchScore").optInt("baseline",score)} → $potential/100","Reviewed CV: ${offer.child("matchScore").optInt("baseline",score)} → $potential/100")
                 potential > score && score >= 0 -> tr("简历优化：$score → 预计 $potential/100", "CV : $score → ~$potential/100", "CV edits: $score → ~$potential/100")
                 else -> tr("点开看详细匹配", "Ouvrez pour voir le match détaillé", "Open for the detailed match")
             })
@@ -227,29 +229,29 @@ fun V1OfferDetailSheet(offer: JSONObject, state: PilotState, vm: JobPilotViewMod
                     V1MatchBadge(current)
                 }
             }
-            item { GlassCard { Text(tr("你的简历与这个岗位", "Votre CV pour ce poste", "Your CV for this role"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); V1PotentialRow(current, cvPotential) } }
+            item {
+                val hasVersion=savedJob?.child("cvDraft")?.text("id")?.isNotBlank()==true || savedJob?.child("cv")?.text("file")?.isNotBlank()==true
+                if(hasVersion&&savedJob!=null) PrimaryButton(tr("查看我的岗位版本","Voir ma version ciblée","View my role version"),!state.working) {vm.selectOffer(null);vm.selectJob(savedJob.text("id"),1)}
+                else AiProgressButton(state,"cv",label=tr("生成岗位版简历","Créer mon CV ciblé","Create my role CV"),offerUrl=offer.text("url"),modifier=Modifier.testTag("tailor-offer")){vm.tailorOffer(offer)}
+            }
+            item { GlassCard { Text(tr("你的简历与这个岗位", "Votre CV pour ce poste", "Your CV for this role"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); V1PotentialRow(offer.child("matchScore").optInt("baseline",current), cvPotential,offer.child("matchScore").optBoolean("reviewed")) } }
             item { GlassCard { Text(tr("这个岗位到底做什么？", "Que fait-on concrètement dans ce poste ?", "What does this role actually do?"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); Text(deep.text("roleSummary").ifBlank { offer.text("why") }, fontSize = 14.sp, lineHeight = 21.sp); if (offer.text("deepMatchState") == "loading") Hint(tr("正在后台补充更具体的职责和要求，你可以继续看。", "Les responsabilités détaillées arrivent en arrière-plan.", "Detailed responsibilities are being added in the background.")); deep.strings("responsibilities").take(3).forEach { Text("• $it", fontSize = 14.sp, lineHeight = 21.sp) } } }
             if (strengths.isNotEmpty()) item { GlassCard { Text(tr("你的加分点", "Vos points forts", "Your strengths"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); strengths.take(5).forEach { item -> Text("+ ${item.text("title")}", fontWeight = FontWeight.SemiBold); Hint(item.text("evidence")) } } }
             if (deep.objects("presentationGaps").isNotEmpty()) item { GlassCard { Text(tr("简历这样改", "Mieux présenter votre CV", "Sharpen your CV"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); deep.objects("presentationGaps").take(5).forEach { item -> Text(item.text("title"), fontWeight = FontWeight.SemiBold); Text(item.text("why"), fontSize = 14.sp, lineHeight = 21.sp) }; deep.text("cvPotentialReason").takeIf { it.isNotBlank() }?.let { Hint(it) } } }
             if (capabilityGaps.isNotEmpty()) item { GlassCard { Text(tr("值得补强的地方", "Vos axes de progrès", "Where to grow"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); capabilityGaps.take(6).forEach { item -> Text("− ${item.text("title")}", fontWeight = FontWeight.SemiBold); Text(item.text("why", item.text("reason")), fontSize = 14.sp, lineHeight = 21.sp); item.text("nextAction").takeIf { it.isNotBlank() }?.let { Hint(it) } } } }
             if (deep.objects("requirements").isNotEmpty()) item { GlassCard { Text(tr("岗位要求", "Exigences du poste", "Role requirements"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold); deep.objects("requirements").take(7).forEach { item -> Row { Text(item.text("title"), Modifier.weight(1f), fontWeight = FontWeight.SemiBold); Pill(if (item.text("kind") == "must") tr("核心", "Essentiel", "Core") else tr("加分", "Bonus", "Nice to have")) }; Text(item.text("why"), fontSize = 13.sp, lineHeight = 20.sp) }; if (deep.strings("tools").isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) { deep.strings("tools").forEach { Pill(it) } } } }
             item { TextButton({ runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(offer.text("url")))) } }, contentPadding = PaddingValues(0.dp)) { Text(tr("打开原始职位页", "Ouvrir l’annonce officielle", "Open original posting")); Icon(Icons.Rounded.OpenInNew, null, Modifier.padding(start = 6.dp).size(15.dp)) } }
-            item {
-                val hasVersion=savedJob?.child("cvDraft")?.text("id")?.isNotBlank()==true || savedJob?.child("cv")?.text("file")?.isNotBlank()==true
-                if(hasVersion&&savedJob!=null) PrimaryButton(tr("查看我的岗位版本","Voir ma version ciblée","View my role version"),!state.working) {vm.selectOffer(null);vm.selectJob(savedJob.text("id"),1)}
-                else AiProgressButton(state,"cv",label=tr("生成岗位版简历","Créer mon CV ciblé","Create my role CV"),offerUrl=offer.text("url"),modifier=Modifier.testTag("tailor-offer")){vm.tailorOffer(offer)}
-            }
             item { Spacer(Modifier.navigationBarsPadding()) }
         }
     }
 }
 
 @Composable
-private fun V1PotentialRow(current: Int, cvPotential: Int) {
+private fun V1PotentialRow(current: Int, cvPotential: Int, reviewed: Boolean = false) {
     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
         V1PotentialCell(tr("当前匹配","Match actuel","Current match"),current,Modifier.weight(1f))
         Text("→",color=MaterialTheme.colorScheme.onSurfaceVariant)
-        V1PotentialCell(tr("优化后预计","Après retouches, estimé","Estimated after edits"),cvPotential,Modifier.weight(1f))
+        V1PotentialCell(if(reviewed)tr("岗位简历复核","CV revu","Reviewed role CV")else tr("优化后预计","Après retouches, estimé","Estimated after edits"),cvPotential,Modifier.weight(1f))
     }
 }
 
@@ -267,7 +269,7 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
     val deep = match.child("deepMatch")
     val current = match.optInt("currentScore", match.optInt("displayScore", -1))
     val display = match.optInt("displayScore", current)
-    val cvPotential = match.optInt("cvPotentialScore", current).coerceAtLeast(current)
+    val cvPotential = job.child("matchScore").optInt("potential",match.optInt("cvPotentialScore", current)).coerceAtLeast(current)
     var status by rememberSaveable(job.text("id")) { mutableStateOf(job.text("status")) }
     var statusMenu by remember { mutableStateOf(false) }
     var nextAction by rememberSaveable(job.text("id")) { mutableStateOf(job.child("followup").text("nextAction")) }
@@ -290,10 +292,11 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
                 item { LocalizationNotice(job.child("localization"), vm::retryLocalization) }
                 when (tab) {
                     0 -> {
+                        if(job.child("cvDraft").text("status")=="pending" || job.child("cv").text("file").isNotBlank()) item {PrimaryButton(tr("查看你的岗位版简历","Voir votre CV ciblé","View your role CV")){tab=1}}
                         if (current >= 0) item {
                             GlassCard {
                                 Text(tr("这个岗位与你的距离", "Votre distance à ce poste", "Your distance from this role"), fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-                                V1PotentialRow(current, cvPotential)
+                                V1PotentialRow(current, cvPotential,job.child("matchScore").optBoolean("reviewed"))
                                 if (display > current) Hint(tr("你已采用岗位版 CV，当前展示分已包含真实的呈现改善。", "Votre score affiché inclut déjà l’amélioration du CV adopté.", "Your displayed score already includes the presentation gain from the accepted role CV."))
                             }
                         }
@@ -316,6 +319,7 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
                         item {
                             GlassCard {
                                 Text(tr("岗位版简历", "Votre CV pour cette offre", "Your CV for this role"), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                                if(pending) PrimaryButton(tr("查看你的岗位版简历","Voir votre CV ciblé","View your role CV"),!state.working){vm.openCvPreview(job=job,tailoredDraftId=draft.text("id"))}
                                 if (cv.text("file").isNotBlank()) OutlinedButton({ vm.openCvPreview(job = job) }, Modifier.fillMaxWidth()) { Text(tr("查看已保留的岗位版 CV", "Voir le CV ciblé conservé", "View saved role CV")) }
                                 if(!pending && (cv.text("file").isBlank() || cv.text("inputVersionId")!=masterId)) {
                                     if(cv.text("file").isNotBlank()) Hint(tr("简历有更新，可以生成新版。","Votre CV a changé. Vous pouvez créer une nouvelle version.","Your CV has changed. You can create a new version."))
