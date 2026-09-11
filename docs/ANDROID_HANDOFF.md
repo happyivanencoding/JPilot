@@ -1,5 +1,10 @@
 # JobPilot Android — implementation handoff
 
+## 2026-09-11 V1 0.4.3 final acceptance
+
+App `6b3093f063103eec5bc8528a8dd07f106b88ce70` is deployed to the isolated V1 site; Android `0.4.3/code17` final APK was installed successfully on Samsung. Real Yuki/Mehdi first-use, My logout/relogin, independent insight language, four fully prepared French role cards and Mehdi's rendered role PDF are verified. New targeted behavior regression: 9/9. V1 role-CV draft scores now use the same bounded gain as Keep, rather than displaying an unrelated writing-quality score. Full evidence/limits: `V1_STUDENT_MATCH_LOOP_2026-09-10.md`.
+
+
 ## 2026-09-11 V1 0.4.3 / Web 0.6.3
 
 V1 now uses per-session empty preview Profiles rather than fixed `louis`. First run defaults to English, allows independent UI/CV/insight languages, saves the chosen source CV in the background without exposing an extraction textarea, and presents personal strengths/directions and the first four scored role cards only when analysis plus DeepSeek translation are complete. My ends with session-revoking logout; another simulated Google sign-in can test a different CV. No changes to production Google authentication. Old requests, old CV versions and another Profile's tasks cannot populate the new session's results. Current V1 product/data semantics and real acceptance: `V1_STUDENT_MATCH_LOOP_2026-09-10.md`.

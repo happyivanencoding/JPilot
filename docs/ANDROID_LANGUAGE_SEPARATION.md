@@ -1,5 +1,12 @@
 # JobPilot 0.3.2 — display language and application documents
 
+## V1 override — 2026-09-11 / Android 0.4.3 / Web 0.6.3
+
+The isolated V1 line supersedes the historical two-language UI rule below: **UI language** controls menus/buttons and starts in English for new installations; **insight language** (`config.display.analysis_language`) independently controls strengths, growth suggestions, directions and role-match explanations; **CV/source language** is chosen during upload, with the existing application-document language kept separate from display translation. English and French source/document choices, and Chinese/French/English UI/insight choices are available. A source upload initializes document preference to its selected source language; My can change later document preference.
+
+V1 generates orientation/role insights in English, then uses the existing DeepSeek translation transport to prepare the selected insight language. The API withholds each section/batch until its current-CV analysis and translation are complete. Language-only preference changes are presentation changes, not new Candidate evidence. Real acceptance: English UI + French insights + English rendered Mehdi CV; Chinese UI/insights for Yuki. No production Google-login or main release migration is implied by this V1 override.
+
+
 Date: 2026-09-08 (Europe/Paris). Continuation task: `tsk_80f0b40792c1d4db`; original task: `tsk_309034c71b513440`.
 
 ## Authority and recovery
