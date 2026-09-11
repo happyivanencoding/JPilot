@@ -1,6 +1,7 @@
 # Onward V1 0.6.2 / Web 0.8.2 — Profile IA and match uplift refinement
 
-Date: 2026-09-12  
+Date: 2026-09-12
+
 Scope: independent V1 only — `feature/v1-student-match-loop-20260910`; no production main or Yifeng deployment.
 
 ## Product changes
