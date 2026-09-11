@@ -1,4 +1,12 @@
-# Onward V1 0.6.1 / Web 0.8.1 — refined identity parity
+# Onward V1 0.6.2 / Web 0.8.2 — profile navigation parity
+
+Android 0.6.2/code30 and Web 0.8.2 now share the same Profile information architecture: the former `个人资料 / 投递情况` split is removed; CV, analysis, language, job preferences and appearance are collapsible second-level sections; city / all-France search scope is embedded under job preferences. The three profile summary metrics are actionable on both clients and open application, saved-role and role-CV drawers based on existing real records.
+
+Both clients also use the same detailed CV improvement visual: a neutral initial-score card → arrow → Sage/Forest optimized-score card with progress tied to the real baseline/final scores. Home identity-to-directions spacing and Job Detail hero-to-Match/CV/Tracking spacing were tightened together. AI transport, scoring logic, search providers and Candidate/Profile storage contracts were not changed.
+
+Web typecheck and production build pass; Android assembleDebug passes. Product SHA **`437778cecf7959090a922444b3b34b7f3bb1c9e3`** is deployed on the isolated V1 server and returned `V1_DEPLOY_OK`; public root is HTTP 200 and the V1 Web container is healthy. Samsung **SM-S928U1 / R5CXB0BSTVD** was upgraded in place to 0.6.2/code30 with data preserved. Full receipts: `ONWARD_0_6_2_RELEASE.md`.
+
+## Previous: Onward V1 0.6.1 / Web 0.8.1 — refined identity parity
 
 Android 0.6.1/code29 and Web 0.8.1 now use the same **canonical Onward vector geometry** rather than separately approximating the brand. The source assets are `web/public/onward-symbol.svg`, `onward-wordmark.svg`, and `onward-lockup.svg`; Android symbol/lockup/launcher/splash vectors are derived from them. Headers render the vector lockup directly, so the Onward wordmark is no longer live serif text. Latin typography is also sourced from the same Instrument Serif + Inter files on both clients, with CJK/Arabic/platform fallbacks preserved.
 

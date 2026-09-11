@@ -1,5 +1,11 @@
 # JobPilot Android — implementation handoff
 
+## 2026-09-12 Onward V1 0.6.2 — Profile IA / score uplift refinement
+
+Android is now **0.6.2/code30**. `我的职业档案` removes the separate applications tab: its applications / saved roles / role-CV counters are now real actions that open bottom drawers. CV, analysis, language, job preferences and appearance are collapsible second-level sections; city / all-France search scope lives inside job preferences. Detailed CV uplift is now presented as a neutral initial-score card → arrow → Sage/Forest optimized-score card with real score progress, and the excess Home / Job Detail vertical space has been tightened. Web 0.8.2 implements the same IA and visual treatment.
+
+Build passed and Samsung **SM-S928U1 / R5CXB0BSTVD** was upgraded in place with `adb install -r`, preserving app data; package readback is **0.6.2/code30** and the launcher was started. APK: `.career-ops-web/onward-062/Onward-V1-0.6.2-code30.apk`, 19,671,019 bytes, SHA-256 `43C4AE248425B1AE470CED1BF2D95FD57074351C34023710AE9BE204886A2824`; the same file is in phone Download. Product SHA **`437778cecf7959090a922444b3b34b7f3bb1c9e3`** is live on the isolated V1 stack: the server returned `V1_DEPLOY_OK`, all built-in isolation/model/provider gates passed and `https://jobs-v1.thegreatnovel.com/` returns HTTP 200. No production or Yifeng deployment was invoked. Full receipt: `ONWARD_0_6_2_RELEASE.md`.
+
 ## 2026-09-11 Onward V1 0.6.1 — refined identity / native visual pass
 
 Android is now **0.6.1/code29**. The Onward header no longer composes an approximate symbol plus live `Text("Onward")`: `OnwardBrand.kt` renders `ic_onward_lockup.xml`, generated from the canonical `web/public/onward-lockup.svg`; launcher and splash are generated from the same `onward-symbol.svg` geometry with safe-zone scaling only. Instrument Serif + Inter now replace generic Serif/Sans for supported Latin text, with existing platform/CJK/Arabic fallbacks retained.
