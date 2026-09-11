@@ -1,5 +1,13 @@
 # JobPilot Android — implementation handoff
 
+## 2026-09-12 Onward V1 0.6.2 / Web 0.8.2 — experienced CDI discovery hotfix
+
+Youness 的真实 V1 档案暴露出第二个搜索层问题：`FinOps Technical Lead` 与 `Enterprise Platform Architect` 两个方向并不是 provider 没有职位。部署前两次真实 task 都由 JSearch 各返回 10 条 raw offer，但最终为 0。原因是三层过滤叠加：CDI 的 `confirmed_only` 把 provider 未明确标合同类型的相关职位全部删除；V1 在没有资历偏好时默认写成 `junior`，把 Enterprise Platform Architect 错当成资历过高；FinOps / Enterprise Platform Architect 还没有完整进入双语 role vocabulary，导致英法标题相关性判断过窄。
+
+现在 CDI 的 unknown contract 只在职位本身高度相关时保留为“合同类型待确认”，而 Stage / Alternance / CDD 的 unknown contract 继续严格排除；未知资历不再默认 junior，只有 query 明确写 junior/graduate/assistant/stage/alternance 才按 junior，明确 lead/senior/director/head 等才按 experienced。FinOps/TBM/cloud-cost 与 enterprise/platform/solution architecture 已进入英法 market vocabulary，严格合同 query 也会保留多条中英法 canonical provider probe。V1 search revision 升为 `v11-contract-seniority`，旧的 0-result direction cache 不再复用；搜索排序只依据真实 `seniorityFit`，不再看到 senior-looking title 就一律降权。
+
+定向 search/polish/confirmed-contract tests **40/40 PASS**，Web TypeScript PASS，release diff check PASS；Docker production build、session/Profile isolation+logout、model-key、search-provider config gates 均在 V1-only deploy 中通过。产品 SHA **`80c400308b8a08133b826e7222b24d1bf3203f67`** 已上线，`V1_DEPLOY_OK`，公网 `jobs-v1.thegreatnovel.com` HTTP 200；production 与 Yifeng 五个容器 ID/StartedAt 前后完全不变。Android 仍为 0.6.2/code30，不需要重装；Youness 下次重新点这两个方向会创建 v11 新搜索，而不是复用旧的空结果。
+
 ## 2026-09-12 Onward V1 0.6.2 / Web 0.8.2 — explicit role-search hotfix
 
 Backend-only search hotfix; Android remains **0.6.2/code30** and Web package version remains **0.8.2**, so no APK rebuild/reinstall is required. A manual role query now has authority over inferred Profile directions: `量化分析师` is mapped to the quantitative role family and provider probes such as `quantitative analyst`, `quantitative researcher`, `analyste quantitatif`, `quant`, and `recherche quantitative`. Explicit searches no longer mix unrelated Profile target roles into relevance scoring and no longer use the broad `closest` tier to fill empty result slots with marketing/recruitment/etc.; generic CV-based discovery keeps its existing fallback behavior.
