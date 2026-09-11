@@ -42,6 +42,8 @@ export function displaySlots(value,scope) {
   function analysis(a,p=[]) {
     if(!a)return;const hint=a.outputLocale || (/[\p{Script=Han}]/u.test(a.markdown||'')?'zh':detectedDocumentLanguage(a.markdown)||'fr');
     fields(a,['markdown','changeSummary','expressionMarkdown','actionMarkdown'],p,hint);
+    rows(a,'strengths',p,(r,q)=>fields(r,['title','evidence'],q,hint));
+    rows(a,'growthAreas',p,(r,q)=>fields(r,['title','nextAction'],q,hint));
     rows(a,'expressionIssues',p,(r,q)=>fields(r,['title','detail','evidence'],q,hint));
     rows(a,'actionIssues',p,(r,q)=>fields(r,['title','detail','nextAction','evidence'],q,hint));
     rows(a,'careerDirections',p,(r,q)=>{fields(r,['title','why'],q,hint);strings(r,'evidence',q,hint);});
@@ -64,8 +66,8 @@ export function displaySlots(value,scope) {
     // tools are search/domain terms and remain source-language tokens.
   }
   function fastMatch(f,p,hint='zh') {
-    if(!f)return;rows(f,'strengths',p,(r,q)=>put(r,'evidence',q,detectedDocumentLanguage(r.evidence)||hint));
-    rows(f,'gaps',p,(r,q)=>put(r,'reason',q,detectedDocumentLanguage(r.reason)||hint));
+    if(!f)return;rows(f,'strengths',p,(r,q)=>fields(r,['title','evidence'],q,detectedDocumentLanguage(r.evidence)||hint));
+    rows(f,'gaps',p,(r,q)=>fields(r,['title','reason'],q,detectedDocumentLanguage(r.reason)||hint));
   }
   function offer(o,p) {fields(o,['why'],p,detectedDocumentLanguage(o.why)||'fr');deepMatch(o.deepMatch,[...p,'deepMatch']);fastMatch(o.fastMatch,[...p,'fastMatch']);}
   function job(j,p=[],detail=true) {
@@ -91,7 +93,7 @@ export function displaySlots(value,scope) {
     if(j.mobilePlan){const q=[...p,'mobilePlan'];const ph=j.mobilePlan.outputLocale || (/[\p{Script=Han}]/u.test(j.mobilePlan.markdown||'')?'zh':hint);put(j.mobilePlan,'markdown',q,ph);strings(j.mobilePlan,'questions',q,ph);}
     rows(j,'prepTasks',p,(r,q)=>{if(r.source!=='user')put(r,'label',q,hint);});
   }
-  function discovery(d,p=[]) {if(!d)return;put(d,'warning',p,'fr');rows(d,'offers',p,offer);}
+  function discovery(d,p=[]) {if(!d)return;put(d,'warning',p,'fr');rows(d,'offers',p,offer);rows(d,'history',p,(group,q)=>rows(group,'offers',q,offer));}
   if(scope==='snapshot') {
     analysis(value.analysis,['analysis']);rows(value,'jobs',[],(j,p)=>job(j,p,false));discovery(value.discovery,['discovery']);
     put(value.dashboard,'responseRateDefinition',['dashboard'],'fr');
@@ -99,6 +101,7 @@ export function displaySlots(value,scope) {
   } else if(scope==='job') job(value);
   else if(scope==='cards') rows(value,'jobs',[],(j,p)=>job(j,p,true));
   else if(scope==='analysis') analysis(value);
+  else if(scope==='offer') offer(value,[]);
   else if(scope==='report') put(value,'markdown',[],detectedDocumentLanguage(value.markdown)||'fr');
   else if(scope==='meta') {put(value,'layoutNote',[],'fr');strings(value,'warnings',[],'fr');strings(value.layout,'issues',['layout'],'fr');}
   else {

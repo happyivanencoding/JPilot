@@ -1,3 +1,4 @@
+import * as yaml from "js-yaml";
 import { renderReferenceCv } from "@/lib/backend/cv-document.mjs";
 import fs from "node:fs";
 import path from "node:path";
@@ -145,4 +146,18 @@ export async function renderCvPreview(profileId: string, draftId?: string, versi
     await renderReferenceCv({content:draft?.content || version.sources.cv.text,language:draft?.documentLanguage || documentLanguage(version),globalPlan:!!draft?.globalPlan},folder);
   }
   return { pdf, ...readJson(meta), draft, versionId:version.id, cvVersion:version.cvVersion };
+}
+
+export async function saveImportedCv(profileId:string, content:string, expectedVersionId:string, sourceLanguage:string, analysisLanguage:string) {
+  return withProfileLock(historyDirectory(profileId),()=>{
+    const before=currentCandidateVersion(profileId);
+    if(before.id!==expectedVersionId) throw new Error("Le CV a changé. Réessayez avec votre nouveau fichier.");
+    const config=(yaml.load(fs.readFileSync(profileFile(profileId,"config"),"utf8")) || {}) as any;
+    config.cv={...config.cv,language:sourceLanguage,source_language:sourceLanguage};
+    config.display={...config.display,analysis_language:analysisLanguage};
+    atomicWriteWithBackup(profileFile(profileId,"config"),yaml.dump(config));
+    if(before.sources.cv.text!==content) atomicWriteWithBackup(profileFile(profileId,"cv"),content);
+    const after=currentCandidateVersion(profileId);
+    return {imported:true,versionId:after.id,cvVersion:after.cvVersion};
+  });
 }

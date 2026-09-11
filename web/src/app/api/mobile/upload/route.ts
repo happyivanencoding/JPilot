@@ -1,3 +1,5 @@
+import {readJson,writeJson,withProfileLock} from "@/lib/mobile-state.mjs";
+import {requestUiLocale,uiLocale} from "@/lib/language-contract.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { activeProfileId } from "@/lib/profile-request";
@@ -25,9 +27,13 @@ export async function POST(req: Request) {
     directory = fs.mkdtempSync(path.join(uploadRoot, "cv-"));
     const destination = path.join(directory, "source" + extension);
     fs.writeFileSync(destination, Buffer.from(await file.arrayBuffer()));
-    const task = await startMobileTask(profileId, { kind: "ingest", filename: path.basename(file.name) }, destination);
+    const autoImport=process.env.JOBPILOT_V1_PREVIEW === "1";
+    const sourceLanguage=["en","fr"].includes(String(form.get("sourceLanguage"))) ? String(form.get("sourceLanguage")) : "en";
+    const analysisLanguage=uiLocale(form.get("analysisLanguage") || requestUiLocale(req));
+    const task = await startMobileTask(profileId, {kind:"ingest",filename:path.basename(file.name),uiLocale:requestUiLocale(req),autoImport,sourceLanguage,analysisLanguage,silent:autoImport}, destination);
+    if(autoImport) await withProfileLock(mobileDirectory(profileId),()=>writeJson(path.join(mobileDirectory(profileId),"journey.json"),{completed:false,ingestTaskId:task.id,query:"",searchTaskId:null}));
     if(task.reused && directory) fs.rmSync(directory,{recursive:true,force:true});
-    return Response.json(taskView(task,readCandidatureStore(profileId).jobs,true), { status: task.status === "completed" ? 200 : 202 });
+    return Response.json(taskView(task,readCandidatureStore(profileId).jobs,true,requestUiLocale(req)), { status: task.status === "completed" ? 200 : 202 });
   } catch (error) {
     if (directory) fs.rmSync(directory, { recursive: true, force: true });
     return Response.json({ error: error instanceof Error ? error.message : "Import impossible." }, { status: 400 });

@@ -60,3 +60,8 @@ JPilot 是 local-first 产品。Git 仓库保存产品代码与公开配置模�
 唯一开发仓库为 `https://github.com/happyivanencoding/JPilot`。
 
 不得把私有 Candidate/Runtime 层加入 Git。不得用 reset/clean/stash 等方式“整理”工作区。删除 tracked 历史文件时，必须保留适用的 MIT/第三方许可证和 attribution。
+
+
+## V1 preview upload consent (2026-09-11)
+
+In the isolated per-session V1 preview, choosing a CV file in the explicit upload control authorizes saving the extracted **original** text to that session's own Profile. There is no second raw-text confirmation screen. Source-language and insight-language preferences accompany that upload. This does not authorize invented/AI-rewritten facts: tailored CV drafts retain explicit keep/reject, and one Profile's upload never writes another Profile's canonical files. Preview sign-in creates empty files rather than cloning a pre-existing candidate. Legacy/production import confirmation remains unchanged until that product line is intentionally migrated.

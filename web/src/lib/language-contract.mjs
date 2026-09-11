@@ -26,7 +26,7 @@ export function applicationLanguage(config={}, cv='') {
 }
 export function documentLanguage(candidate) {
   const config=yaml.load(candidate?.sources?.config?.text || '') || {};
-  return detectedDocumentLanguage(candidate?.sources?.cv?.text) || applicationLanguage(config);
+  return APPLICATION_LANGUAGES.includes(config?.cv?.source_language) ? config.cv.source_language : detectedDocumentLanguage(candidate?.sources?.cv?.text) || applicationLanguage(config);
 }
 export function explanationDirective(locale) {
   return `USER-FACING EXPLANATION LANGUAGE: ${LANGUAGE_NAMES[uiLocale(locale)]}. This includes headings, analysis, strengths, gaps, recommendations, interview preparation and completion notes. Ignore language.output, source CV/JD language, nationality and any old report's language when choosing explanation language. Preserve original source quotations, proper nouns, URLs and machine-readable keys/enums. This instruction does NOT change the CV/application document language.`;
@@ -45,6 +45,7 @@ export function contradictsDocumentLanguage(text, expected, before='') {
 export function evidenceConfig(text) {
   try {
     const value=yaml.load(text || '') || {};
+    delete value.display;
     if(value.cv) { delete value.cv.language; if(!Object.keys(value.cv).length) delete value.cv; }
     return JSON.stringify(value);
   } catch { return String(text); }

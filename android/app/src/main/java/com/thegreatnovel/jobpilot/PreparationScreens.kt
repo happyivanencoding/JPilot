@@ -116,17 +116,17 @@ import java.time.ZoneOffset
         item { GlassCard(accent = true) {
             Icon(Icons.Rounded.Description,null,Modifier.size(34.dp),tint = MaterialTheme.colorScheme.primary)
             Text(tr("让简历成为起点","Le CV comme point de départ","Start with your CV"),fontSize = 22.sp,fontWeight = FontWeight.SemiBold)
-            Hint(tr("PDF、Word (.docx)、TXT、Markdown，最大 12 MB。导入后先预览，再由你确认是否替换。","PDF, Word (.docx), TXT ou Markdown · 12 Mo maximum. Aperçu avant toute modification.","PDF, Word (.docx), TXT or Markdown · up to 12 MB. Preview before saving."))
+            Hint(tr("PDF、Word、TXT · 最大 12 MB","PDF, Word, TXT · 12 Mo maximum","PDF, Word, TXT · up to 12 MB"))
             PrimaryButton(tr("从手机上传简历","Importer un CV du téléphone","Upload a CV from my phone"),!state.working) { picker.launch(arrayOf("application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain","text/markdown")) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton({ vm.openCvPreview() },Modifier.weight(1f),enabled = state.snapshot.text("cv").isNotBlank()) { Text(tr("查看 PDF","Voir le PDF","View PDF")) }
                 TextButton({ editCv = true },Modifier.weight(1f)) { Text(tr("编辑内容","Modifier le contenu","Edit content")) }
             }
         } }
-        item { GlassCard { AnalysisEntry(state,vm) } }
+        if(!BuildConfig.APPLICATION_ID.endsWith(".v1")) item { GlassCard { AnalysisEntry(state,vm) } }
         if(!needsCv) item { GlassCard {
             Row(verticalAlignment=Alignment.CenterVertically) { Text(tr("我的岗位版本","Mes versions par offre","My role-specific versions"),Modifier.weight(1f),fontWeight=FontWeight.SemiBold);Hint(jobs.size.toString()) }
-            Hint(tr("每个岗位版本都从最新 Master Profile 独立分叉，不会拿另一份岗位 CV 当输入。","Chaque version repart du Master Profile ; une version ciblée ne devient jamais la source d’une autre.","Every role version branches from the latest Master Profile; one tailored CV never becomes another's source."))
+            Hint(tr("为不同岗位准备的简历，都在这里。","Retrouvez ici vos CV adaptés à chaque offre.","Your tailored CVs, organised by role."))
             if(jobs.isEmpty()) Hint(tr("当你在岗位页点击“查看我的 XX 分版本”，它会出现在这里。","Une offre apparaîtra ici lorsque vous demanderez votre version ciblée.","A role appears here after you request its tailored version."))
             jobs.take(12).forEach { job ->
                 val hasRoleCv = job.child("cvDraft").text("id").isNotBlank() || job.child("cv").text("file").isNotBlank()
@@ -144,14 +144,14 @@ import java.time.ZoneOffset
                 }
             }
         } }
-        if(!needsCv && directions.isNotEmpty()) item { GlassCard {
+        if(!BuildConfig.APPLICATION_ID.endsWith(".v1") && !needsCv && directions.isNotEmpty()) item { GlassCard {
             Text(tr("AI 建议的探索方向","Directions suggérées","Suggested directions"),fontWeight=FontWeight.SemiBold)
             Hint(tr("这些是建议，不会覆盖你明确填写的目标。点击一个方向会填入编辑框，由你决定是否保存。","Ce sont des suggestions ; elles ne remplacent pas vos objectifs explicites.","These are suggestions and never override your explicit goals."))
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { directions.forEach { direction -> FilterChip(false,{roles=direction.text("title");preferences=true},label={Text(direction.text("title"),maxLines=1)}) } }
         } }
         item { GlassCard {
             Text(tr("默认简历语言","Langue par défaut du CV","Default CV language"),fontWeight=FontWeight.SemiBold)
-            Hint(tr("用于新生成的求职材料，与软件显示语言无关。更改默认值不会翻译或替换现有简历；原文改写继续保持当前文档语言。","Pour les nouveaux documents de candidature, indépendamment de l’application. Le CV existant n’est ni traduit ni remplacé ; les retouches gardent sa langue.","For new application documents, independently of the app. Existing CVs are not translated or replaced; edits preserve the document language."))
+            Hint(tr("新生成的求职材料使用这种语言。","Pour vos prochains documents de candidature.","For your next application documents."))
             val material=state.snapshot.child("languageSettings").text("applicationLanguage",config.child("cv").text("language","fr"))
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 listOf("fr" to "Français","en" to "English").forEach { (key,label) ->
@@ -173,18 +173,22 @@ import java.time.ZoneOffset
             }
         } }
         item { GlassCard {
+            Text(tr("分析语言","Langue des conseils","Insights language"),fontWeight=FontWeight.SemiBold)
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf("en" to "English","fr" to "Français","zh" to "中文").forEach {(code,label)->FilterChip(selected=state.snapshot.child("languageSettings").text("analysisLanguage")==code,onClick={vm.changeAnalysisLanguage(code)},enabled=!state.working,label={Text(label)})}}
+        } }
+        item { GlassCard {
             Text(tr("软件语言","Langue de l’application","App language"),fontWeight = FontWeight.SemiBold)
-            Hint(tr("界面、分析和建议使用此语言，不影响简历内容。","Pour l’interface, les analyses et les conseils. Aucun effet sur le contenu du CV.","For interface, analysis and advice; does not change CV content."))
+            Hint(tr("用于菜单和按钮。","Pour les menus et les boutons.","For menus and buttons."))
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("system" to tr("系统","Système","System"),"light" to tr("亮色","Clair","Light"),"dark" to tr("暗色","Sombre","Dark")).forEach { (key,label) -> FilterChip(state.theme == key,{ vm.appearance(theme = key) },label = { Text(label) }) } }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("zh" to "中文","fr" to "Français","en" to "English").forEach { (key,label) -> FilterChip(state.language == key,{ vm.appearance(language = key) },modifier=Modifier.testTag("ui-language-$key"),label = { Text(label) }) } }
         } }
         item { GlassCard {
             Text(tr("账号","Compte","Account"),fontWeight = FontWeight.SemiBold)
-            Hint(tr("你的 JobPilot 数据会自动在手机和网页版之间同步。","Vos données JobPilot se synchronisent automatiquement entre mobile et Web.","Your JobPilot data syncs automatically between mobile and web."))
+            if(!BuildConfig.APPLICATION_ID.endsWith(".v1")) Hint(tr("你的 JobPilot 数据会自动在手机和网页版之间同步。","Vos données JobPilot se synchronisent automatiquement entre mobile et Web.","Your JobPilot data syncs automatically between mobile and web."))
             OutlinedButton({ vm.refresh() },Modifier.fillMaxWidth()) { Text(tr("刷新数据","Actualiser","Refresh data")) }
-            TextButton(vm::logout) { Text(tr("退出登录","Se déconnecter","Sign out")) }
             Hint("JobPilot Android ${BuildConfig.VERSION_NAME} · " + tr("与网页版共享数据","Données partagées avec le Web","Shared data with the Web"))
         } }
+        item { TextButton(vm::logout,Modifier.fillMaxWidth().testTag("sign-out")) {Text(tr("登出","Se déconnecter","Sign out"))} }
     }
     if(editCv) ModalBottomSheet(onDismissRequest = { editCv = false },sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),modifier = Modifier.imePadding()) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(.88f).blockSheetEdgeMotion().padding(22.dp),verticalArrangement = Arrangement.spacedBy(14.dp)) {

@@ -16,8 +16,8 @@ type Notice = { text: string; taskId?: string } | null;
 export type TaskLaunch = { ids: string[]; title: string; estimate: Json; createdAt: string } | null;
 const AI_TASK_KINDS = new Set(["evaluate", "cv", "cv_review", "analysis", "plan", "practice", "compare", "coach"]);
 
-function useController(profileId: string) {
-  const [locale, setLocale] = useState<Locale>("zh");
+function useController(profileId: string, preview: boolean) {
+  const [locale, setLocale] = useState<Locale>("en");
   const [theme, setTheme] = useState("system");
   const [ready, setReady] = useState(false);
   const [data, setData] = useState<Json>(empty);
@@ -35,6 +35,7 @@ function useController(profileId: string) {
   const scope = `${profileId}:${locale}`;
   const scopeRef = useRef(scope); scopeRef.current = scope;
   const controllers = useRef(new Set<AbortController>());
+  const generation = useRef(0);
   const busyRef = useRef(false);
   const refreshRef = useRef<{ scope: string; promise: Promise<void> } | null>(null);
   const displayIdsRef = useRef("");
@@ -54,10 +55,11 @@ function useController(profileId: string) {
   const apiUrl = useCallback((path: string) => {
     const u = new URL(path, window.location.origin);
     if (u.origin !== window.location.origin || !u.pathname.startsWith("/api/")) throw new Error("Same-origin JobPilot API required");
-    if (!u.pathname.startsWith("/api/mobile-auth/") && u.pathname !== "/api/profiles") u.searchParams.set("profileId", profileId);
+    if (!u.pathname.startsWith("/api/mobile-auth/") && u.pathname !== "/api/profiles" && u.pathname !== "/api/v1/session") u.searchParams.set("profileId", profileId);
     return u.pathname + u.search;
   }, [profileId]);
   const fetchScoped = useCallback(async (path: string, init: RequestInit = {}, binary = false): Promise<any> => {
+    const epoch=generation.current;
     const controller = new AbortController(); controllers.current.add(controller);
     let timedOut = false;
     const timeout = window.setTimeout(() => { timedOut = true; controller.abort(); }, binary || path.startsWith("/api/mobile/cv") ? 95000 : 60000);
@@ -73,7 +75,7 @@ function useController(profileId: string) {
         throw new Error(body.error || tr(`请求失败 (${response.status})`, `Requête impossible (${response.status})`, `Request failed (${response.status})`));
       }
       const result = binary ? new Uint8Array(await response.arrayBuffer()) : await response.json();
-      if (scopeRef.current !== scope) throw new DOMException("Outdated profile or language", "AbortError");
+      if (scopeRef.current !== scope || generation.current!==epoch) throw new DOMException("Outdated profile or language", "AbortError");
       return result;
     } catch (e) {
       if (timedOut && scopeRef.current === scope) throw new Error(tr("连接超时。后台任务不会因此取消，请稍后刷新。", "Connexion expirée. Les tâches en arrière-plan continuent ; actualisez dans un instant.", "Connection timed out. Background tasks continue; refresh shortly."));
@@ -94,6 +96,7 @@ function useController(profileId: string) {
     else navigate({ tab: routeRef.current.tab, filter: routeRef.current.filter }, true);
   }, [navigate]);
   const refresh = useCallback(async (retry = false) => {
+    if(preview && !profileId) { setLoading(false); return; }
     if (refreshRef.current?.scope === scope) return refreshRef.current.promise;
     const promise = (async () => {
       try {
@@ -130,9 +133,9 @@ function useController(profileId: string) {
   }, [request, scope, fail]);
 
   useEffect(() => {
-    let lang = "zh", appearance = "system";
-    try { lang = localStorage.getItem("jobpilot:language") || "zh"; appearance = localStorage.getItem("jobpilot:theme") || localStorage.getItem("career-ops:theme") || "system"; } catch { /* Private browsing can deny storage; session state still works. */ }
-    setLocale(["zh", "fr", "en"].includes(lang) ? lang as Locale : "zh");
+    let lang = "en", appearance = "system";
+    try { lang = localStorage.getItem("jobpilot:language") || "en"; appearance = localStorage.getItem("jobpilot:theme") || localStorage.getItem("career-ops:theme") || "system"; } catch { /* Private browsing can deny storage; session state still works. */ }
+    setLocale(["zh", "fr", "en"].includes(lang) ? lang as Locale : "en");
     setTheme(["system", "light", "dark"].includes(appearance) ? appearance : "system");
     setRoute(parseRoute(window.location.search) as Route); setReady(true);
     const pop = () => { setRoute(parseRoute(window.location.search) as Route); setError(null); };
@@ -154,6 +157,7 @@ function useController(profileId: string) {
     if (!ready) return;
     setLoading(true); setError(null); setDetail(null); busyRef.current = false; setBusy(false);
     setData(old => ({ ...empty(), profile: old.profile, profiles: old.profiles, cv: old.cv, cvState: old.cvState, config: old.config, languageSettings: old.languageSettings }));
+    if(preview && !profileId) { setLoading(false); return; }
     void refresh();
     let timer: ReturnType<typeof setTimeout>;
     let disposed = false;
@@ -179,6 +183,7 @@ function useController(profileId: string) {
   useEffect(() => {
     const versionId=String(data.cvState?.versionId || "");
     if(!ready || data.v1?.needsBootstrap !== true || !versionId) return;
+    if(data.v1?.importState && ACTIVE.has(data.v1.importState)) return;
     const key=`${profileId}:${versionId}`;
     if(v1BootstrapRef.current===key) return;
     v1BootstrapRef.current=key;
@@ -200,9 +205,10 @@ function useController(profileId: string) {
     try { return await operation(); } catch (e) { if (scopeRef.current === scope) fail(e); return; }
     finally { if (scopeRef.current === scope) { busyRef.current = false; setBusy(false); } }
   }, [scope, fail]);
+  const invalidateReads=useCallback(()=>{generation.current++;controllers.current.forEach(c=>c.abort());controllers.current.clear();refreshRef.current=null;},[]);
   const act = useCallback(async (body: Json, path = "/api/mobile") => execute(async () => {
     const result = await request(path, { method: "POST", body: JSON.stringify({ ...body, profileId }) });
-    await refresh(); notify(tr("已保存", "Enregistré", "Saved")); return result;
+    invalidateReads(); await refresh(); notify(tr("已保存", "Enregistré", "Saved")); return result;
   }), [execute, request, profileId, refresh, notify, tr]);
   const openTask = useCallback(async (id: string) => execute(async () => {
     const task = await request(`/api/mobile?taskId=${encodeURIComponent(id)}`);
@@ -211,7 +217,7 @@ function useController(profileId: string) {
   const startTask = useCallback(async (input: Json) => execute(async () => {
     const silent=input.silent===true;
     const task = await request("/api/mobile", { method: "POST", body: JSON.stringify({ action: "task", profileId, input: { ...input, uiLocale: locale, language: locale } }) });
-    await refresh();
+    invalidateReads(); await refresh();
     if(silent) return task;
     if (task.status === "completed" || task.status === "failed") navigate(destinationFor(task));
     else if (AI_TASK_KINDS.has(String(input.kind))) setTaskLaunch({ ids: [task.id], title: task.title || String(input.kind), estimate: task.estimate || dataRef.current.flowEstimates?.[String(input.kind)] || { label: tr("正在估算耗时", "Estimation en cours", "Estimating duration") }, createdAt: task.createdAt || new Date().toISOString() });
@@ -243,12 +249,31 @@ function useController(profileId: string) {
     else notify(tr(`正在准备 ${offer.deepMatch?.cvPotentialScore ?? offer.fastMatch?.score ?? ""} 分版本，可继续浏览。`,`Préparation de votre version ciblée ; vous pouvez continuer à naviguer.`,`Preparing your targeted CV; you can keep browsing.`),task.id);
     return result;
   }), [execute, request, profileId, locale, refresh, navigate, notify, tr]);
-  const upload = useCallback(async (file: File) => execute(async () => {
+  const upload = useCallback(async (file: File, sourceLanguage="en", analysisLanguage:Locale=locale) => execute(async () => {
     if (!/\.(pdf|docx|txt|md)$/i.test(file.name) || !file.size || file.size > 12 * 1024 * 1024) throw new Error(tr("请选择 PDF、DOCX、TXT 或 MD，最大 12 MB。", "PDF, DOCX, TXT ou MD · 12 Mo maximum.", "Choose PDF, DOCX, TXT or MD, up to 12 MB."));
     const form = new FormData(); form.set("file", file);
+    form.set("sourceLanguage",sourceLanguage); form.set("analysisLanguage",analysisLanguage);
+    if(preview) { setData(old=>({...empty(),profile:old.profile,languageSettings:old.languageSettings,v1:{importState:"queued",backgroundActive:true,journey:{completed:false}}})); setDetail(null); }
+
     const task = await request("/api/mobile/upload", { method: "POST", body: form });
-    await refresh(); navigate({ tab: "profile", view: "task", task: task.id });
+    invalidateReads(); await refresh(); if(!preview) navigate({ tab: "profile", view: "task", task: task.id }); return task;
   }), [execute, request, refresh, navigate, tr]);
+  const logout=useCallback(async()=>{
+    generation.current++;controllers.current.forEach(c=>c.abort());controllers.current.clear();
+    scopeRef.current="signed-out";setData(empty());setDetail(null);setRoute({tab:"home"});setExpired(true);
+    try { await fetch(preview?"/api/v1/session":"/api/mobile-auth/logout",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({action:"logout"})}); }
+    finally {window.location.replace("/");}
+  },[preview]);
+  const retryV1=useCallback(async()=>execute(async()=>{
+    await request("/api/mobile",{method:"POST",body:JSON.stringify({action:"retryV1",profileId})});
+    invalidateReads(); await refresh(true);
+  }),[execute,request,profileId,refresh]);
+  const changeAnalysisLanguage=useCallback(async(language:Locale)=>execute(async()=>{
+    generation.current++;controllers.current.forEach(c=>c.abort());controllers.current.clear();refreshRef.current=null;
+    setData(old=>({...old,analysis:null,v1:{...old.v1,analysisReady:false,offersReady:false,careerDirections:[]},discovery:{offers:[],history:[]}}));
+    await request("/api/profile",{method:"POST",body:JSON.stringify({analysisLanguage:language})});
+    invalidateReads(); await refresh();
+  }),[execute,request,refresh]);
   const switchProfile = useCallback((id: string) => execute(async () => {
     await request("/api/profiles", { method: "POST", body: JSON.stringify({ profileId: id }) });
     window.location.assign("/");
@@ -256,14 +281,14 @@ function useController(profileId: string) {
   const retryLocalization = useCallback(() => routeRef.current.view === "task" || routeRef.current.view === "report" ? refreshDetail(true) : refresh(true), [refresh, refreshDetail]);
   const openJob = useCallback((job: string, jobTab = 0) => navigate({ tab: routeRef.current.tab, view: "job", job, jobTab: String(jobTab) }), [navigate]);
   const openOffer = useCallback((offer: string) => navigate({ tab: "offers", view: "offer", offer }), [navigate]);
-  return { profileId, locale, theme, ready, data, detail, route, selectedJob, selectedOffer, loading, busy, error, expired, notice, taskLaunch,
+  return { profileId, preview, locale, theme, invalidateReads, logout, retryV1, changeAnalysisLanguage, ready, data, detail, route, selectedJob, selectedOffer, loading, busy, error, expired, notice, taskLaunch,
     tr, product, setLocale, setTheme, setError, setNotice, setTaskLaunch, setTrainingJob, request, documentBytes, apiUrl, fail, notify,
     navigate, close, refresh, retryLocalization, act, startTask, startTasks, saveOffers, tailorOffer, openTask, upload, switchProfile, openJob, openOffer, execute };
 }
 type PilotController = ReturnType<typeof useController>;
 const Context = createContext<PilotController | null>(null);
-export function PilotProvider({ profileId, children }: { profileId: string; children: ReactNode }) {
-  const value = useController(profileId);
+export function PilotProvider({ profileId, preview=false, children }: { profileId: string; preview?:boolean; children: ReactNode }) {
+  const value = useController(profileId,preview);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 export function usePilot() { const value = useContext(Context); if (!value) throw new Error("JobPilot provider missing"); return value; }

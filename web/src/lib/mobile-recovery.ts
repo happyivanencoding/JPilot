@@ -1,3 +1,4 @@
+import {parseOrientation} from "@/lib/v1-journey.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { listMobileTasks, mobileDirectory, type MobileTask } from "@/lib/mobile-engine";
@@ -47,7 +48,7 @@ export async function reconcileMobileTasks(profileId:string) {
         else if(run.status === "completed" && ["analysis","coach","compare","practice","plan"].includes(task.kind)) {
           let object:Record<string,any>|null=null;
           if(task.kind==="analysis") {
-            try{object=preservePresentationLanguage(parseAnalysisResult(run.text),loadCandidateVersion(directory,task.inputVersionId),String(task.input.language || "fr"));}
+            try{object=task.input.experience==="v1" ? parseOrientation(extractJsonObject(run.text).obj,loadCandidateVersion(directory,task.inputVersionId).sources.cv.text) : preservePresentationLanguage(parseAnalysisResult(run.text),loadCandidateVersion(directory,task.inputVersionId),String(task.input.language || "fr"));}
             catch(error){current.status="failed";current.error=String(error);current.updatedAt=new Date().toISOString();writeJson(file,current);return;}
           }else {const parsed=extractJsonObject(run.text);object=parsed.truncated?null:parsed.obj as Record<string,any>|null;}
           if(object?.markdown)result=object;

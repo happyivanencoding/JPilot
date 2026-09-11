@@ -6,11 +6,10 @@ android {
         applicationId 'com.thegreatnovel.jobpilot.v1'
         minSdk 26
         targetSdk 36
-        versionCode 16
-        versionName '0.4.2'
+        versionCode 17
+        versionName '0.4.3'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         buildConfigField 'String', 'API_BASE_URL', '"https://jobs-v1.thegreatnovel.com"'
-        buildConfigField 'String', 'PREVIEW_PROFILE', '"louis"'
     }
     sourceSets.main.assets.srcDirs += ['../../web/shared']
     buildFeatures { compose true; buildConfig true }

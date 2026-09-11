@@ -1,5 +1,9 @@
 # JobPilot Web 0.6.1 — Android-aligned product
 
+## 2026-09-11 V1 0.4.3 / Web 0.6.3
+
+V1 now uses per-session empty preview Profiles rather than fixed `louis`. First run defaults to English, allows independent UI/CV/insight languages, saves the chosen source CV in the background without exposing an extraction textarea, and presents personal strengths/directions and the first four scored role cards only when analysis plus DeepSeek translation are complete. My ends with session-revoking logout; another simulated Google sign-in can test a different CV. No changes to production Google authentication. Old requests, old CV versions and another Profile's tasks cannot populate the new session's results. Current V1 product/data semantics and real acceptance: `V1_STUDENT_MATCH_LOOP_2026-09-10.md`.
+
 ## V1 AI/bootstrap parity recovery — 2026-09-11
 
 - Android `0.4.1/code15` and Web `0.6.1` now share the same migration bootstrap: if a Master CV exists but the current candidate version has no V1-shaped analysis (`careerDirections/searchKeywords`), the snapshot reports `v1.needsBootstrap`. Each client sends one idempotent POST `bootstrapV1`; neither client starts model work from a presentation GET.

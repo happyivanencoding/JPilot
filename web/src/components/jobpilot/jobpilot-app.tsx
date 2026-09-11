@@ -54,19 +54,24 @@ function Phone() {
   const canShowData = Boolean(data.profile?.id);
   const needsCv = Boolean(data.access?.needsCv), canSwitchProfiles = data.access?.canSwitchProfiles ?? rows(data.profiles).length > 1;
   useEffect(()=>{
+    if(p.preview)return;
     if(!ready||!canShowData||firstRunReady)return;
     try{setFirstRun(localStorage.getItem("jobpilot:v1-first-run:0.4.2")!=="done");}catch{setFirstRun(true);}
     setFirstRunReady(true);
   },[ready,canShowData,firstRunReady]);
   useEffect(() => {
-    if (!ready || !canShowData || needsCv || onboardingReady || !firstRunReady || firstRun) return;
+    if (p.preview || !ready || !canShowData || needsCv || onboardingReady || !firstRunReady || firstRun) return;
     try {
       const saved = JSON.parse(localStorage.getItem("jobpilot:onboarding:v1") || "{}");
       if (saved.welcome !== true) setOnboarding({ mode: "welcome" });
     } catch { setOnboarding({ mode: "welcome" }); }
     setOnboardingReady(true);
   }, [ready, canShowData, needsCv, onboardingReady, firstRunReady, firstRun]);
-  const finishFirstRun=()=>{
+  const finishFirstRun=async()=>{
+    if(p.preview) {
+      await p.request("/api/mobile",{method:"POST",body:JSON.stringify({action:"finishOnboarding",profileId:p.profileId})});
+      p.invalidateReads();await refresh();return;
+    }
     try{
       localStorage.setItem("jobpilot:v1-first-run:0.4.2","done");
       const saved=JSON.parse(localStorage.getItem("jobpilot:onboarding:v1")||"{}");
@@ -90,7 +95,7 @@ function Phone() {
   };
   const goToTab = (tab: GuideTab) => {
     navigate({ tab });
-    if (!onboardingReady) return;
+    if (p.preview || !onboardingReady) return;
     try {
       const saved = JSON.parse(localStorage.getItem("jobpilot:onboarding:v1") || "{}");
       const tabs = Array.isArray(saved.tabs) ? saved.tabs : [];
@@ -100,9 +105,11 @@ function Phone() {
       }
     } catch { /* Continue without persisting the walkthrough. */ }
   };
+  const previewJourney=p.preview && (!p.profileId || expired || data.v1?.journey?.completed!==true);
   const hasOverlay = Boolean(route.view || p.taskLaunch || onboarding || firstRun);
   const reload = async () => { if (refreshing) return; setRefreshing(true); await refresh(); setRefreshing(false); };
   const pages = [<HomePage key="home" />, <OffersPage key="offers" />, <ProfilePage key="profile" />];
+  if(previewJourney) return <div className="jp-stage"><div className="jp-envelope" style={{"--jp-scale":scale} as CSSProperties}><div className="jp-phone" data-testid="jobpilot-phone" data-reference-size="384x832"><V1FirstRunOverlay onDone={finishFirstRun}/></div></div></div>;
   return <div className="jp-stage"><div className="jp-envelope" style={{ "--jp-scale": scale } as CSSProperties}><div className={`jp-phone${keyboard ? " jp-keyboard" : ""}`} data-testid="jobpilot-phone" data-reference-size="384x832">
     {expired ? <div className="jp-login"><img src="/jobpilot.svg" alt="" /><h1>JobPilot</h1><h2>{tr("你的下一步，值得认真准备。", "Votre prochain pas mérite le meilleur.", "Your next step deserves your best.")}</h2><Hint>{tr("请重新登录以访问你的档案。", "Reconnectez-vous pour accéder à votre profil.", "Sign in again to access your profile.")}</Hint><a href="/api/mobile-auth/login">{tr("登录", "Se connecter", "Sign in")}</a></div> : <>
       <div className="jp-underlay" inert={hasOverlay}>
@@ -111,7 +118,7 @@ function Phone() {
           {route.tab==="profile"&&<IconButton label={tr("处理记录", "Traitements", "Activity")} data-testid="open-tasks" onClick={() => navigate({ tab:"profile",view: "tasks" })}><ClipboardClock size={25} />{active > 0 && <span className="jp-badge">{active}</span>}{busy && <span className="jp-busy-ring"><Spinner /></span>}</IconButton>}
         </div></header>
         {error && !hasOverlay && <div className="jp-error" role="alert"><p>{error}</p><IconButton label={tr("关闭提示", "Fermer le message", "Dismiss message")} onClick={() => p.setError(null)}><X size={18} /></IconButton></div>}
-        <Localization value={data.localization} />
+        {!p.preview && <Localization value={data.localization} />}
         <main className="jp-main">
           {refreshing && <span className="jp-refreshing"><Spinner small /></span>}
           {!ready || loading && !canShowData ? <Loading /> : !canShowData ? <div className="jp-page"><Empty title={tr("暂时无法读取档案", "Profil momentanément indisponible", "Profile temporarily unavailable")}>{tr("请检查服务器连接，然后重试。", "Vérifiez la connexion au serveur, puis réessayez.", "Check the server connection, then try again.")}</Empty><Button onClick={reload}>{tr("重新连接", "Réessayer", "Retry")}</Button></div> : needsCv ? <section className="jp-scroll" aria-label={tr("先上传简历", "Importez d’abord votre CV", "Upload your CV first")} data-testid="cv-required-screen"><ProfilePage /></section> : TABS.map((tab, index) => <section key={tab} hidden={route.tab !== tab} className="jp-scroll" aria-label={labels[index]} data-testid={`screen-${tab}`} onTouchStart={e => { touch.current = e.currentTarget.scrollTop <= 0 && !(e.target as HTMLElement).closest("button,input,textarea,select,a") ? e.touches[0].clientY : null; }} onTouchEnd={e => { if (touch.current != null && e.changedTouches[0].clientY - touch.current > 85) void reload(); touch.current = null; }}>{pages[index]}</section>)}
@@ -121,7 +128,7 @@ function Phone() {
       {notice && !hasOverlay && <div className="jp-toast" role="status"><span>{p.product(notice.text)}</span>{notice.taskId && <button type="button" onClick={() => { const id = notice.taskId; p.setNotice(null); if (id) void p.openTask(id); }}>{tr("查看", "Voir", "View")}</button>}</div>}
       {route.view === "tasks" && <TasksSheet />}
       {route.view === "offer" && (selectedOffer ? <OfferSheet key={selectedOffer.url} offer={selectedOffer} /> : <Sheet title={tr("岗位详情", "Détails du poste", "Role details")}><div className="jp-sheet-content"><Hint>{tr("这条岗位不在当前这批搜索结果里，可以重新搜索该方向。","Cette offre n’est plus dans la sélection actuelle ; relancez la recherche.","This role is no longer in the current result set; search the direction again.")}</Hint><Button onClick={()=>navigate({tab:"offers"})}>{tr("返回机会","Retour aux offres","Back to opportunities")}</Button></div></Sheet>)}
-      {route.view === "job" && (selectedJob ? <JobSheet key={selectedJob.id} job={selectedJob} /> : <Sheet title={tr("岗位详情", "Détails du poste", "Job details")}>{loading ? <Loading /> : <div className="jp-sheet-content"><Hint>{tr("当前档案中没有这个岗位，或旧书签已失效。", "Ce poste n’est pas présent dans ce profil, ou ce favori est périmé.", "This role is not in the current profile, or this bookmark is outdated.")}</Hint><Button onClick={() => navigate({ tab: "profile" })}>{tr("返回我的", "Retour à Moi", "Back to My")}</Button></div>}</Sheet>)}
+      {route.view === "job" && (selectedJob ? (selectedJob.localization?.pending ? <Sheet title={tr("为你准备岗位建议","Vos conseils se préparent","Your role insights are on their way")}><div className="jp-sheet-content"><Loading />{selectedJob.localization?.failed&&<Button onClick={()=>p.retryLocalization()}>{tr("重试","Réessayer","Retry")}</Button>}</div></Sheet> : <JobSheet key={selectedJob.id} job={selectedJob} />) : <Sheet title={tr("岗位详情", "Détails du poste", "Job details")}>{loading ? <Loading /> : <div className="jp-sheet-content"><Hint>{tr("当前档案中没有这个岗位，或旧书签已失效。", "Ce poste n’est pas présent dans ce profil, ou ce favori est périmé.", "This role is not in the current profile, or this bookmark is outdated.")}</Hint><Button onClick={() => navigate({ tab: "profile" })}>{tr("返回我的", "Retour à Moi", "Back to My")}</Button></div>}</Sheet>)}
       {route.view === "analysis" && (loading && !data.analysis?.markdown ? <Sheet><Loading /></Sheet> : <AnalysisSheet key={data.analysis?.taskId || "empty"} />)}
       {route.view === "compare" && <CompareSheet />}
       {(route.view === "task" || route.view === "report") && <ResultSheet />}
@@ -133,4 +140,11 @@ function Phone() {
     </>}
   </div></div></div>;
 }
-export function JobPilotApp({ profileId }: { profileId: string }) { return <PilotProvider profileId={profileId}><Phone /></PilotProvider>; }
+export function JobPilotApp({ profileId, preview=false }: { profileId: string; preview?:boolean }) {
+  const [session,setSession]=useState<string|null>(preview?null:profileId);
+  const [failure,setFailure]=useState(false);
+  const loadSession=()=>{setFailure(false);fetch("/api/v1/session",{credentials:"same-origin",cache:"no-store"}).then(async response=>{if(!response.ok)throw new Error("session");const data=await response.json();setSession(data.authenticated?data.profileId:"");}).catch(()=>setFailure(true));};
+  useEffect(()=>{if(preview)loadSession();},[preview]);
+  if(session===null)return <div className="jp-login"><h1>JobPilot</h1>{failure?<button onClick={loadSession}>Retry · Réessayer · 重试</button>:<span className="jp-v1-orbit"/>}</div>;
+  return <PilotProvider key={session || "signed-out"} profileId={session} preview={preview}><Phone /></PilotProvider>;
+}

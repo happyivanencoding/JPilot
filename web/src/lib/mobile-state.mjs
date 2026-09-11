@@ -89,7 +89,7 @@ export function operationKey(kind, input, version, jobs, day = new Date().toISOS
   const evidence = j => j ? [j.id, normalizeUrl(j.url), j.reportNum || null, j.score ?? null, j.summary || '', j.match || [], j.gaps || []] : null;
   if (kind === 'evaluate') return JSON.stringify([kind, normalizeUrl(input.url)]);
   if (kind === 'deep_match') return JSON.stringify([kind, 'v1', version.id, normalizeUrl(input.url || input.offer?.url)]);
-  if (kind === 'analysis') return JSON.stringify([kind, ANALYSIS_OPERATION_VERSION, version.id]);
+  if (kind === 'analysis') return JSON.stringify([kind, input.experience==='v1' ? 'analysis-v3-personal-orientation' : ANALYSIS_OPERATION_VERSION, version.id]);
   if (kind === 'search') return JSON.stringify([kind, SEARCH_OPERATION_VERSION, version.id, clean(input.query), day]);
   if (kind === 'cv') return JSON.stringify([kind, version.id, evidence(job), ...(input.applicationLanguage ? [input.applicationLanguage] : [])]);
   if (kind === 'cv_review') return JSON.stringify([kind, input.jobId, input.draftId, Number(input.revision || 0)]);
@@ -127,8 +127,9 @@ export function discoveryProjection(discovery, jobs, tasks) {
     const task = tasks.find(t => t.kind === 'evaluate' && normalizeUrl(t.input?.url) === key && ['queued','running','reconciling'].includes(t.status));
     const deepCompleted=tasks.find(t=>t.kind==='deep_match' && normalizeUrl(t.input?.url || t.input?.offer?.url)===key && t.status==='completed' && t.result?.deepMatch);
     const deepActive=tasks.find(t=>t.kind==='deep_match' && normalizeUrl(t.input?.url || t.input?.offer?.url)===key && ['queued','running','reconciling'].includes(t.status));
+    const deepFailed=tasks.find(t=>t.kind==='deep_match' && normalizeUrl(t.input?.url || t.input?.offer?.url)===key && ['failed','interrupted'].includes(t.status));
     return [{ ...offer, lifecycle: task ? 'evaluating' : 'discovered', taskId: task?.id || null, jobId: job?.id || null,
-      deepMatch:deepCompleted?.result?.deepMatch || null,deepMatchState:deepCompleted?'ready':deepActive?'loading':'pending',deepMatchTaskId:deepCompleted?.id || deepActive?.id || null }];
+      deepMatch:deepCompleted?.result?.deepMatch || null,deepMatchState:deepCompleted?'ready':deepActive?'loading':deepFailed?'failed':'pending',deepMatchTaskId:deepCompleted?.id || deepActive?.id || null }];
   }) };
 }
 

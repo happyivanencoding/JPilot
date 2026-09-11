@@ -1,5 +1,9 @@
 # JobPilot Android — implementation handoff
 
+## 2026-09-11 V1 0.4.3 / Web 0.6.3
+
+V1 now uses per-session empty preview Profiles rather than fixed `louis`. First run defaults to English, allows independent UI/CV/insight languages, saves the chosen source CV in the background without exposing an extraction textarea, and presents personal strengths/directions and the first four scored role cards only when analysis plus DeepSeek translation are complete. My ends with session-revoking logout; another simulated Google sign-in can test a different CV. No changes to production Google authentication. Old requests, old CV versions and another Profile's tasks cannot populate the new session's results. Current V1 product/data semantics and real acceptance: `V1_STUDENT_MATCH_LOOP_2026-09-10.md`.
+
 ## 2026-09-11 V1 first-run CV upload runtime fix
 
 - The Samsung V1 first-run `3/7` screen showed “这份简历没有成功读取” for `CV_Test_10_Yuki_Tanaka.pdf`. Raw VPS task evidence identified two server-runtime faults in sequence: first `spawn python ENOENT`, then `/usr/bin/python3: can't open file '/data/web/scripts/extract-mobile-cv.py'` after Python was added.

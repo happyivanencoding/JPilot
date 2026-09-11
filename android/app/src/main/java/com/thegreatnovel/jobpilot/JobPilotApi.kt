@@ -22,7 +22,7 @@ class JobPilotApi(private val context: Context) {
     private val vault = SessionVault(context)
     var token: String? = vault.read(); private set
     var base: String = prefs.getString("server", BuildConfig.API_BASE_URL) ?: BuildConfig.API_BASE_URL; private set
-    val uiLocale: String get() = prefs.getString("language", "fr") ?: "fr"
+    val uiLocale: String get() = prefs.getString("language", "en") ?: "en"
     fun saveToken(value: String?) { token = value; vault.save(value) }
     fun setBase(value: String) {
         val u = URI(value.trim().trimEnd('/'))
@@ -77,7 +77,9 @@ class JobPilotApi(private val context: Context) {
         val boundary = "JobPilot" + java.util.UUID.randomUUID().toString()
         val safeName = filename.replace(Regex("[\r\n\"\\\\]"), "_")
         val prefix = "--$boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"$safeName\"\r\nContent-Type: application/octet-stream\r\n\r\n".toByteArray(Charsets.UTF_8)
-        val suffix = "\r\n--$boundary--\r\n".toByteArray()
+        val preferences=context.getSharedPreferences("jobpilot",0)
+        val fields=listOf("sourceLanguage" to (preferences.getString("cvLanguage","en") ?: "en"),"analysisLanguage" to (preferences.getString("analysisLanguage",uiLocale) ?: uiLocale))
+        val suffix = (fields.joinToString("") { (name,value) -> "\r\n--$boundary\r\nContent-Disposition: form-data; name=\"$name\"\r\n\r\n$value" } + "\r\n--$boundary--\r\n").toByteArray()
         val c = connection("/api/mobile/upload?profileId=${Uri.encode(profile)}", profile, "POST")
         try {
             c.doOutput = true; c.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")

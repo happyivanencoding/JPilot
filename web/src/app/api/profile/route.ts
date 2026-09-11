@@ -32,6 +32,10 @@ function preferenceChanges(input: Record<string, unknown>): Settings {
     if (!Array.isArray(input.contractTypes) || input.contractTypes.some(type => !CONTRACT_TYPES.includes(type))) throw new Error("Types de contrat invalides.");
     set("target_roles", "contract_types", [...new Set(input.contractTypes)]);
   }
+  if(input.analysisLanguage!==undefined) {
+    if(!["en","fr","zh"].includes(String(input.analysisLanguage))) throw new Error("Invalid analysis language");
+    set("display","analysis_language",input.analysisLanguage);
+  }
   if (input.applicationLanguage !== undefined) {
     if (input.applicationLanguage !== "fr" && input.applicationLanguage !== "en") throw new Error("Invalid application language");
     set("cv", "language", input.applicationLanguage);

@@ -1,5 +1,17 @@
 # JobPilot V1 — Student Match Loop
 
+## 2026-09-11 V1 0.4.3 — personal journey and independent preview accounts
+
+The Yuki/Louis defect was not merely a stale display name: the previous preview hardcoded every sign-in to `louis`, and CV replacement retained that profile's old name, finance targets and notes. V1 preview now has genuine server-side sessions. Each simulated Google sign-in creates a new empty Profile; it never clones the default person's facts, preferences, jobs, history or tasks. The API requires that session and binds reads/writes to its sole Profile, stripping caller-supplied privilege headers. Logout revokes the server session and discards client profile/results/navigation; another preview sign-in starts a separate test account. This is V1 simulation only, not a change to production Google OAuth or real email-linked accounts. Existing mixed Louis data is preserved for diagnosis but inaccessible to new ordinary preview accounts.
+
+The first-run product flow is now **language → invite/preview Google → CV with source and insight language choices → personal strengths and directions → chosen direction → complete scored role deck → normal details**. UI defaults to English for a new installation. English/French CV language and Chinese/French/English insight language are separate from UI language. Choosing the uploaded file authorizes saving its extracted original text in that account: there is no forced raw-text preview or extraction-confirmation step. Generated tailored-CV drafts still require explicit keep/reject.
+
+V1 orientation is a short, fresh-CV-only English model analysis, not the full legacy CV-audit/global-layout plan. It produces a source-checked candidate name, strengths, practical growth actions and distinct search directions. It does not consume the previous CV's analysis continuity or auto-search before the user chooses a direction. DeepSeek display translation prepares the selected insight language; neither untranslated directions nor partially enriched/translated offer cards are released. Four leading roles are enriched silently; scores and CV-only potential ceilings remain unchanged by translation. Failed preparation offers an explicit retry without turning into endless placeholders.
+
+Discovery enrichment is bound to the current Candidate version as well as profile+URL. Switching directions preserves earlier result groups, and selecting an older reused search makes that exact search current rather than waiting forever behind the newer search. Android/Web share per-profile journey completion, the new My-bottom logout, and the same readiness rules. Source CVs, consented facts and generated draft acceptance remain separate.
+
+Versions: Android `0.4.3/code17`, Web `0.6.3`, snapshot `0.4.3`. Targeted deterministic coverage includes independent profiles, forged/cross-profile access denial, auto-ingest without a proposal textarea, prior-CV exclusion, translation wait/failure/retry, score invariance and token revocation. Real deployment and device acceptance are recorded after rollout.
+
 > Branch-only product line for first external student tests. This document describes `feature/v1-student-match-loop-20260910`; it is not a statement that production `main` has switched to V1.
 
 ## 2026-09-11 CV ingest deployment fix

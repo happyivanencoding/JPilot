@@ -32,7 +32,7 @@ fun V1OverviewScreen(state: PilotState, vm: JobPilotViewModel, onExplore: () -> 
     val v1 = state.snapshot.child("v1")
     val directions = v1.objects("careerDirections")
     val offers = state.snapshot.child("discovery").objects("offers").take(3)
-    val signals = state.snapshot.child("analysis").child("globalLayout").objects("signals")
+    val signals = state.snapshot.child("analysis").objects("strengths").ifEmpty {state.snapshot.child("analysis").child("globalLayout").objects("signals")}
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(18.dp),
@@ -47,6 +47,14 @@ fun V1OverviewScreen(state: PilotState, vm: JobPilotViewModel, onExplore: () -> 
                 PrimaryButton(tr("上传我的简历", "Importer mon CV", "Upload my CV")) { onProfile() }
             }
         } else {
+            if (signals.isNotEmpty()) item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(tr("你的优势在哪", "Vos points forts", "Where your strengths are"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    signals.take(4).forEach { signal -> GlassCard { Text(signal.text("title"), fontWeight = FontWeight.SemiBold); signal.text("evidence").takeIf { it.isNotBlank() }?.let { Hint(it) } } }
+                }
+            }
+            val growth=state.snapshot.child("analysis").objects("growthAreas")
+            if(growth.isNotEmpty()) item { Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {Text(tr("下一步这样提升","Pour aller plus loin","Your next steps"),fontSize=18.sp,fontWeight=FontWeight.SemiBold);growth.forEach {g->GlassCard {Text(g.text("title"),fontWeight=FontWeight.SemiBold);Hint(g.text("nextAction"))}}} }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -55,10 +63,10 @@ fun V1OverviewScreen(state: PilotState, vm: JobPilotViewModel, onExplore: () -> 
                     }
                     if (directions.isEmpty() && v1.optBoolean("backgroundActive")) {
                         LinearProgressIndicator(Modifier.fillMaxWidth())
-                        Hint(tr("正在整理你的经历。", "Analyse de votre parcours…", "Reading your experience…"))
+                        Hint(tr("为你准备新的方向。", "De nouvelles pistes se préparent.", "New possibilities are on their way."))
                     } else directions.take(5).forEach { direction ->
                         Surface(
-                            onClick = onExplore,
+                            onClick = { vm.startTask(json("kind" to "search","query" to direction.text("searchQuery"),"silent" to true));onExplore() },
                             shape = RoundedCornerShape(10.dp),
                             color = MaterialTheme.colorScheme.surface,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -83,12 +91,7 @@ fun V1OverviewScreen(state: PilotState, vm: JobPilotViewModel, onExplore: () -> 
                 }
                 items(offers, key = { it.text("url") }) { offer -> V1OfferCard(offer) { vm.selectOffer(offer.text("url")) } }
             }
-            if (signals.isNotEmpty()) item {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(tr("你的优势在哪", "Vos points forts", "Where your strengths are"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    signals.take(4).forEach { signal -> GlassCard { Text(signal.text("title"), fontWeight = FontWeight.SemiBold); signal.text("evidence").takeIf { it.isNotBlank() }?.let { Hint(it) } } }
-                }
-            }
+
         }
     }
 }
@@ -107,7 +110,7 @@ fun V1ExploreScreen(state: PilotState, vm: JobPilotViewModel) {
     var priorSuggested by rememberSaveable(state.profileId) { mutableStateOf(suggested) }
     LaunchedEffect(suggested) { if (query == priorSuggested) query = suggested; priorSuggested = suggested }
     val searchState = v1.text("searchState")
-    val searching = searchState in setOf("queued", "running", "reconciling")
+    val searching = searchState in setOf("queued", "running", "reconciling") || (v1.optBoolean("backgroundActive") && !v1.optBoolean("offersReady"))
     val discovery = state.snapshot.child("discovery")
     val offers = discovery.objects("offers").take(5)
     val history = discovery.objects("history")
@@ -117,16 +120,16 @@ fun V1ExploreScreen(state: PilotState, vm: JobPilotViewModel) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
         overscrollEffect = null,
     ) {
-        item { SectionTitle(tr("机会", "Opportunités", "Opportunities"), tr("先快速看分，再点开理解为什么。", "Un score immédiat, puis l’explication si vous ouvrez l’offre.", "See the score first, then open a role to understand why.")) }
+        item { SectionTitle(tr("机会", "Opportunités", "Opportunities"), tr("看看你和工作的契合点。", "Découvrez les postes qui vous correspondent.", "Find the work that fits you.")) }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), label = { Text(tr("我想看看什么工作", "Quel type de poste voulez-vous explorer ?", "What roles do you want to explore?")) }, singleLine = true, shape = RoundedCornerShape(10.dp))
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    (directions.map { it.text("title") } + keywords).filter { it.isNotBlank() }.distinct().take(8).forEach { item ->
-                        FilterChip(selected = query == item, onClick = { query = item }, label = { Text(item, maxLines = 1) })
+                    (directions.map { it.text("title") to it.text("searchQuery") } + keywords.map { it to it }).distinct().take(8).forEach { (title,search) ->
+                        FilterChip(selected = query == search, onClick = { query = search }, label = { Text(title, maxLines = 1) })
                     }
                 }
-                Hint(tr("你可以直接改关键词；明确写下的意图会优先于 AI 推断。", "Vous pouvez modifier les mots-clés ; votre intention explicite reste prioritaire.", "Edit the keywords freely; your explicit intent takes priority over AI inference."))
+                Hint(tr("也可以输入你更感兴趣的工作。", "Vous pouvez aussi saisir le métier qui vous attire.", "Or type the role you would like to explore."))
                 PrimaryButton(if (searching) tr("正在找岗位…", "Recherche en cours…", "Finding roles…") else tr("搜索这个方向", "Rechercher cette direction", "Search this direction"), query.isNotBlank() && !searching) {
                     vm.startTask(json("kind" to "search", "query" to query, "silent" to true))
                 }
@@ -134,10 +137,11 @@ fun V1ExploreScreen(state: PilotState, vm: JobPilotViewModel) {
         }
         item { Row(verticalAlignment = Alignment.CenterVertically) { Text(tr("最值得先看的岗位", "À regarder en premier", "Best roles to inspect first"), Modifier.weight(1f), fontWeight = FontWeight.SemiBold); Hint(discovery.text("searchedAt").take(10)) } }
         if (offers.isEmpty()) item {
-            EmptyCard(
-                if (v1.optBoolean("backgroundActive")) tr("正在准备第一批岗位", "Premières offres en préparation", "Preparing your first roles") else tr("还没有岗位", "Aucune offre pour l’instant", "No roles yet"),
-                tr("确认简历后 JobPilot 会自动准备第一批结果；你也可以在上方换一个方向。", "Après confirmation du CV, JobPilot prépare automatiquement une première sélection. Vous pouvez aussi changer de direction ci-dessus.", "After you confirm your CV, JobPilot prepares an initial set automatically. You can also change direction above."),
-            )
+            Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                if(v1.optBoolean("backgroundActive")&&!v1.optBoolean("presentationFailed")) LinearProgressIndicator(Modifier.fillMaxWidth())
+                EmptyCard(if(v1.optBoolean("presentationFailed"))tr("这次没有准备好，请再试一次","La sélection n’est pas encore prête","This selection needs another try")else if(v1.optBoolean("backgroundActive"))tr("为你挑选值得一试的工作","Une sélection qui vous correspond","Finding roles worth your time")else tr("这个方向暂时没有合适的岗位","Pas encore d’offre adaptée à cette piste","No suitable roles for this direction yet"),tr("每份工作都会带上匹配分、优势和提升建议。也可以换个方向探索。","Chaque offre avec son match, vos atouts et vos prochaines actions. Vous pouvez aussi changer de piste.","Each role comes with your match, strengths and next steps. You can also explore another direction."))
+                if(v1.optBoolean("presentationFailed")) PrimaryButton(tr("重试","Réessayer","Retry"),!state.working) {vm.retryV1()}
+            }
         }
         items(offers, key = { it.text("url") }) { offer -> V1OfferCard(offer) { vm.selectOffer(offer.text("url")) } }
         if (history.isNotEmpty()) item {

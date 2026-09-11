@@ -80,6 +80,7 @@ export function normalizeProfileId(value?: string | null): string {
 
 export function getProfile(value?: string | null): CareerProfile {
   const store = readProfileStore();
+  if (value && !store.profiles.some(profile=>profile.id===value)) throw new Error("Profil inconnu.");
   const id = normalizeProfileId(value);
   return store.profiles.find((profile) => profile.id === id) ?? store.profiles[0];
 }

@@ -1,3 +1,7 @@
+import path from "node:path";
+import {readJson,writeJson} from "@/lib/mobile-state.mjs";
+import {prepareV1Display} from "@/lib/v1-display";
+import {currentVersionTasks} from "@/lib/v1-journey.mjs";
 import fs from "node:fs";
 import { headers } from "next/headers";
 import * as yaml from "js-yaml";
@@ -27,6 +31,10 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const profileId = await activeProfileId(url.searchParams.get("profileId"));
     const locale=requestUiLocale(req,url.searchParams.get("uiLocale"));
+    const preview=process.env.JOBPILOT_V1_PREVIEW === "1";
+    const profileConfig=(yaml.load(fs.readFileSync(profileFile(profileId,"config"),"utf8")) || {}) as any;
+    const analysisLocale=String(req.headers.get("x-jobpilot-analysis-locale") || profileConfig.display?.analysis_language || locale);
+    const journey=(readJson(path.join(mobileDirectory(profileId),"journey.json")) || {});
     const localizationOptions={retry:url.searchParams.get("retryLocalization")==="1"};
     // Translate only job prose currently exposed by training/comparison.
     const displayJobIds=new Set((url.searchParams.get("displayJobIds") || "").split(",").filter(Boolean));
@@ -35,21 +43,21 @@ export async function GET(req: Request) {
     if (url.searchParams.has("taskId")) {
       const task=readMobileTask(profileId,url.searchParams.get("taskId")!);
       const view=taskView(task,readCandidatureStore(profileId).jobs,true,locale);
-      if(view.result && task.kind!=="ingest") view.result=await localizeDisplay(profileId,locale,view.result,"result",{...localizationOptions,identity:task.id});
+      if(view.result && task.kind!=="ingest") view.result=await localizeDisplay(profileId,analysisLocale,view.result,"result",{...localizationOptions,identity:task.id});
       return Response.json(view,{headers:{"Cache-Control":"no-store"}});
     }
     if(url.searchParams.has("jobId")) {
       const job=readCandidatureStore(profileId).jobs.find(j=>j.id===url.searchParams.get("jobId"));
       if(!job)throw new Error("Candidature introuvable.");
       const projected={...evaluationProjection(job,listMobileTasks(profileId)),stage:stageOf(job.status)};
-      return Response.json(await localizeDisplay(profileId,locale,projected,"job",{...localizationOptions,identity:job.id}),{headers:{"Cache-Control":"no-store"}});
+      return Response.json(await localizeDisplay(profileId,analysisLocale,projected,"job",{...localizationOptions,identity:job.id}),{headers:{"Cache-Control":"no-store"}});
     }
     if(url.searchParams.has("reportJobId")) {
       const job=readCandidatureStore(profileId).jobs.find(j=>j.id===url.searchParams.get("reportJobId"));
       if(!job?.reportNum || !readApplications(profileId).some(a=>String(a.n)===String(job.reportNum))) return Response.json({error:publicError("Rapport introuvable pour ce profil.",locale)},{status:404});
       const report=readReport(String(job.reportNum));
       if(!report) return Response.json({error:publicError("Rapport introuvable.",locale)},{status:404});
-      return Response.json(await localizeDisplay(profileId,locale,{markdown:reportForDisplay(report.content)},"report",{...localizationOptions,identity:`report:${job.reportNum}`}),{headers:{"Cache-Control":"no-store"}});
+      return Response.json(await localizeDisplay(profileId,analysisLocale,{markdown:reportForDisplay(report.content)},"report",{...localizationOptions,identity:`report:${job.reportNum}`}),{headers:{"Cache-Control":"no-store"}});
     }
     let store = reconcileCandidatures(profileId);
     const read = (kind: "cv" | "config") => { try { return fs.readFileSync(profileFile(profileId, kind), "utf8"); } catch { return ""; } };
@@ -65,24 +73,26 @@ export async function GET(req: Request) {
     const profiles = listProfiles().filter(p => !restricted || restricted.includes(p.id)).map(({ id, name, shortName }) => ({ id, name, shortName }));
     const projectedJobs=store.jobs.map(j=>({...evaluationProjection(j,tasks),stage:stageOf(j.status)}));
     const cv=read("cv");
-    const analysis=currentAnalysis(profileId,version,tasks);
+    const foundAnalysis=currentAnalysis(profileId,version,tasks);
+    const analysis=foundAnalysis?.stale ? null : foundAnalysis;
     const visibleTasks=tasks.filter((t:MobileTask)=>t.input?.silent!==true);
     const careerDirections=Array.isArray((analysis as any)?.careerDirections)?(analysis as any).careerDirections:[];
     const searchKeywords=Array.isArray((analysis as any)?.searchKeywords)?(analysis as any).searchKeywords:[];
     const v1AnalysisReady=Boolean(analysis && (analysis as any).inputVersionId===version.id && (careerDirections.length || searchKeywords.length));
     const activeAnalysis=tasks.find((t:MobileTask)=>t.kind==="analysis"&&t.inputVersionId===version.id&&["queued","running","reconciling"].includes(t.status));
-    const failedV1Analysis=tasks.find((t:MobileTask)=>t.kind==="analysis"&&t.inputVersionId===version.id&&["failed","interrupted"].includes(t.status)&&(String(t.input?.source||"").startsWith("v1-")||String(t.operationKey||"").includes("analysis-v2-v1-directions")));
-    const latestSearchTask=tasks.find((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&String(t.operationKey||"").includes("search-v6-live-providers"));
+    const failedV1Analysis=tasks.find((t:MobileTask)=>t.kind==="analysis"&&t.inputVersionId===version.id&&["failed","interrupted"].includes(t.status)&&(String(t.input?.source||"").startsWith("v1-")||String(t.operationKey||"").includes("analysis-v")));
+    const selectedSearchTask=tasks.find((t:MobileTask)=>t.id===journey.searchTaskId&&t.kind==="search"&&t.inputVersionId===version.id);
+    const latestSearchTask=selectedSearchTask || tasks.find((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&String(t.operationKey||"").includes("search-v6-live-providers"));
     const completedSearches=tasks.filter((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&String(t.operationKey||"").includes("search-v6-live-providers")&&t.status==="completed"&&Array.isArray(t.result?.offers));
-    const latestSearch=completedSearches[0];
+    const latestSearch=selectedSearchTask?.status==="completed" ? selectedSearchTask : completedSearches[0];
     const projectDiscovery=(task?:MobileTask)=>{
-      const result=discoveryProjection(task?.result || null,projectedJobs,tasks);
+      const result=discoveryProjection(task?.result || null,projectedJobs,currentVersionTasks(tasks,version.id));
       const eligible=result.offers.filter((o:any)=>contractMatches(o,(config as any)?.target_roles?.contract_types || []).matches);
-      return {...result,offers:topDiscoveryOffers(eligible),displayLimit:DISCOVERY_OFFER_LIMIT,availableCount:eligible.length};
+      return {...result,offers:topDiscoveryOffers(eligible).slice(0,preview?4:DISCOVERY_OFFER_LIMIT),displayLimit:DISCOVERY_OFFER_LIMIT,availableCount:eligible.length};
     };
     const currentDiscovery={...projectDiscovery(latestSearch),taskId:latestSearch?.id || null,query:String(latestSearch?.input?.query || "")};
     const seenOfferUrls=new Set((currentDiscovery.offers || []).map((offer:any)=>String(offer.url || "")));
-    const searchHistory=completedSearches.slice(1,9).flatMap((task:MobileTask)=>{
+    const searchHistory=completedSearches.filter((t:MobileTask)=>t.id!==latestSearch?.id).slice(0,8).flatMap((task:MobileTask)=>{
       const projected=projectDiscovery(task);
       const offers=(projected.offers || []).filter((offer:any)=>{
         const url=String(offer.url || "");
@@ -93,10 +103,10 @@ export async function GET(req: Request) {
       return [{taskId:task.id,query:String(task.input?.query || ""),searchedAt:task.updatedAt || task.createdAt || "",offers}];
     });
     const snapshot={
-      version: "0.4.2", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
+      version: "0.4.3", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
       access:{role,canSwitchProfiles:role!=="user"&&profiles.length>1,needsCv:role==="user"&&!cv.trim()},
       cv, cvState:{versionId:version.id,cvVersion:version.cvVersion,revision:version.revision,changedAt:version.createdAt},
-      languageSettings:{uiLocale:locale,applicationLanguage:applicationLanguage(config || {},read("cv")),documentLanguage:documentLanguage(version)},
+      languageSettings:{uiLocale:locale,analysisLanguage:analysisLocale,applicationLanguage:applicationLanguage(config || {},read("cv")),documentLanguage:documentLanguage(version)},
       config: config || {}, jobs: projectedJobs, dashboard: dashboardFor(projectedJobs), statuses: APPLICATION_STATUSES,
       tasks: visibleTasks.slice(0,60).map((t:MobileTask)=>taskView(t,projectedJobs,false,locale)),
       analysis,
@@ -112,11 +122,12 @@ export async function GET(req: Request) {
       flowEstimates:Object.fromEntries(Object.entries(FLOW_DEFAULTS).map(([kind,choice])=>[kind,estimateView(flowEstimate(tasks,kind,choice.model,choice.reasoning),locale)])),
       updatedAt: store.updatedAt,
     };
-    const display=await localizeDisplay(profileId,locale,snapshot,"snapshot",localizationOptions);
+    const display=preview ? await prepareV1Display(profileId,analysisLocale,snapshot,tasks,journey,localizationOptions.retry)
+      : await localizeDisplay(profileId,locale,snapshot,"snapshot",localizationOptions);
     // Full job prose is translated lazily on opening a detail. Cached translations
     // are reused here, but unrequested historical reports never consume Agents.
     display.jobs=[];
-    for(const job of snapshot.jobs as Array<Record<string,any>>) display.jobs.push(await localizeDisplay(profileId,locale,job,"job",{...localizationOptions,schedule:displayJobIds.has(job.id),identity:job.id}));
+    for(const job of snapshot.jobs as Array<Record<string,any>>) display.jobs.push(await localizeDisplay(profileId,analysisLocale,job,"job",{...localizationOptions,schedule:displayJobIds.has(job.id),identity:job.id}));
     return Response.json(display,{headers:{"Cache-Control":"no-store"}});
   } catch (e) { console.error("mobile read failed",e);return Response.json({ error: publicError(e,requestUiLocale(req)) }, { status: 400 }); }
 }
@@ -126,12 +137,37 @@ export async function POST(req: Request) {
     const body = await req.json();
     const profileId = await activeProfileId(body.profileId);
     const locale=requestUiLocale(req,body.input?.uiLocale || body.input?.language || body.uiLocale);
+    if(body.action === "finishOnboarding") {
+      await withProfileLock(mobileDirectory(profileId),()=>{
+        const file=path.join(mobileDirectory(profileId),"journey.json");
+        writeJson(file,{...(readJson(file) || {}),completed:true});
+      });
+      return Response.json({ok:true});
+    }
+    if(body.action === "retryV1") {
+      const version=currentCandidateVersion(profileId);
+      const tasks=currentVersionTasks(listMobileTasks(profileId),version.id);
+      const analysis=tasks.find((t:any)=>t.kind==="analysis");
+      if(!analysis || ["failed","interrupted"].includes(analysis.status)) await startMobileTask(profileId,{kind:"analysis",silent:true,retry:true,source:"v1-retry",uiLocale:locale});
+      for(const task of tasks.filter((t:any)=>["search","deep_match"].includes(t.kind)&&["failed","interrupted"].includes(t.status))) {
+        const retried=await startMobileTask(profileId,{...task.input,retry:true});
+        if(task.kind==="search") await withProfileLock(mobileDirectory(profileId),()=>{
+          const file=path.join(mobileDirectory(profileId),"journey.json"),journey=(readJson(file) || {});
+          if(journey.searchTaskId===task.id) writeJson(file,{...journey,searchTaskId:retried.id});
+        });
+      }
+      return Response.json({ok:true});
+    }
     if (body.action === "bootstrapV1") {
       const task=await startMobileTask(profileId,{kind:"analysis",silent:true,retry:true,source:"v1-auto-bootstrap",uiLocale:locale});
       return Response.json({ok:true,task:taskView(task,readCandidatureStore(profileId).jobs,false,locale)},{status:task.status==="completed"?200:202});
     }
     if (body.action === "task") {
       const task = await startMobileTask(profileId, {...body.input,uiLocale:locale});
+      if(body.input?.kind==="search") await withProfileLock(mobileDirectory(profileId),()=>{
+        const file=path.join(mobileDirectory(profileId),"journey.json");
+        writeJson(file,{...(readJson(file) || {}),query:body.input.query,searchTaskId:task.id});
+      });
       const view=taskView(task,readCandidatureStore(profileId).jobs,true,locale);
       if(view.result && task.kind!=="ingest")view.result=await localizeDisplay(profileId,locale,view.result,"result",{identity:task.id});
       return Response.json(view, { status: task.status === "completed" ? 200 : 202 });

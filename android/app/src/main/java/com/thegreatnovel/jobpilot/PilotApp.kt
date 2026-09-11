@@ -38,6 +38,7 @@ import kotlin.math.exp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun PilotApp(vm: JobPilotViewModel, state: PilotState) {
+    if (BuildConfig.APPLICATION_ID.endsWith(".v1") && (state.showV1FirstRun || !state.loggedIn)) { V1FirstRunOnboarding(state,vm); return }
     if (!state.loggedIn) { LoginScreen(vm,state); return }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var profileMenu by remember { mutableStateOf(false) }
@@ -52,7 +53,7 @@ import kotlin.math.exp
     val canSwitchProfiles = if(access.has("canSwitchProfiles")) access.optBoolean("canSwitchProfiles") else state.snapshot.objects("profiles").size > 1
     val keyboard = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     LaunchedEffect(state.destination) { state.destination?.let { tab = it.optInt("tab",tab).coerceIn(0,2); vm.consumeDestination() } }
-    LaunchedEffect(state.profileId) { taskCenter = false }
+    LaunchedEffect(state.profileId) { taskCenter = false; tab=0 }
     LaunchedEffect(needsCv) { if(needsCv) tab=2 }
     BackHandler(tab != 0 && state.task == null && state.selectedJob == null && state.selectedOffer == null && !state.analysisVisible && state.cvPreview == null) { tab = 0 }
     Scaffold(
@@ -152,7 +153,9 @@ import kotlin.math.exp
         val allOffers=discovery.objects("offers") + discovery.objects("history").flatMap { it.objects("offers") }
         allOffers.find { it.text("url") == url }?.let { V1OfferDetailSheet(it,state,vm) }
     }
-    ?: state.selectedJob?.let { id -> state.snapshot.objects("jobs").find { it.text("id") == id }?.let { job -> if(job.child("v1Match").length()>0) V1SavedJobDetailSheet(job,state,vm) else JobDetailSheet(job,state,vm) } }
+    ?: state.selectedJob?.let { id -> state.snapshot.objects("jobs").find { it.text("id") == id }?.let { job -> if(job.child("localization").optBoolean("pending")) {
+        ModalBottomSheet(onDismissRequest={vm.selectJob(null)}) {Column(Modifier.fillMaxWidth().padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {Text(tr("为你准备岗位建议","Vos conseils se préparent","Your role insights are on their way"));if(job.child("localization").optBoolean("failed")) PrimaryButton(tr("重试","Réessayer","Retry")){vm.retryLocalization()}else CircularProgressIndicator()}}
+    } else if(job.child("v1Match").length()>0) V1SavedJobDetailSheet(job,state,vm) else JobDetailSheet(job,state,vm) } }
     if(state.analysisVisible && state.snapshot.has("analysis")) AnalysisSheet(state,vm)
     if(state.cvPreview != null || state.previewLoading) CvPreviewDialog(state,vm)
     state.taskLaunch?.let { BackgroundTaskLaunch(it,state,vm::clearTaskLaunch) }

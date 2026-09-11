@@ -1,3 +1,5 @@
+import {orientationPrompt,parseOrientation} from "@/lib/v1-journey.mjs";
+import {setProfileDisplayName} from "@/lib/v1-session.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -14,7 +16,7 @@ import { searchStructuredOffers, rankSearchResults } from "@/lib/job-search/inde
 import { searchRequestFromConfig } from "@/lib/job-search/mobile-context.mjs";
 import * as yaml from "js-yaml";
 import { withProfileLock, processAlive, canAdoptLegacy, operationKey, reusableTask, writeJson, loadCandidateVersion, resolvedIssues, contractMatches } from "@/lib/mobile-state.mjs";
-import { currentCandidateVersion, currentAnalysis, analysisContinuity, createCvDraft, renderCvPreview } from "@/lib/mobile-history";
+import { currentCandidateVersion, currentAnalysis, analysisContinuity, saveImportedCv, createCvDraft, renderCvPreview } from "@/lib/mobile-history";
 import { findPersistedEvaluation } from "@/lib/evaluation-state";
 import { executeTransportEvaluation } from "@/lib/evaluation-transport";
 import { readCandidatureStore, writeCandidatureStore, reconcileCandidatures, saveMobileOffer } from "@/lib/candidatures";
@@ -196,6 +198,11 @@ function finalSearchMetrics(offers: Record<string, any>[], structured: Record<st
   };
 }
 export function coachingPrompt(task: MobileTask) {
+  if (task.kind === "analysis" && task.input.experience==="v1") {
+    const version=loadCandidateVersion(mobileDirectory(task.profileId),task.inputVersionId);
+    const config=(yaml.load(version.sources.config.text) || {}) as any;
+    return orientationPrompt(version.sources.cv.text,config.target_roles || {});
+  }
   if (task.kind === "analysis") return cvAnalysisPrompt({
     candidate:loadCandidateVersion(mobileDirectory(task.profileId),task.inputVersionId),
     previous:analysisContinuity(task.profileId,listMobileTasks(task.profileId)),
@@ -234,7 +241,9 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
         });
         const proposal = result.stdout.trim();
         if (!proposal) throw new Error("Aucun texte extrait.");
-        task.result = { proposal, filename: task.input.filename, confirmed: false };
+        task.result = task.input.autoImport === true
+          ? {...await saveImportedCv(task.profileId,proposal,String(task.inputVersionId),String(task.input.sourceLanguage),String(task.input.analysisLanguage)),filename:task.input.filename}
+          : { proposal, filename: task.input.filename, confirmed: false };
         task.phase = "Aperçu prêt. Confirmation requise avant de remplacer le CV.";
       } catch (e) {
         const failure = e as Error & { stderr?: string };
@@ -242,13 +251,17 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
       } finally {
         // Retain the source only with a persisted successful result so an identical
         // upload can be recognized without rerunning extraction or creating a task.
-        if(!task.result?.proposal) fs.rmSync(path.dirname(uploadPath), { recursive: true, force: true });
+        if(!task.result?.proposal && !task.result?.imported) fs.rmSync(path.dirname(uploadPath), { recursive: true, force: true });
       }
     } else if (task.kind === "search") {
       const searchStarted = Date.now();
       const version = loadCandidateVersion(mobileDirectory(task.profileId),task.inputVersionId);
       const config = (yaml.load(version.sources?.config?.text || readText(profileFile(task.profileId,"config"))) || {}) as any;
       const knownUrls = readCandidatureStore(task.profileId).jobs.map(job => String(job.url || "")).filter(Boolean);
+      if(task.input.experience==="v1" && !config.target_roles?.contract_types?.length) {
+        const analysis=currentAnalysis(task.profileId,version,listMobileTasks(task.profileId));
+        config.target_roles={...config.target_roles,contract_types:(analysis as any)?.suggestedContracts || []};
+      }
       const request = searchRequestFromConfig(String(task.input.query),config,knownUrls);
       task.phase = "Interrogation des sources d’offres structurées"; saveTask(task);
       const structured = await searchStructuredOffers(request, {
@@ -281,7 +294,7 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
         onRun,onMetrics:metrics,onText:text=>{output+=text;},onFinalText:complete=>{output=complete;}});
       const parsed=extractJsonObject(output);
       if(parsed.truncated || !parsed.obj) throw new Error("L’analyse approfondie du poste n’a pas renvoyé un résultat structuré.");
-      const deepMatch=normalizeDeepMatch(parsed.obj,fastMatch);
+      const deepMatch={...normalizeDeepMatch(parsed.obj,fastMatch),outputLocale:task.input.uiLocale};
       writeJobIntelligence(String(task.input.url || offer.url || ""),deepMatch);
       task.text=String(deepMatch.roleSummary || "");
       task.result={url:String(task.input.url || offer.url || ""),deepMatch,outputLocale:task.input.uiLocale};
@@ -328,10 +341,15 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
       });
       fs.writeFileSync(taskPath(task.profileId,task.id).replace(/\.json$/,".output.txt"),output,"utf8");
       const extracted=extractJsonObject(output);
-      const result = (task.kind === "analysis" ? preservePresentationLanguage(parseAnalysisResult(output),loadCandidateVersion(mobileDirectory(task.profileId),task.inputVersionId),String(task.input.language || "fr")) : !extracted.truncated ? extracted.obj : null) as Record<string, unknown> | null;
+      const result = (task.kind === "analysis" && task.input.experience === "v1"
+        ? (!extracted.truncated ? parseOrientation(extracted.obj,loadCandidateVersion(mobileDirectory(task.profileId),task.inputVersionId).sources.cv.text) : null)
+        : task.kind === "analysis" ? preservePresentationLanguage(parseAnalysisResult(output),loadCandidateVersion(mobileDirectory(task.profileId),task.inputVersionId),String(task.input.language || "fr")) : !extracted.truncated ? extracted.obj : null) as Record<string, unknown> | null;
       if (!result || typeof result.markdown !== "string" || !result.markdown.trim()) throw new Error("Le coach n’a pas produit de réponse exploitable.");
       task.text = result.markdown;
       task.result = {...result,outputLocale:task.input.uiLocale};
+      if(task.kind==="analysis" && task.input.experience==="v1" && currentCandidateVersion(task.profileId).id===task.inputVersionId) {
+        await setProfileDisplayName(workspaceRoot(),task.profileId,result.candidateName,loadCandidateVersion(mobileDirectory(task.profileId),task.inputVersionId).sources.cv.text);
+      }
       if (task.kind === "plan" && task.input.jobId && Array.isArray(result.tasks)) {
         // Re-read after the AI turn: preserve edits made from another screen/device.
         const store = readCandidatureStore(task.profileId);
@@ -359,6 +377,11 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
 
 async function queueV1FollowUps(task:MobileTask) {
   try {
+    if(task.kind==="ingest" && task.result?.imported) {
+      await startMobileTask(task.profileId,{kind:"analysis",silent:true,retry:true,source:"v1-upload",uiLocale:task.input.analysisLanguage});
+    }
+    if(["analysis","search"].includes(task.kind) && task.inputVersionId!==currentCandidateVersion(task.profileId).id) return;
+    if(task.input.experience==="v1" && task.kind==="analysis") return;
     if(task.kind==="analysis") {
       const version=loadCandidateVersion(mobileDirectory(task.profileId),task.inputVersionId);
       const config=(yaml.load(version.sources?.config?.text || readText(profileFile(task.profileId,"config"))) || {}) as any;
@@ -367,7 +390,7 @@ async function queueV1FollowUps(task:MobileTask) {
     }
     if(task.kind==="search") {
       const offers=Array.isArray(task.result?.offers)?task.result!.offers as Record<string,any>[]:[];
-      for(const offer of offers.slice(0,V1_DEEP_MATCH_PREFETCH_LIMIT)) {
+      for(const offer of offers.slice(0,task.input.experience==="v1"?4:V1_DEEP_MATCH_PREFETCH_LIMIT)) {
         if(!offer?.url || !Number.isFinite(Number(offer?.fastMatch?.score))) continue;
         await startMobileTask(task.profileId,{kind:"deep_match",url:offer.url,offer,fastMatch:offer.fastMatch,silent:true,source:"v1-top-k-prefetch",uiLocale:task.input.uiLocale || task.input.language});
       }
@@ -393,6 +416,10 @@ export function prepareTaskHistory(profileId: string, version: Record<string, an
 }
 export async function startMobileTask(profileId: string, input: Record<string, unknown>, uploadPath?: string): Promise<MobileTask> {
   const kind=String(input.kind || "");
+  if(process.env.JOBPILOT_V1_PREVIEW==="1") {
+    input={...input,experience:"v1"};
+    if(["analysis","deep_match"].includes(kind)) input={...input,uiLocale:"en",language:"en"};
+  }
   if (!TASK_KINDS.has(kind)) throw new Error("Action inconnue.");
   if (kind === "ingest" && !uploadPath) throw new Error("Utiliser le sélecteur de document.");
   if (kind === "search" && (typeof input.query !== "string" || !input.query.trim())) throw new Error("Précisez votre recherche.");
@@ -418,7 +445,8 @@ export async function startMobileTask(profileId: string, input: Record<string, u
     if(kind === "ingest" && uploadPath) {
       const bytes=fs.readFileSync(uploadPath);
       const previous=tasks.find(t=>t.kind === "ingest" && t.uploadSource && ["queued","running","reconciling","completed"].includes(t.status)
-        && fs.existsSync(t.uploadSource) && fs.statSync(t.uploadSource).size===bytes.length && fs.readFileSync(t.uploadSource).equals(bytes));
+        && t.input.autoImport===input.autoImport && t.input.sourceLanguage===input.sourceLanguage && t.input.analysisLanguage===input.analysisLanguage
+        && (!t.result?.imported || t.result.versionId===version.id) && fs.existsSync(t.uploadSource) && fs.statSync(t.uploadSource).size===bytes.length && fs.readFileSync(t.uploadSource).equals(bytes));
       if(previous)return {...previous,reused:true};
     }
     const key=kind === "ingest" ? randomUUID() : operationKey(kind,input,version,jobs);

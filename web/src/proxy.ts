@@ -1,3 +1,5 @@
+import path from "node:path";
+import {readPreviewSession,previewToken} from "@/lib/v1-session.mjs";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { checkRequest, parseAllowedHosts } from "@/lib/request-origin.mjs";
@@ -19,7 +21,22 @@ export function proxy(req: NextRequest) {
   if (!decision.ok) {
     return NextResponse.json({ error: decision.reason }, { status: decision.status });
   }
+  if (process.env.JOBPILOT_V1_PREVIEW === "1") {
+    const forwarded=new Headers(req.headers);
+    for(const name of ["x-jobpilot-role","x-jobpilot-profiles","x-jobpilot-email"]) forwarded.delete(name);
+    const session=readPreviewSession(process.env.CAREER_OPS_ROOT || path.resolve(process.cwd(),".."),previewToken(req.headers));
+    const publicRoute=req.nextUrl.pathname==="/api/v1/session" || req.nextUrl.pathname==="/";
+    const internalPrewarm=req.nextUrl.pathname==="/api/internal/prewarm" && ["127.0.0.1","localhost"].includes(req.nextUrl.hostname);
+    if(!session && !publicRoute && !internalPrewarm) return NextResponse.json({error:"Please sign in."},{status:401});
+    const explicit=req.nextUrl.searchParams.get("profileId") || req.headers.get("x-jobpilot-profile");
+    if(session && explicit && explicit!==session.profileId) return NextResponse.json({error:"This profile belongs to another session."},{status:403});
+    if(session) {
+      forwarded.set("x-jobpilot-role","user");
+      forwarded.set("x-jobpilot-profiles",session.profileId);
+    }
+    return NextResponse.next({request:{headers:forwarded}});
+  }
   return NextResponse.next();
 }
 
-export const config = { matcher: "/api/:path*" };
+export const config = { matcher: ["/api/:path*", "/"] };
