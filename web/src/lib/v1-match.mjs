@@ -134,3 +134,18 @@ export function searchQueryFromAnalysis(analysis,config={}){
   const keywords=Array.isArray(analysis?.searchKeywords)?analysis.searchKeywords.map(x=>String(x||'').trim()).filter(Boolean):[];
   return keywords.slice(0,4).join(' ');
 }
+
+
+// Use the same bounded gain as accepting a role CV, rather than mixing the
+// internal writing-quality rubric with the user's exploration match score.
+/** @param {Record<string, any>} job
+ * @param {Record<string, any>} assessment
+ * @returns {Record<string, any>} */
+export function v1CvAssessment(job, assessment={}) {
+  const match=job?.v1Match;
+  if(match?.currentScore==null || assessment.draftScore==null)return assessment;
+  const baselineScore=Math.max(0,Math.min(100,Math.round(Number(match.currentScore))));
+  const ceiling=Math.max(baselineScore,Math.min(100,Math.round(Number(match.cvPotentialScore ?? baselineScore))));
+  const draftScore=Math.min(ceiling,baselineScore+Math.max(0,Math.round(Number(assessment.delta || 0))));
+  return {...assessment,baselineScore,draftScore,delta:draftScore-baselineScore};
+}

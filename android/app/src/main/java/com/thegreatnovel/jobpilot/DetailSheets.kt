@@ -132,20 +132,27 @@ import org.json.JSONArray
 
 
 @Composable fun TailoredCvDraftCard(job:JSONObject,state:PilotState,vm:JobPilotViewModel) {
-    val draft=job.child("cvDraft");val assessment=draft.child("assessment");val pending=draft.text("status")=="pending"
+    val draft=job.child("cvDraft");val assessment=JSONObject(draft.child("assessment").toString());val pending=draft.text("status")=="pending"
+    val v1=job.child("v1Match")
+    if(v1.has("currentScore")&&assessment.has("draftScore")) {
+        val current=v1.optInt("currentScore").coerceIn(0,100)
+        val ceiling=v1.optInt("cvPotentialScore",current).coerceIn(current,100)
+        val projected=(current+assessment.optInt("delta").coerceAtLeast(0)).coerceAtMost(ceiling)
+        assessment.put("baselineScore",current).put("draftScore",projected).put("delta",projected-current)
+    }
     var editing by remember(draft.text("id"),draft.optInt("revision")) { mutableStateOf(false) }
     var payload by remember(draft.text("id"),draft.optInt("revision")) { mutableStateOf(JSONObject(draft.child("payload").toString())) }
     fun mutate(block:(JSONObject)->Unit){val next=JSONObject(payload.toString());block(next);payload=next}
     GlassCard(Modifier.testTag("tailored-cv-draft")) {
-        Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) { Text(if(pending)tr("候选简历草稿","Brouillon de CV adapté","Tailored CV draft")else if(draft.text("status")=="accepted")tr("已保留的草稿记录","Brouillon conservé","Saved draft record")else tr("已拒绝的草稿","Brouillon refusé","Rejected draft"),Modifier.weight(1f),fontWeight=FontWeight.SemiBold,fontSize=18.sp);Pill("ATS ${draft.optInt("atsScore")}/100",warm=!draft.optBoolean("atsPass")) }
+        Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) { Text(if(pending)tr("候选简历草稿","Brouillon de CV adapté","Tailored CV draft")else if(draft.text("status")=="accepted")tr("已保留的草稿记录","Brouillon conservé","Saved draft record")else tr("已拒绝的草稿","Brouillon refusé","Rejected draft"),Modifier.weight(1f),fontWeight=FontWeight.SemiBold,fontSize=18.sp);if(!v1.has("currentScore"))Pill("ATS ${draft.optInt("atsScore")}/100",warm=!draft.optBoolean("atsPass")) }
         if(assessment.has("draftScore")) Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f)){Hint(tr("当前主简历","CV actuel","Current master CV"));Text(assessment.text("baselineScore"),fontSize=29.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}
             Text("→",fontSize=20.sp,color=MaterialTheme.colorScheme.primary)
-            Column(Modifier.weight(1f)){Hint(tr("这个草稿","Ce brouillon","This draft"));Text(assessment.text("draftScore"),fontSize=29.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}
+            Column(Modifier.weight(1f)){Hint(if(v1.has("currentScore"))tr("这个版本预计","Estimation pour ce CV","Estimated with this CV")else tr("这个草稿","Ce brouillon","This draft"));Text(assessment.text("draftScore"),fontSize=29.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}
             val delta=assessment.optInt("delta");Pill((if(delta>=0)"+" else "")+delta,warm=delta<0)
         }
-        Hint(tr("“呈现匹配度”衡量这份简历是否把你已有的相关证据清楚地呈现给当前岗位；它不是录用概率，也不会改变正式岗位评分。","Le score mesure uniquement la présentation de vos preuves existantes pour ce poste ; ce n’est pas une probabilité d’embauche et il ne modifie pas le score officiel.","Presentation score measures how clearly existing evidence is shown for this role; it is not hiring probability and does not change the formal job score."))
-        if(assessment.text("summary").isNotBlank())Text(assessment.text("summary"),fontSize=14.sp,lineHeight=21.sp)
+        if(!v1.has("currentScore")) Hint(tr("“呈现匹配度”衡量这份简历是否把你已有的相关证据清楚地呈现给当前岗位；它不是录用概率，也不会改变正式岗位评分。","Le score mesure uniquement la présentation de vos preuves existantes pour ce poste ; ce n’est pas une probabilité d’embauche et il ne modifie pas le score officiel.","Presentation score measures how clearly existing evidence is shown for this role; it is not hiring probability and does not change the formal job score."))
+        if(!v1.has("currentScore")&&assessment.text("summary").isNotBlank())Text(assessment.text("summary"),fontSize=14.sp,lineHeight=21.sp)
         if(assessment.strings("improvements").isNotEmpty()){Text(tr("这次提升来自","D’où vient l’amélioration","What improved"),fontWeight=FontWeight.SemiBold);assessment.strings("improvements").forEach { Bullet(it) }}
         if(assessment.strings("remainingGaps").isNotEmpty()){Text(tr("仍然没有被简历解决","Ce que le CV ne résout pas","Still unresolved"),fontWeight=FontWeight.SemiBold);assessment.strings("remainingGaps").forEach { Bullet(it) }}
         if(!draft.optBoolean("atsPass") && draft.objects("atsIssues").isNotEmpty()){Hint(tr("ATS 风险不会再让整份草稿失败；请在保留前检查。","Les alertes ATS n’annulent plus le brouillon ; vérifiez-les avant de le conserver.","ATS risks no longer fail the entire draft; review them before saving."));draft.objects("atsIssues").forEach { Hint(product(it.text("message"))) }}

@@ -125,3 +125,13 @@ test('a blank V1 profile searches France and Europe, not the provider default US
   assert.equal(searchRequestFromConfig('business development',{},[]).country,'','legacy search has no forced V1 default');
   assert.notEqual(operationKey('search',{query:'business development',experience:'v1'},{id:'cv'},[]),operationKey('search',{query:'business development'},{id:'cv'},[]));
 });
+
+
+test('a tailored CV uses the same bounded exploration scale as accepting it',async()=>{
+ const {v1CvAssessment}=await import('../src/lib/v1-match.mjs');
+ const raw={baselineScore:58,draftScore:70,delta:12};const job={v1Match:{currentScore:42,cvPotentialScore:50}};
+ assert.deepEqual(v1CvAssessment(job,raw),{baselineScore:42,draftScore:50,delta:8});
+ assert.deepEqual(raw,{baselineScore:58,draftScore:70,delta:12});
+ assert.equal(v1CvAssessment(job,{...raw,delta:-4}).draftScore,42);
+ assert.equal(v1CvAssessment({},raw),raw);
+});
