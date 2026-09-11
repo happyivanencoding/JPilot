@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildProviderInput, rankSearchResults, searchStructuredOffers } from '../../src/lib/job-search/index.mjs';
+import { bilingualRoleQueries } from '../../src/lib/job-search/role-vocabulary.mjs';
 import { searchRequestFromConfig } from '../../src/lib/job-search/mobile-context.mjs';
 import { normalizeOffer } from '../../src/lib/mobile-domain.mjs';
 import { contractMatches, operationKey } from '../../src/lib/mobile-state.mjs';
@@ -54,6 +55,46 @@ test('France Travail query probes translate a sparse French quant request into l
     targetRoles: ['Quantitative Researcher'], city: 'Paris', country: 'France',
   });
   assert.deepEqual(input.franceTravailQueries, ['quant', 'risque de marché', 'obligataire']);
+});
+
+test('explicit Chinese quant search is canonicalized and overrides unrelated profile directions', () => {
+  assert.deepEqual(bilingualRoleQueries('量化分析师'), [
+    'quantitative analyst', 'quantitative researcher', 'analyste quantitatif', 'quant analyst', 'recherche quantitative',
+  ]);
+  const request = searchRequestFromConfig('量化分析师', {
+    candidate: { location: 'Paris, France' },
+    target_roles: {
+      primary: ['Junior Brand Manager', 'Recruitment'],
+      fallback_policy: 'closest',
+    },
+  });
+  const input = buildProviderInput(request);
+  assert.equal(input.hasExplicitIntent, true);
+  assert.deepEqual(input.queries, ['quantitative analyst', 'quantitative researcher', 'analyste quantitatif']);
+  assert.deepEqual(input.franceTravailQueries, ['quant', 'analyste quantitatif', 'recherche quantitative']);
+  assert.ok(input.targetRoles.includes('量化分析师'));
+  assert.ok(input.targetRoles.includes('quantitative analyst'));
+  assert.equal(input.targetRoles.some(role => /marketing|recruit/i.test(role)), false);
+});
+
+test('explicit quant search rejects unrelated closest fallbacks instead of filling the list', () => {
+  const request = {
+    query: '量化分析师', targetRoles: ['Junior Brand Manager', 'Recruitment'], city: 'Paris', country: 'France',
+    contractTypes: [], fallbackPolicy: 'closest', knownUrls: [],
+  };
+  const rows = [
+    { url:'https://example.invalid/quant-risk', company:'Target A', title:'Quantitative Risk Analyst', location:'Paris, France', contractType:'CDI', description:'Market risk models and quantitative analytics.' },
+    { url:'https://example.invalid/quant-research', company:'Target B', title:'Quantitative Researcher', location:'Paris, France', contractType:'CDI', description:'Systematic research and portfolio models.' },
+    { url:'https://example.invalid/data', company:'Noise A', title:'Data Analyst', location:'Paris, France', contractType:'Stage', description:'Business reporting and dashboards.' },
+    { url:'https://example.invalid/marketing', company:'Noise B', title:'Chargé de Marketing Stratégique Mobilité', location:'Paris, France', contractType:'Stage', description:'Marketing campaigns.' },
+    { url:'https://example.invalid/recruitment', company:'Noise C', title:'Stage Chargé de Recrutement', location:'Paris, France', contractType:'Stage', description:'Recruitment support.' },
+  ];
+  const result = rankSearchResults(request, rows, [], { now: NOW });
+  assert.deepEqual(new Set(result.offers.map(offer => offer.url)), new Set([rows[0].url, rows[1].url]));
+  assert.ok(result.offers.every(offer => offer.relevanceTier === 'strong'));
+  const noQuant = rankSearchResults(request, rows.slice(2), [], { now: NOW });
+  assert.equal(noQuant.offers.length, 0);
+  assert.equal(noQuant.metrics.closestCount, 0);
 });
 
 test('flexible junior-marketing search broadens provider recall according to each contract without changing the target contract', () => {
@@ -421,9 +462,12 @@ test('another European country stays in the normal ranked pool with a mobility n
 
 test('V1 operation keys invalidate pre-contract analysis and pre-provider search results', () => {
   const searchKey = operationKey('search', { query: 'marketing Paris' }, { id: 'cv-v1' }, [], '2026-09-08');
+  const v1SearchKey = operationKey('search', { query: '量化分析师', experience: 'v1' }, { id: 'cv-v1' }, [], '2026-09-08');
   const analysisKey = operationKey('analysis', {}, { id: 'cv-v1' }, [], '2026-09-08');
   assert.match(searchKey, /search-v6-live-providers/);
+  assert.match(v1SearchKey, /search-v10-explicit-intent/);
   assert.match(analysisKey, /analysis-v2-v1-directions/);
   assert.notEqual(searchKey, JSON.stringify(['search', 'search-v5-soft-ranking', 'cv-v1', 'marketing Paris', '2026-09-08']));
+  assert.notEqual(v1SearchKey, JSON.stringify(['search', 'search-v9-onward-area', 'cv-v1', '量化分析师', '2026-09-08']));
   assert.notEqual(analysisKey, JSON.stringify(['analysis', 'cv-v1']));
 });

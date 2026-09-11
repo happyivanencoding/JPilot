@@ -1,6 +1,7 @@
 // Market vocabulary only. CV/UI language and nationality are deliberately absent.
 const norm=v=>String(v||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 const families=[
+ ['quantitative',/(?:\bquant(?:itative)?\b|\bquantitat(?:if|ive)\b|量化)/, 'quantitative analyst','analyste quantitatif'],
  ['data-engineering',/data engineer|ingenieur.{0,12}(?:donnees|data)|ingenierie.{0,10}donnees|数据工程/, 'data engineer','ingenieur donnees'],
  ['data-analysis',/data analyst|analys[et].{0,12}(?:donnees|data)|business intelligence|数据分析/,'data analyst','analyste donnees'],
  ['data-science',/data scien|scientifique.{0,10}donnees|数据科学/,'data scientist','data scientist'],
@@ -22,7 +23,10 @@ export function roleFamily(value){return families.find(([,pattern])=>pattern.tes
 export function bilingualRoleQueries(query){
  const family=roleFamily(query);if(!family)return [];
  const text=norm(query),qualifiers=(text.match(/\b(?:java|python|typescript|react|angular|c#|c\+\+|\.net|sql|cloud|azure|aws|finance|banking|sante|health|senior|junior|stage|alternance|cdi|cdd)\b/g)||[]).filter((v,i,a)=>a.indexOf(v)===i).slice(0,3).join(' ');
- return [...new Set([family[2],family[3]].map(title=>`${title} ${qualifiers}`.trim()))];
+ const titles=family[0]==='quantitative'
+  ? ['quantitative analyst','quantitative researcher','analyste quantitatif','quant analyst','recherche quantitative']
+  : [family[2],family[3]];
+ return [...new Set(titles.map(title=>`${title} ${qualifiers}`.trim()))];
 }
 export function bilingualRoleRelevance(query,title){
  const wanted=roleFamily(query),found=roleFamily(title);

@@ -58,7 +58,8 @@ function genericNaturalQuery(query) {
 }
 
 function franceTravailQueries(query, roles, hasExplicitIntent, contractTypes = [], fallbackPolicy = '') {
-  const text = normalize(`${query} ${roles.join(' ')}`);
+  const semanticAliases = bilingualRoleQueries(query);
+  const text = normalize(`${query} ${semanticAliases.join(' ')} ${hasExplicitIntent ? '' : roles.join(' ')}`);
   const variants = [];
   const add = value => {
     const item = clean(value, 120);
@@ -73,6 +74,10 @@ function franceTravailQueries(query, roles, hasExplicitIntent, contractTypes = [
   if (/\b(?:market|marche|risk|risque)\b/.test(text)) add('risque de marché');
   if (/(?:fixed\s*income|obligataire|bond)/.test(text)) add('obligataire');
   if (/(?:portfolio|investment|asset|finance|financial)/.test(text)) add('finance de marché');
+  if (/quant|quantitative|quantitatif|量化/.test(text)) {
+    add('analyste quantitatif');
+    add('recherche quantitative');
+  }
   const marketingIntent = /marketing|brand|crm|consumer|insight|growth|e.?commerce|product marketing/.test(text);
   if (marketingIntent) {
     const only = contractTypes.length === 1 ? contractTypes[0] : '';
@@ -96,16 +101,22 @@ export function buildProviderInput({ query, targetRoles = [], city = '', country
   const explicit = clean(query, 180);
   const hasExplicitIntent = Boolean(explicit) && !genericNaturalQuery(explicit);
   const fallbackMode = clean(fallbackPolicy, 40).toLowerCase();
+  const explicitAliases = hasExplicitIntent ? bilingualRoleQueries(explicit) : [];
+  const intentRoles = hasExplicitIntent ? [...new Set([explicit,...explicitAliases])].filter(Boolean) : roles;
   const queries = [];
-  if (hasExplicitIntent) queries.push(explicit);
-  for(const variant of bilingualRoleQueries(hasExplicitIntent ? explicit : roles[0] || explicit)) if(!queries.some(q=>normalize(q)===normalize(variant)))queries.push(variant);
+  if (hasExplicitIntent) {
+    const localizedRole = /[\u3400-\u9fff]/u.test(explicit) && explicitAliases.length;
+    const explicitCandidates = localizedRole ? explicitAliases.slice(0,3) : [explicit,...explicitAliases].slice(0,2);
+    for (const candidate of explicitCandidates) if (candidate && !queries.some(q=>normalize(q)===normalize(candidate))) queries.push(candidate);
+  }
   if (!hasExplicitIntent && fallbackMode === 'closest' && roles.some(role => /marketing|brand|crm|consumer insights|growth|e-commerce|product marketing/i.test(role))) {
     const only = contractTypes.length === 1 ? contractTypes[0] : '';
     const contractHint = only === 'Stage' ? 'internship' : only === 'Alternance' ? 'alternance apprenticeship' : only === 'CDD' ? 'fixed term' : 'junior';
     const candidates = [roles[0], `${contractHint} marketing`, `${contractHint} business`];
     for (const candidate of candidates) if (candidate && !queries.some(q => normalize(q) === normalize(candidate))) queries.push(candidate);
-  } else {
+  } else if (!hasExplicitIntent) {
     for (const role of roles) if (!queries.some(q => normalize(q) === normalize(role))) queries.push(role);
+    for (const variant of bilingualRoleQueries(roles[0] || explicit)) if (!queries.some(q=>normalize(q)===normalize(variant))) queries.push(variant);
   }
   if (!queries.length && explicit) queries.push(explicit);
   const contractQueries=(candidates, french=false)=>{
@@ -121,9 +132,9 @@ export function buildProviderInput({ query, targetRoles = [], city = '', country
   return {
     query: clean(query, 2000),
     queries: contractQueries(queries),
-    franceTravailQueries: contractQueries(franceTravailQueries(explicit, roles, hasExplicitIntent, contractTypes, fallbackMode),true),
+    franceTravailQueries: contractQueries(franceTravailQueries(explicit, hasExplicitIntent ? [] : roles, hasExplicitIntent, contractTypes, fallbackMode),true),
     hasExplicitIntent,
-    targetRoles: roles,
+    targetRoles: intentRoles,
     city: clean(city, 100), country: clean(country, 100), countryCode: countryCode(country),
     contractTypes: contractTypes.map(x => clean(x, 40)).filter(Boolean),
     seniority, languages, relocation, strictContract,searchArea,
@@ -315,7 +326,7 @@ function adjacentSearchRelevance(offer, input) {
 }
 
 function closestSearchRelevance(offer, input) {
-  if (input.fallbackPolicy !== 'closest') return 0;
+  if (input.fallbackPolicy !== 'closest' || input.hasExplicitIntent) return 0;
   const title = normalize(offer.title);
   const body = normalize(offer.description).slice(0, 3000);
   const intent = new Set(tokens(input.hasExplicitIntent ? input.query : `${input.targetRoles.join(' ')} ${input.query}`));
