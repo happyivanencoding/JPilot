@@ -208,7 +208,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
                 mutable.update { it.copy(snapshot = data, profileId = actual, loading = false, loggedIn = true,
                     notice = if(failed!=null) null else completed?.text("title") ?: it.notice,
                     noticeTaskId = if(failed!=null) null else completed?.text("id") ?: it.noticeTaskId,
-                    error = failedMessage ?: it.error,
+                    error = failedMessage,
                     task = failed ?: it.task,
                     showV1FirstRun = if(previewMode) !data.child("v1").child("journey").optBoolean("completed") else it.showV1FirstRun,
                     taskLaunch = if(failed!=null) null else it.taskLaunch) }

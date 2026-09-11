@@ -204,6 +204,15 @@ fun V1MatchBadge(score: Int) {
 @Composable
 fun V1OfferDetailSheet(offer:JSONObject,state:PilotState,vm:JobPilotViewModel) {
     val saved=state.snapshot.objects("jobs").find {it.text("url")==offer.text("url")}
+    val watchedJobId=saved?.text("id")?.takeIf(String::isNotBlank)
+    // Discovery cards can point at an already-saved candidature. Keep that
+    // saved result in the display-localization poll set while the sheet is
+    // visible, otherwise a newly started translation can remain "pending"
+    // forever because selectedOffer is URL-based rather than selectedJob-based.
+    DisposableEffect(watchedJobId,state.language) {
+        vm.watchJobDisplays(setOfNotNull(watchedJobId))
+        onDispose { vm.watchJobDisplays(emptySet()) }
+    }
     val deep=offer.child("deepMatch");val fast=offer.child("fastMatch");val scores=offer.child("matchScore")
     val current=scores.optInt("baseline",deep.optInt("currentScore",fast.optInt("score",-1)))
     val view=saved ?: json("id" to "", "url" to offer.text("url"),"role" to offer.text("title"),"company" to offer.text("company"),"location" to offer.text("location"),"contract" to offer.text("contractType"),"status" to "À candidater", "matchScore" to scores,
