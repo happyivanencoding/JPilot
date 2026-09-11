@@ -73,9 +73,27 @@ export async function GET(req: Request) {
     const activeAnalysis=tasks.find((t:MobileTask)=>t.kind==="analysis"&&t.inputVersionId===version.id&&["queued","running","reconciling"].includes(t.status));
     const failedV1Analysis=tasks.find((t:MobileTask)=>t.kind==="analysis"&&t.inputVersionId===version.id&&["failed","interrupted"].includes(t.status)&&(String(t.input?.source||"").startsWith("v1-")||String(t.operationKey||"").includes("analysis-v2-v1-directions")));
     const latestSearchTask=tasks.find((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&String(t.operationKey||"").includes("search-v6-live-providers"));
-    const latestSearch=tasks.find((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&String(t.operationKey||"").includes("search-v6-live-providers")&&t.result?.offers);
+    const completedSearches=tasks.filter((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&String(t.operationKey||"").includes("search-v6-live-providers")&&t.status==="completed"&&Array.isArray(t.result?.offers));
+    const latestSearch=completedSearches[0];
+    const projectDiscovery=(task?:MobileTask)=>{
+      const result=discoveryProjection(task?.result || null,projectedJobs,tasks);
+      const eligible=result.offers.filter((o:any)=>contractMatches(o,(config as any)?.target_roles?.contract_types || []).matches);
+      return {...result,offers:topDiscoveryOffers(eligible),displayLimit:DISCOVERY_OFFER_LIMIT,availableCount:eligible.length};
+    };
+    const currentDiscovery={...projectDiscovery(latestSearch),taskId:latestSearch?.id || null,query:String(latestSearch?.input?.query || "")};
+    const seenOfferUrls=new Set((currentDiscovery.offers || []).map((offer:any)=>String(offer.url || "")));
+    const searchHistory=completedSearches.slice(1,9).flatMap((task:MobileTask)=>{
+      const projected=projectDiscovery(task);
+      const offers=(projected.offers || []).filter((offer:any)=>{
+        const url=String(offer.url || "");
+        if(!url || seenOfferUrls.has(url)) return false;
+        seenOfferUrls.add(url);return true;
+      });
+      if(!offers.length)return [];
+      return [{taskId:task.id,query:String(task.input?.query || ""),searchedAt:task.updatedAt || task.createdAt || "",offers}];
+    });
     const snapshot={
-      version: "0.4.1", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
+      version: "0.4.2", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
       access:{role,canSwitchProfiles:role!=="user"&&profiles.length>1,needsCv:role==="user"&&!cv.trim()},
       cv, cvState:{versionId:version.id,cvVersion:version.cvVersion,revision:version.revision,changedAt:version.createdAt},
       languageSettings:{uiLocale:locale,applicationLanguage:applicationLanguage(config || {},read("cv")),documentLanguage:documentLanguage(version)},
@@ -90,7 +108,7 @@ export async function GET(req: Request) {
         backgroundActive:tasks.some((t:MobileTask)=>t.input?.silent===true&&["queued","running","reconciling"].includes(t.status)),
         deepMatchPrefetchLimit:DISCOVERY_OFFER_LIMIT,
       },
-      discovery: (()=>{const result=discoveryProjection(latestSearch?.result || null,projectedJobs,tasks);const eligible=result.offers.filter((o:any)=>contractMatches(o,(config as any)?.target_roles?.contract_types || []).matches);return {...result,offers:topDiscoveryOffers(eligible),displayLimit:DISCOVERY_OFFER_LIMIT,availableCount:eligible.length};})(),
+      discovery:{...currentDiscovery,history:searchHistory},
       flowEstimates:Object.fromEntries(Object.entries(FLOW_DEFAULTS).map(([kind,choice])=>[kind,estimateView(flowEstimate(tasks,kind,choice.model,choice.reasoning),locale)])),
       updatedAt: store.updatedAt,
     };

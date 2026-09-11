@@ -1,5 +1,14 @@
 # JobPilot Android — implementation handoff
 
+## 2026-09-11 V1 first-run + retained search history — 0.4.2/code16
+
+- V1 Android/Web now share the same first-run product journey: invite code → clearly labelled simulated Google account → real CV picker/ingest → editable extraction confirmation → real profile analysis → inferred/custom direction → real structured search → horizontally swipeable first 3–4 scored roles. Opening one of those cards exits onboarding into the normal offer detail instead of a parallel demo screen.
+- The simulated Google step exists only in the isolated V1 preview package/site for owner testing; it does not replace production Google authentication. Android continues to use package `com.thegreatnovel.jobpilot.v1` / launcher `JobPilot V1` and `jobs-v1.thegreatnovel.com`.
+- Home now leads with “这是你会闪光的地方。” and “你的优势在哪”. Repetitive `why`/qualification paragraphs were removed from the high-level strengths/direction cards and discovery cards; score, evidence, strengths/gaps and honest CV presentation potential remain.
+- Ordinary V1 users no longer see the development-server URL or connection controls in “我的”. Account UI only explains automatic Android/Web sync, refresh and sign-out.
+- The backend snapshot now exposes current search plus up to eight earlier completed V1 search groups for the same candidate version. Android and Web both render these under “之前看过的方向”, and historical cards still open their normal offer detail. Changing direction therefore no longer makes earlier results disappear.
+- Release versions: Android `0.4.2/code16`, Web `0.6.2`, mobile contract `0.4.2`. Local Web typecheck/build and Android `assembleDebug` pass. The Samsung `SM_S928U1` has been upgraded in place and reports `versionCode=16 / versionName=0.4.2`; its UI hierarchy shows the new full-screen `1/7` invite page. Production/Yifeng apps are not overwritten.
+
 ## 2026-09-11 V1 AI bootstrap/search recovery — deployed preview
 
 - V1 preview is now Android `0.4.1/code15`, Web `0.6.1`, mobile contract `0.4.1`, still isolated on `feature/v1-student-match-loop-20260910` and `jobs-v1.thegreatnovel.com`; it is not merged into production main.

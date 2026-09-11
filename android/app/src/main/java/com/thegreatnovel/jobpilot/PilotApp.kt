@@ -146,13 +146,18 @@ import kotlin.math.exp
             item { Spacer(Modifier.navigationBarsPadding()) }
         }
     }
-    if(state.task != null) TaskSheet(state.task,state,vm)
-    else state.selectedOffer?.let { url -> state.snapshot.child("discovery").objects("offers").find { it.text("url") == url }?.let { V1OfferDetailSheet(it,state,vm) } }
+    if(state.task != null && !state.showV1FirstRun) TaskSheet(state.task,state,vm)
+    else state.selectedOffer?.let { url ->
+        val discovery=state.snapshot.child("discovery")
+        val allOffers=discovery.objects("offers") + discovery.objects("history").flatMap { it.objects("offers") }
+        allOffers.find { it.text("url") == url }?.let { V1OfferDetailSheet(it,state,vm) }
+    }
     ?: state.selectedJob?.let { id -> state.snapshot.objects("jobs").find { it.text("id") == id }?.let { job -> if(job.child("v1Match").length()>0) V1SavedJobDetailSheet(job,state,vm) else JobDetailSheet(job,state,vm) } }
     if(state.analysisVisible && state.snapshot.has("analysis")) AnalysisSheet(state,vm)
     if(state.cvPreview != null || state.previewLoading) CvPreviewDialog(state,vm)
     state.taskLaunch?.let { BackgroundTaskLaunch(it,state,vm::clearTaskLaunch) }
-    if(!needsCv && state.showWelcome) OnboardingDialog(welcome = true, tab = null, onDismiss = vm::dismissWelcome, onSkip = vm::skipOnboarding)
+    if(state.showV1FirstRun) V1FirstRunOnboarding(state,vm)
+    else if(!needsCv && state.showWelcome) OnboardingDialog(welcome = true, tab = null, onDismiss = vm::dismissWelcome, onSkip = vm::skipOnboarding)
     else if(!needsCv) state.walkthroughTab?.let { OnboardingDialog(welcome = false, tab = it, onDismiss = vm::dismissTabGuide, onSkip = vm::skipOnboarding) }
 }
 

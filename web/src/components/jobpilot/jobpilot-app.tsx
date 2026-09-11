@@ -8,7 +8,7 @@ import { HomePage, OffersPage } from "./catalog";
 import { CvEditor, ProfilePage } from "./profile-prepare";
 import { AnalysisSheet, CompareSheet, JobSheet, OfferSheet, ResultSheet, TasksSheet } from "./sheets";
 import { PdfPreview } from "./pdf-preview";
-import { OnboardingOverlay, type GuideTab } from "./onboarding";
+import { OnboardingOverlay, V1FirstRunOverlay, type GuideTab } from "./onboarding";
 import { Button, Empty, EstimatedProgress, Hint, IconButton, Loading, Localization, Sheet, Spinner } from "./ui";
 
 function TaskLaunchOverlay() {
@@ -29,6 +29,7 @@ function Phone() {
   const [scale, setScale] = useState(1), [keyboard, setKeyboard] = useState(false), [refreshing, setRefreshing] = useState(false);
   const [onboarding, setOnboarding] = useState<{ mode: "welcome" | "tab"; tab?: GuideTab } | null>(null);
   const [onboardingReady, setOnboardingReady] = useState(false);
+  const [firstRun,setFirstRun]=useState(false),[firstRunReady,setFirstRunReady]=useState(false);
   const touch = useRef<number | null>(null);
   const maxHeight = useRef(0);
   useEffect(() => {
@@ -52,14 +53,27 @@ function Phone() {
   const active = rows(data.tasks).filter(t => ACTIVE.has(t.status)).length;
   const canShowData = Boolean(data.profile?.id);
   const needsCv = Boolean(data.access?.needsCv), canSwitchProfiles = data.access?.canSwitchProfiles ?? rows(data.profiles).length > 1;
+  useEffect(()=>{
+    if(!ready||!canShowData||firstRunReady)return;
+    try{setFirstRun(localStorage.getItem("jobpilot:v1-first-run:0.4.2")!=="done");}catch{setFirstRun(true);}
+    setFirstRunReady(true);
+  },[ready,canShowData,firstRunReady]);
   useEffect(() => {
-    if (!ready || !canShowData || needsCv || onboardingReady) return;
+    if (!ready || !canShowData || needsCv || onboardingReady || !firstRunReady || firstRun) return;
     try {
       const saved = JSON.parse(localStorage.getItem("jobpilot:onboarding:v1") || "{}");
       if (saved.welcome !== true) setOnboarding({ mode: "welcome" });
     } catch { setOnboarding({ mode: "welcome" }); }
     setOnboardingReady(true);
-  }, [ready, canShowData, needsCv, onboardingReady]);
+  }, [ready, canShowData, needsCv, onboardingReady, firstRunReady, firstRun]);
+  const finishFirstRun=()=>{
+    try{
+      localStorage.setItem("jobpilot:v1-first-run:0.4.2","done");
+      const saved=JSON.parse(localStorage.getItem("jobpilot:onboarding:v1")||"{}");
+      localStorage.setItem("jobpilot:onboarding:v1",JSON.stringify({...saved,welcome:true}));
+    }catch{/* Session-only first run completion. */}
+    setFirstRun(false);setOnboarding(null);setOnboardingReady(true);
+  };
   const dismissOnboarding = () => {
     try {
       const saved = JSON.parse(localStorage.getItem("jobpilot:onboarding:v1") || "{}");
@@ -86,7 +100,7 @@ function Phone() {
       }
     } catch { /* Continue without persisting the walkthrough. */ }
   };
-  const hasOverlay = Boolean(route.view || p.taskLaunch || onboarding);
+  const hasOverlay = Boolean(route.view || p.taskLaunch || onboarding || firstRun);
   const reload = async () => { if (refreshing) return; setRefreshing(true); await refresh(); setRefreshing(false); };
   const pages = [<HomePage key="home" />, <OffersPage key="offers" />, <ProfilePage key="profile" />];
   return <div className="jp-stage"><div className="jp-envelope" style={{ "--jp-scale": scale } as CSSProperties}><div className={`jp-phone${keyboard ? " jp-keyboard" : ""}`} data-testid="jobpilot-phone" data-reference-size="384x832">
@@ -115,6 +129,7 @@ function Phone() {
       {route.view === "pdf" && <PdfPreview key={`${route.job || ""}:${route.draft || ""}`} />}
       <TaskLaunchOverlay />
       {onboarding && <OnboardingOverlay mode={onboarding.mode} tab={onboarding.tab} onClose={dismissOnboarding} onSkip={skipAllOnboarding} />}
+      {firstRun && <V1FirstRunOverlay onDone={finishFirstRun} />}
     </>}
   </div></div></div>;
 }

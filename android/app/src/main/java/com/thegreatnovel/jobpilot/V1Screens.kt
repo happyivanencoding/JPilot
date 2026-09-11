@@ -33,14 +33,13 @@ fun V1OverviewScreen(state: PilotState, vm: JobPilotViewModel, onExplore: () -> 
     val directions = v1.objects("careerDirections")
     val offers = state.snapshot.child("discovery").objects("offers").take(3)
     val signals = state.snapshot.child("analysis").child("globalLayout").objects("signals")
-    val actions = state.snapshot.child("analysis").objects("actionIssues")
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(18.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
         overscrollEffect = null,
     ) {
-        item { SectionTitle(tr("先看清楚，你适合什么。", "Voyez d’abord où votre profil peut aller.", "First, see where your profile can go."), state.snapshot.child("profile").text("name")) }
+        item { SectionTitle(tr("这是你会闪光的地方。", "Voici où votre profil peut vraiment ressortir.", "Here is where you can stand out."), state.snapshot.child("profile").text("name")) }
         if (!hasCv) item {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(tr("上传一份简历，从真实岗位开始判断。", "Importez votre CV et comparez-le à de vraies offres.", "Upload your CV and compare it with real roles."), fontSize = 25.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold)
@@ -51,12 +50,12 @@ fun V1OverviewScreen(state: PilotState, vm: JobPilotViewModel, onExplore: () -> 
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(tr("你可以先探索这些方向", "Directions à explorer", "Directions to explore"), Modifier.weight(1f), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Text(tr("这些方向可能更适合你发力", "Des directions où votre profil peut ressortir", "Directions where your profile may stand out"), Modifier.weight(1f), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                         TextButton(onProfile) { Text(tr("调整", "Modifier", "Edit")) }
                     }
                     if (directions.isEmpty() && v1.optBoolean("backgroundActive")) {
                         LinearProgressIndicator(Modifier.fillMaxWidth())
-                        Hint(tr("正在理解你的经历。你可以继续浏览其他页面。", "Analyse de votre parcours en arrière-plan.", "Understanding your experience in the background."))
+                        Hint(tr("正在整理你的经历。", "Analyse de votre parcours…", "Reading your experience…"))
                     } else directions.take(5).forEach { direction ->
                         Surface(
                             onClick = onExplore,
@@ -69,7 +68,6 @@ fun V1OverviewScreen(state: PilotState, vm: JobPilotViewModel, onExplore: () -> 
                                     Text(direction.text("title"), Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                                     Icon(Icons.Rounded.ArrowForward, null, Modifier.size(17.dp), tint = MaterialTheme.colorScheme.primary)
                                 }
-                                Text(direction.text("why"), fontSize = 13.sp, lineHeight = 20.sp)
                                 direction.strings("evidence").take(2).joinToString(" · ").takeIf { it.isNotBlank() }?.let { Hint(it) }
                             }
                         }
@@ -85,11 +83,10 @@ fun V1OverviewScreen(state: PilotState, vm: JobPilotViewModel, onExplore: () -> 
                 }
                 items(offers, key = { it.text("url") }) { offer -> V1OfferCard(offer) { vm.selectOffer(offer.text("url")) } }
             }
-            if (signals.isNotEmpty() || actions.isNotEmpty()) item {
+            if (signals.isNotEmpty()) item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(tr("你的当前信号", "Vos signaux actuels", "Your current signals"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    signals.take(3).forEach { signal -> GlassCard { Text(signal.text("title"), fontWeight = FontWeight.SemiBold); Text(signal.text("why"), fontSize = 14.sp, lineHeight = 21.sp); Hint(signal.text("evidence")) } }
-                    actions.take(2).forEach { action -> GlassCard { Text(tr("值得补齐：", "À développer : ", "Worth building: ") + action.text("title"), fontWeight = FontWeight.SemiBold); Text(action.text("detail"), fontSize = 14.sp, lineHeight = 21.sp); Hint(action.text("nextAction")) } }
+                    Text(tr("你的优势在哪", "Vos points forts", "Where your strengths are"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    signals.take(4).forEach { signal -> GlassCard { Text(signal.text("title"), fontWeight = FontWeight.SemiBold); signal.text("evidence").takeIf { it.isNotBlank() }?.let { Hint(it) } } }
                 }
             }
         }
@@ -113,6 +110,7 @@ fun V1ExploreScreen(state: PilotState, vm: JobPilotViewModel) {
     val searching = searchState in setOf("queued", "running", "reconciling")
     val discovery = state.snapshot.child("discovery")
     val offers = discovery.objects("offers").take(5)
+    val history = discovery.objects("history")
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(18.dp),
@@ -142,6 +140,21 @@ fun V1ExploreScreen(state: PilotState, vm: JobPilotViewModel) {
             )
         }
         items(offers, key = { it.text("url") }) { offer -> V1OfferCard(offer) { vm.selectOffer(offer.text("url")) } }
+        if (history.isNotEmpty()) item {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(tr("之前看过的方向", "Recherches précédentes", "Previously explored"), fontWeight = FontWeight.SemiBold)
+                Hint(tr("换方向不会清掉这里的岗位", "Vos anciennes recherches restent ici", "Changing direction keeps these roles here"))
+            }
+        }
+        history.forEach { group ->
+            item {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(group.text("query").ifBlank { tr("之前的搜索", "Recherche précédente", "Previous search") }, Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Hint(group.text("searchedAt").take(10))
+                }
+            }
+            items(group.objects("offers"), key = { it.text("url") }) { offer -> V1OfferCard(offer) { vm.selectOffer(offer.text("url")) } }
+        }
     }
 }
 
@@ -168,16 +181,15 @@ private fun V1OfferCard(offer: JSONObject, onClick: () -> Unit) {
                 V1MatchBadge(score)
             }
             Hint(listOf(offer.text("location"), product(offer.text("contractType"))).filter { it.isNotBlank() && it != "unknown" }.joinToString(" · "))
-            Text(deep.text("roleSummary").ifBlank { offer.text("why") }, fontSize = 13.sp, lineHeight = 20.sp)
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 strengths.take(2).forEach { Pill("+ $it") }
                 gaps.take(2).forEach { Pill("− $it", warm = true) }
             }
             val potential = deep.optInt("cvPotentialScore", score)
             Hint(when {
-                offer.text("deepMatchState") == "loading" -> tr("正在后台补充职责、要求和提升空间…", "Responsabilités et écarts en cours d’analyse…", "Adding responsibilities, requirements and upside in the background…")
-                potential > score && score >= 0 -> tr("只优化现有表达，预计可到约 $potential/100", "En optimisant seulement la présentation : ~$potential/100", "With presentation improvements only: ~$potential/100")
-                else -> tr("打开看职责、要求和你的差距", "Ouvrez pour voir missions, exigences et écarts", "Open for responsibilities, requirements and gaps")
+                offer.text("deepMatchState") == "loading" -> tr("正在补充岗位匹配…", "Match détaillé en cours…", "Adding detailed match…")
+                potential > score && score >= 0 -> tr("简历表达优化空间：约 $potential/100", "Potentiel CV : ~$potential/100", "CV presentation potential: ~$potential/100")
+                else -> tr("点开看详细匹配", "Ouvrez pour voir le match détaillé", "Open for the detailed match")
             })
         }
     }

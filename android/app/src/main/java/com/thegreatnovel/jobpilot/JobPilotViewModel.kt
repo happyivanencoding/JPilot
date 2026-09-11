@@ -33,13 +33,15 @@ data class PilotState(
     val noticeTaskId: String? = null, val selectedJobTab: Int = 0,
     val taskLaunch: TaskLaunchFeedback? = null,
     val showWelcome: Boolean = false, val walkthroughTab: Int? = null,
+    val showV1FirstRun: Boolean = false,
 )
 class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     val api = JobPilotApi(app)
     private val prefs = app.getSharedPreferences("jobpilot", 0)
     private val previewProfile = BuildConfig.PREVIEW_PROFILE.trim()
     private val previewMode = previewProfile.isNotBlank()
-    private val mutable = MutableStateFlow(PilotState(loggedIn = previewMode || api.token != null, profileId = if (previewMode) previewProfile else (prefs.getString("profile", "") ?: ""), language = prefs.getString("language", "fr") ?: "fr", theme = prefs.getString("theme", "system") ?: "system", server = if (previewMode) BuildConfig.API_BASE_URL else api.base, showWelcome = (previewMode || api.token != null) && !prefs.getBoolean("onboarding_welcome_v1", false)))
+    private val previewFirstRun = previewMode && !prefs.getBoolean("v1_first_run_0_4_2", false)
+    private val mutable = MutableStateFlow(PilotState(loggedIn = previewMode || api.token != null, profileId = if (previewMode) previewProfile else (prefs.getString("profile", "") ?: ""), language = prefs.getString("language", "fr") ?: "fr", theme = prefs.getString("theme", "system") ?: "system", server = if (previewMode) BuildConfig.API_BASE_URL else api.base, showWelcome = (previewMode || api.token != null) && !previewFirstRun && !prefs.getBoolean("onboarding_welcome_v1", false), showV1FirstRun = previewFirstRun))
     val state = mutable.asStateFlow()
     private var foreground = true
     private var generation = 0
@@ -94,6 +96,10 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         mutable.update { it.copy(showWelcome = false, walkthroughTab = tab) }
     }
     fun dismissTabGuide() { mutable.update { it.copy(walkthroughTab = null) } }
+    fun completeV1FirstRun() {
+        prefs.edit().putBoolean("v1_first_run_0_4_2", true).putBoolean("onboarding_welcome_v1", true).apply()
+        mutable.update { it.copy(showV1FirstRun = false, showWelcome = false, walkthroughTab = null, task = null) }
+    }
     fun consumeDestination() { mutable.update { it.copy(destination = null) } }
     fun showAnalysis(show: Boolean = true) { mutable.update { it.copy(analysisVisible = show) } }
     fun closePreview() { previewGeneration++; previewMetaJob?.cancel(); previewMetaJob=null; mutable.update { it.copy(cvPreview = null, previewLoading = false) } }
@@ -288,7 +294,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val task = withContext(Dispatchers.IO) { api.upload(uri, profile) }
                 if (epoch == generation) {
-                    mutable.update { it.copy(working = false, notice = "Import en cours · retrouvez-le dans les traitements", noticeTaskId = task.text("id")) }
+                    mutable.update { it.copy(working = false, notice = "Import en cours · retrouvez-le dans les traitements", noticeTaskId = task.text("id"), task = task) }
                     if(task.text("status") == "completed") openTaskResult(task)
                     refresh(silent = true)
                 }

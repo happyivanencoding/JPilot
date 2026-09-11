@@ -187,7 +187,8 @@ function useController(profileId: string) {
       .catch(e=>{if(scopeRef.current===scope){v1BootstrapRef.current="";fail(e);}});
   }, [ready,data.v1?.needsBootstrap,data.cvState?.versionId,profileId,locale,request,refresh,scope,fail]);
   const selectedJob = rows(data.jobs).find(j => j.id === route.job || String(j.reportNum) === route.job);
-  const selectedOffer = rows(data.discovery?.offers).find(offer => String(offer.url) === String(route.offer || ""));
+  const discoveryOffers=[...rows(data.discovery?.offers),...rows(data.discovery?.history).flatMap(group=>rows(group.offers))];
+  const selectedOffer = discoveryOffers.find(offer => String(offer.url) === String(route.offer || ""));
   const displayIds = route.view === "compare" ? route.ids || "" : selectedJob && ["job", "report", "pdf"].includes(route.view || "") ? selectedJob.id : "";
   useEffect(() => { if (displayIdsRef.current !== displayIds) { displayIdsRef.current = displayIds; if (ready && displayIds) void refresh(); } }, [displayIds, ready, refresh]);
   useEffect(() => { setDetail(null); if (ready) void refreshDetail(); }, [route.view, route.task, route.report, ready, scope, refreshDetail]);

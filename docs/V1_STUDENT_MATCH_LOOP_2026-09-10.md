@@ -2,6 +2,22 @@
 
 > Branch-only product line for first external student tests. This document describes `feature/v1-student-match-loop-20260910`; it is not a statement that production `main` has switched to V1.
 
+## 2026-09-11 first-run match journey — 0.4.2/code16
+
+V1 now starts from a candidate journey rather than dropping a new tester into an already-populated workspace:
+
+- the preview-only first run is full-screen and ordered as **invite code → simulated Google sign-in → real CV upload/extraction → user confirmation → profile analysis → suggested directions/custom intent → real search → 3–4 swipeable scored roles**;
+- simulated Google is intentionally limited to this V1 preview. It is labelled as a test account and does not replace or weaken the real Google authentication path on production `main`;
+- CV upload and confirmation use the existing canonical ingest/version pipeline. Direction generation, structured job search, deterministic `fastMatch`, and the existing silent top-offer `deep_match` remain the real backend flows rather than onboarding fixtures;
+- the first role deck exposes score, concise strengths/gaps and CV presentation upside. Tapping a card exits first-run and opens the same normal offer detail used after onboarding;
+- Android and Web implement the same stages and persist first-run completion locally. Android package remains `com.thegreatnovel.jobpilot.v1`, so this release does not overwrite production or Yifeng builds.
+
+Normal V1 surfaces were simplified at the same time. Home now leads with **“这是你会闪光的地方。”**, changes the old “当前信号” section to **“你的优势在哪”**, and removes explanatory causal prose that was repeating or qualifying every signal. Opportunity cards prefer score/strength/gap/potential labels over paragraphs of model rationale. Ordinary users no longer see the development server/domain control in “我的”; only account sync, refresh and sign-out remain.
+
+Search history is now a product contract rather than a presentation accident. The mobile snapshot projects the current completed search plus up to eight earlier completed V1 searches for the same candidate version, deduplicates URLs across groups, and keeps their current deep-match enrichment. Changing direction therefore does not erase earlier offers from the UI, and a historical offer can still open the normal detail sheet. No candidate-data migration was added: persisted search tasks remain the authority.
+
+Release versions for this change are Android `0.4.2/code16`, Web `0.6.2`, mobile snapshot contract `0.4.2`. Local release gates: Web TypeScript and production Next build PASS; Android `assembleDebug` PASS. The broad Node suite currently exposes the already-independent `owned-backend.test.mjs` asynchronous preference-refresh cleanup failure (`Profil inconnu.`) after its assertions pass; none of the first-run/search-history files touch that preference path, so it is recorded rather than hidden or treated as evidence for this V1 change.
+
 ## 2026-09-11 AI/bootstrap recovery — 0.4.1/code15
 
 The first deployed V1 preview exposed two real migration defects rather than a broken model transport:

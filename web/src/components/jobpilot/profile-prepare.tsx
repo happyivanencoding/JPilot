@@ -21,7 +21,6 @@ export function ProfilePage() {
   const [roles, setRoles] = useState(""), [location, setLocation] = useState(""), [remote, setRemote] = useState("");
   const config = data.config || {}, contracts = texts(config.target_roles?.contract_types);
   const material = data.languageSettings?.applicationLanguage || config.cv?.language || "fr";
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
   const authenticated = typeof window !== "undefined" && (window.location.hostname === "jobs.thegreatnovel.com" || window.location.port === "3002");
   const needsCv=Boolean(data.access?.needsCv);
   const jobs=rows(data.jobs),directions=rows(data.v1?.careerDirections);
@@ -39,9 +38,9 @@ export function ProfilePage() {
       {editing && <><Input label={tr("目标岗位（逗号分隔）", "Rôles ciblés (séparés par virgule)", "Target roles (comma separated)")} value={roles} onChange={e => setRoles(e.target.value)} /><Input label={tr("城市", "Localisation", "Location")} value={location} onChange={e => setLocation(e.target.value)} /><Input label={tr("远程办公偏好", "Préférence télétravail", "Remote preference")} value={remote} onChange={e => setRemote(e.target.value)} /><Button onClick={async () => { if (await act({ roles: roles.split(/[,，]/).map(x => x.trim()).filter(Boolean), location, remote }, "/api/profile")) setEditing(false); }}>{tr("保存偏好", "Enregistrer mes critères", "Save preferences")}</Button></>}
     </Card>
     <Card><h3>{tr("软件语言", "Langue de l’application", "App language")}</h3><Hint>{tr("界面、分析和建议使用此语言，不影响简历内容。", "Pour l’interface, les analyses et les conseils. Aucun effet sur le contenu du CV.", "For interface, analysis and advice; does not change CV content.")}</Hint><div className="jp-chips">{[["system", tr("系统", "Système", "System")], ["light", tr("亮色", "Clair", "Light")], ["dark", tr("暗色", "Sombre", "Dark")]].map(([key, label]) => <Chip key={key} selected={theme === key} data-testid={`theme-${key}`} onClick={() => setTheme(key)}>{label}</Chip>)}</div><div className="jp-chips">{([["zh", "中文"], ["fr", "Français"], ["en", "English"]] as const).map(([key, label]) => <Chip key={key} selected={locale === key} data-testid={`ui-language-${key}`} onClick={() => setLocale(key)}>{label}</Chip>)}</div></Card>
-    <Card><h3>{tr("账号与连接", "Compte et connexion", "Account and connection")}</h3><Hint>{tr("你的 JobPilot 数据通过服务器与 Android 同步；普通使用不依赖你的电脑或 AgentDock 保持在线。", "Vos données JobPilot sont synchronisées avec Android via le serveur ; l’usage normal ne dépend pas de votre PC ni d’AgentDock.", "Your JobPilot data syncs with Android through the server; normal use does not require your PC or AgentDock to stay online.")}</Hint><Input label={tr("当前服务", "Service actuel", "Current service")} readOnly value={origin} /><Button kind="outline" onClick={() => p.refresh()}>{tr("刷新数据", "Actualiser", "Refresh data")}</Button>
+    <Card><h3>{tr("账号", "Compte", "Account")}</h3><Hint>{tr("你的 JobPilot 数据会自动在手机和网页版之间同步。", "Vos données JobPilot se synchronisent automatiquement entre mobile et Web.", "Your JobPilot data syncs automatically between mobile and web.")}</Hint><Button kind="outline" onClick={() => p.refresh()}>{tr("刷新数据", "Actualiser", "Refresh data")}</Button>
       {authenticated && <Button kind="text" onClick={() => p.execute(async () => { await p.request("/api/mobile-auth/logout", { method: "POST", body: "{}" }); window.location.reload(); })}>{tr("退出登录", "Se déconnecter", "Sign out")}</Button>}
-      <Hint>{`JobPilot Web 0.6.0 · ${tr("与 Android 共享数据", "Données partagées avec Android", "Shared data with Android")}`}</Hint>
+      <Hint>{`JobPilot Web 0.6.2 · ${tr("与 Android 共享数据", "Données partagées avec Android", "Shared data with Android")}`}</Hint>
     </Card>
   </div>;
 }

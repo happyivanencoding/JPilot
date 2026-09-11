@@ -102,7 +102,6 @@ import java.time.ZoneOffset
     var editCv by remember { mutableStateOf(false) }
     var cvDraft by remember(state.snapshot.text("cv")) { mutableStateOf(state.snapshot.text("cv")) }
     var confirmSave by remember { mutableStateOf(false) }
-    var server by remember(state.server) { mutableStateOf(state.server) }
     val config = state.snapshot.child("config")
     var roles by remember(state.profileId) { mutableStateOf(config.child("target_roles").strings("primary").joinToString(", ")) }
     var location by remember(state.profileId) { mutableStateOf(config.child("candidate").text("location")) }
@@ -180,13 +179,9 @@ import java.time.ZoneOffset
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("zh" to "中文","fr" to "Français","en" to "English").forEach { (key,label) -> FilterChip(state.language == key,{ vm.appearance(language = key) },modifier=Modifier.testTag("ui-language-$key"),label = { Text(label) }) } }
         } }
         item { GlassCard {
-            Text(tr("账号与连接","Compte et connexion","Account and connection"),fontWeight = FontWeight.SemiBold)
-            Hint(tr("你的 JobPilot 数据通过服务器与网页版同步；普通使用不依赖电脑或 AgentDock 保持在线。","Vos données JobPilot sont synchronisées avec le Web via le serveur ; l’usage normal ne dépend pas de votre PC ni d’AgentDock.","Your JobPilot data syncs with the web app through the server; normal use does not require your PC or AgentDock to stay online."))
-            if(BuildConfig.DEBUG) {
-                OutlinedTextField(server,{ server = it },Modifier.fillMaxWidth(),label = { Text(tr("开发服务器地址","Adresse du serveur de développement","Development server address")) },singleLine = true,shape = RoundedCornerShape(18.dp))
-                OutlinedButton({ vm.useServer(server) },Modifier.fillMaxWidth()) { Text(tr("连接并刷新","Connecter et actualiser","Connect and refresh")) }
-                if(state.server != BuildConfig.API_BASE_URL) TextButton({ server = BuildConfig.API_BASE_URL; vm.useServer(server) }) { Text(tr("切换到默认远程连接","Revenir à la connexion distante","Switch to default remote connection")) }
-            }
+            Text(tr("账号","Compte","Account"),fontWeight = FontWeight.SemiBold)
+            Hint(tr("你的 JobPilot 数据会自动在手机和网页版之间同步。","Vos données JobPilot se synchronisent automatiquement entre mobile et Web.","Your JobPilot data syncs automatically between mobile and web."))
+            OutlinedButton({ vm.refresh() },Modifier.fillMaxWidth()) { Text(tr("刷新数据","Actualiser","Refresh data")) }
             TextButton(vm::logout) { Text(tr("退出登录","Se déconnecter","Sign out")) }
             Hint("JobPilot Android ${BuildConfig.VERSION_NAME} · " + tr("与网页版共享数据","Données partagées avec le Web","Shared data with the Web"))
         } }
