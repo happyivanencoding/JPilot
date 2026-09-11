@@ -18,6 +18,8 @@ Search history is now a product contract rather than a presentation accident. Th
 
 Release versions for this change are Android `0.4.2/code16`, Web `0.6.2`, mobile snapshot contract `0.4.2`. Local release gates: Web TypeScript and production Next build PASS; Android `assembleDebug` PASS. The broad Node suite currently exposes the already-independent `owned-backend.test.mjs` asynchronous preference-refresh cleanup failure (`Profil inconnu.`) after its assertions pass; none of the first-run/search-history files touch that preference path, so it is recorded rather than hidden or treated as evidence for this V1 change.
 
+Deployment/owner preview is also complete for this revision. Feature SHA `94389931d24928ccd01a41d6b2ad02ab30090cfe` is live on the isolated `jobpilot-v1` stack at `jobs-v1.thegreatnovel.com`; the deployment passed the production Web build, synthetic snapshot, model-key prewarm and structured-search provider gates. The live snapshot reports contract `0.4.2`, one current Louis offer and one retained historical search group/offer. A mobile-size Runtime browser check had no console errors and verified the `1/7` invite screen plus the following labelled simulated-Google step. Android `0.4.2/code16` is installed on the connected Samsung under the separate V1 package and its UI hierarchy shows the same first-run invite screen.
+
 ## 2026-09-11 AI/bootstrap recovery — 0.4.1/code15
 
 The first deployed V1 preview exposed two real migration defects rather than a broken model transport:
