@@ -26,6 +26,12 @@ The Web CV preview uses Mozilla PDF.js through the pinned `pdfjs-dist` dependenc
 
 Source project: `https://github.com/mozilla/pdf.js`
 
+## Onward typography fonts
+
+The Onward visual system bundles **Instrument Serif** for Latin editorial display text and **Inter** for Latin product UI text. Both font families are distributed under the SIL Open Font License 1.1. The corresponding license texts are retained at [`web/public/fonts/INSTRUMENT_SERIF_OFL.txt`](web/public/fonts/INSTRUMENT_SERIF_OFL.txt) and [`web/public/fonts/INTER_OFL.txt`](web/public/fonts/INTER_OFL.txt). Android uses copies of the same font files from `android/app/src/main/res/font/`, so Web and Android share the same Latin typography source.
+
+Sources: `https://github.com/google/fonts/tree/main/ofl/instrumentserif` and `https://github.com/google/fonts/tree/main/ofl/inter`.
+
 ## Other dependencies
 
 Other npm, Android/Gradle, model-provider and service dependencies remain subject to their respective licenses and terms. Dependency license metadata is not relicensed by JobPilot.

@@ -22,11 +22,14 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.painterResource
 import android.content.res.Configuration
 import android.os.LocaleList
+import android.provider.Settings
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
@@ -57,8 +60,13 @@ val Apricot = OnwardWarmGray
 val LocalPilotLanguage = staticCompositionLocalOf { "fr" }
 @Composable fun tr(zh: String, fr: String, en: String = fr): String = when(LocalPilotLanguage.current) { "zh" -> zh; "en" -> en; else -> fr }
 
-private val OnwardSerif = FontFamily.Serif
-private val OnwardSans = FontFamily.SansSerif
+private val OnwardSerif = FontFamily(Font(R.font.instrument_serif_regular, weight = FontWeight.Normal))
+private val OnwardSans = FontFamily(
+    Font(R.font.inter_variable, weight = FontWeight.Normal),
+    Font(R.font.inter_variable, weight = FontWeight.Medium),
+    Font(R.font.inter_variable, weight = FontWeight.SemiBold),
+    Font(R.font.inter_variable, weight = FontWeight.Bold),
+)
 private val OnwardTypography = Typography(
     displayLarge = TextStyle(fontFamily=OnwardSerif,fontSize=38.sp,lineHeight=41.sp,fontWeight=FontWeight.Medium,letterSpacing=(-1.0).sp),
     displayMedium = TextStyle(fontFamily=OnwardSerif,fontSize=32.sp,lineHeight=36.sp,fontWeight=FontWeight.Medium,letterSpacing=(-.7).sp),
@@ -150,12 +158,12 @@ fun Modifier.blockSheetEdgeMotion(): Modifier = nestedScroll(SheetContentEdgeBlo
     }
 }
 @Composable fun OnwardHalo(modifier:Modifier=Modifier) {
-    val sage=MaterialTheme.colorScheme.primaryContainer
-    Canvas(modifier) {
-        val r=size.minDimension*.50f
-        drawCircle(sage.copy(alpha=.78f),r,Offset(size.width*.58f,size.height*.47f))
-        drawCircle(OnwardLeaf.copy(alpha=.24f),r*.72f,Offset(size.width*.82f,size.height*.46f))
-    }
+    Image(
+        painter=painterResource(R.drawable.ic_onward),
+        contentDescription=null,
+        modifier=modifier,
+        alpha=.075f,
+    )
 }
 @Composable fun Pill(text: String, warm: Boolean = false, modifier: Modifier = Modifier) {
     Surface(modifier, shape = RoundedCornerShape(999.dp), color = if(warm) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer) {
@@ -190,6 +198,8 @@ private fun aiProgressTask(state: PilotState, kind: String, jobId: String?): JSO
     state:PilotState,taskKind:String,jobId:String?=null,label:String,enabled:Boolean=true,
     outlined:Boolean=false,modifier:Modifier=Modifier,offerUrl:String?=null,onClick:()->Unit,
 ) {
+    val context=LocalContext.current
+    val reducedMotion=remember(context) {Settings.Global.getFloat(context.contentResolver,Settings.Global.ANIMATOR_DURATION_SCALE,1f)==0f}
     var clickedAt by remember(state.profileId,taskKind,jobId,offerUrl) { mutableLongStateOf(0L) }
     var now by remember {mutableLongStateOf(System.currentTimeMillis())}
     var finishedAt by remember(state.profileId,taskKind,jobId,offerUrl) {mutableLongStateOf(0L)}
@@ -240,7 +250,7 @@ private fun aiProgressTask(state: PilotState, kind: String, jobId: String?): JSO
             if(visible)Canvas(Modifier.matchParentSize()) {
                 for(layer in 0..1) {
                     val liquidTop=size.height*(1f-progress)
-                    val amplitude=if(completed)0f else (1.7f+layer*.8f).dp.toPx()
+                    val amplitude=if(completed||reducedMotion)0f else (1.7f+layer*.8f).dp.toPx()
                     val wave=Path().apply {
                         for(i in 0..32){
                             val x=size.width*i/32f

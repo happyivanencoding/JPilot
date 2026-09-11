@@ -44,7 +44,7 @@ try {
  page.on('request',req=>{if(req.url().endsWith('/api/analytics')&&req.method()==='POST')try{analyticsRequests.push(req.postDataJSON());}catch{}});
  if(process.env.QA_RESUME_ROOT) {await resumeAcceptance(context,page);} else {
  await page.goto(base);await page.getByTestId('preview-email').fill('onward-synthetic@example.com');
- assert.ok(await page.locator('img[alt="Onward"],svg[aria-label="Onward"]').count());
+ assert.ok(await page.locator('.onward-brand[aria-label="Onward"] img.onward-lockup').count());
  await page.waitForTimeout(350);await page.screenshot({path:path.join(artifacts,'01-email.png')});
  await page.getByTestId('preview-login').click();await page.getByTestId('onboarding-cv-input').waitFor({state:'attached'});
  const session=await(await context.request.get(base+'/api/v1/session')).json();

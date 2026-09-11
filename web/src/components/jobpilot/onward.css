@@ -1,11 +1,13 @@
 /* Onward V1 — shared editorial design layer for Android-parity Web. */
+@font-face{font-family:"Onward Display";src:url("/fonts/instrument-serif-regular.ttf") format("truetype");font-style:normal;font-weight:400;font-display:swap}
+@font-face{font-family:"Onward Sans";src:url("/fonts/inter-variable.ttf") format("truetype");font-style:normal;font-weight:100 900;font-display:swap}
 :root{
   --jp-primary:#0a4438;--jp-on-primary:#faf8f1;--jp-primary-container:#e9efdb;
   --jp-secondary-container:#f0efdf;--jp-bg:#faf8f1;--jp-surface:#fffdf8;--jp-variant:#f1f0e8;
   --jp-text:#15352f;--jp-muted:#6e706a;--jp-outline:#deddd4;--jp-error:#91443e;--jp-error-bg:#f6e3df;--jp-backdrop:#22332e;
   --onward-leaf:#dde77e;--onward-paper:#fffdf8;--onward-forest-deep:#06372f;
-  --onward-serif:ui-serif,"Iowan Old Style",Baskerville,"Palatino Linotype","Book Antiqua",Palatino,"Songti SC",STSong,"Noto Serif CJK SC","Noto Naskh Arabic",Georgia,serif;
-  --onward-sans:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC","Noto Sans Arabic",sans-serif;
+  --onward-serif:"Onward Display","Songti SC",STSong,"Noto Serif CJK SC","Noto Naskh Arabic",Georgia,serif;
+  --onward-sans:"Onward Sans",Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei","Noto Sans CJK SC","Noto Sans Arabic",sans-serif;
 }
 :root[data-theme=dark]{
   --jp-primary:#b8d7c7;--jp-on-primary:#082d27;--jp-primary-container:#203e35;--jp-secondary-container:#344234;
@@ -24,11 +26,9 @@ h4{font-weight:600}
 .jp-phone{background:var(--jp-bg);border-radius:18px;box-shadow:0 0 0 1px #ffffff1f,0 18px 58px #0003}
 .jp-top{background:color-mix(in srgb,var(--jp-bg) 96%,transparent);border-bottom:1px solid color-mix(in srgb,var(--jp-outline) 80%,transparent)}
 .jp-top-row{min-height:62px;padding:7px 18px}
-.onward-brand{display:inline-flex;align-items:center;gap:7px;flex-shrink:0;color:var(--jp-primary)}
-.onward-brand .onward-icon{width:31px;height:31px;flex:none;border-radius:0}
-.onward-brand.large .onward-icon{width:42px;height:42px}
-.onward-brand .onward-word{font-family:var(--onward-serif);font-weight:500;font-size:24px;line-height:1;letter-spacing:-.045em;color:var(--jp-primary)}
-.onward-brand.large .onward-word{font-size:31px}
+.onward-brand{display:inline-flex;align-items:center;flex-shrink:0;color:var(--jp-primary);line-height:0}
+.onward-brand .onward-lockup{display:block;width:142px;height:auto;max-height:26px;object-fit:contain;object-position:left center}
+.onward-brand.large .onward-lockup{width:174px;max-height:31px}
 .jp-profile-switch select{color:var(--jp-text);font-weight:500}
 .jp-icon-button{border-radius:50%;color:var(--jp-primary)}
 .jp-icon-button:hover{background:color-mix(in srgb,var(--jp-primary-container) 72%,transparent)}
@@ -99,10 +99,9 @@ hr{border-top-color:var(--jp-outline)}
 .jp-history-body{padding:0 0 12px}
 .jp-search-history{border-top:1px solid var(--jp-outline)}
 
-/* A restrained brand halo appears only on the editorial home hero. */
+/* Home motif now comes directly from the canonical Onward symbol geometry. */
 .jp-page[data-testid="home-page"]{position:relative;isolation:isolate;overflow:hidden}
-.jp-page[data-testid="home-page"]:before{content:"";position:absolute;z-index:-1;width:180px;height:180px;right:-72px;top:24px;border-radius:50%;background:color-mix(in srgb,var(--onward-leaf) 22%,transparent)}
-.jp-page[data-testid="home-page"]:after{content:"";position:absolute;z-index:-1;width:142px;height:142px;right:-54px;top:43px;border-radius:50%;background:color-mix(in srgb,var(--jp-primary-container) 64%,transparent)}
+.jp-page[data-testid="home-page"]:before,.jp-page[data-testid="home-page"]:after{content:none}
 
 /* Bottom navigation is typography-led, with no Material pill. */
 .jp-nav{padding:9px 8px 22px;min-height:88px;background:color-mix(in srgb,var(--jp-bg) 97%,transparent);border-top:1px solid var(--jp-outline)}
@@ -130,7 +129,9 @@ hr{border-top-color:var(--jp-outline)}
 .jp-pdf-page{box-shadow:0 1px 5px #0002}
 
 /* Profile is a quiet career dossier, not a settings dashboard. */
-.jp-page[data-testid="profile-page"]{padding-top:12px}
+.jp-page[data-testid="profile-page"]{padding-top:18px;gap:17px}
+.onward-profile-head{display:grid;gap:4px;padding-bottom:3px}.onward-profile-head h1{margin:0;font-family:var(--onward-serif);font-size:36px;line-height:38px;font-weight:400;letter-spacing:-.04em}.onward-profile-head p{margin:0;max-width:34ch;color:var(--jp-muted);font-size:12px;line-height:18px}.onward-profile-head strong{margin-top:8px;font-size:13px;font-weight:600;color:var(--jp-text)}
+.onward-profile-stats{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--jp-outline);border-bottom:1px solid var(--jp-outline)}.onward-profile-stats>span{display:grid;justify-items:center;gap:2px;padding:10px 5px;color:var(--jp-primary);border-right:1px solid var(--jp-outline)}.onward-profile-stats>span:last-child{border-right:0}.onward-profile-stats b{font-family:var(--onward-serif);font-size:22px;line-height:23px;font-weight:400}.onward-profile-stats small{font-size:9.5px;line-height:13px;text-align:center;color:var(--jp-muted)}
 .jp-segmented{border-bottom:1px solid var(--jp-outline)}
 .jp-segmented>button{min-height:44px;font-size:13px}
 .jp-segmented>button.selected{color:var(--jp-primary);border-bottom-color:var(--jp-primary);font-weight:650}
@@ -142,12 +143,15 @@ hr{border-top-color:var(--jp-outline)}
 /* First-use journey */
 .jp-v1-first-run{background:var(--jp-bg)}
 .jp-v1-first-run-head{padding:28px 22px 10px;border-bottom:0}
+.jp-v1-first-run-head>.onward-brand{margin-left:0!important}
 .jp-v1-first-run-head>strong{font-family:var(--onward-serif);font-size:22px;font-weight:500;color:var(--jp-primary)}
 .jp-v1-first-run-body{padding:20px 22px 34px;gap:18px}
 .jp-v1-first-run-body h1{font-family:var(--onward-serif);font-size:34px;line-height:38px;font-weight:500;letter-spacing:-.045em;color:var(--jp-text)}
 .jp-v1-first-run-body h2{font-family:var(--onward-serif);font-size:21px;line-height:27px;font-weight:500}
 .jp-v1-google-card{border:0;border-bottom:1px solid var(--jp-outline);border-radius:0;background:transparent;padding:13px 0}
 .jp-v1-upload-card{min-height:170px;border:1px dashed color-mix(in srgb,var(--jp-primary) 28%,var(--jp-outline));border-radius:8px;background:color-mix(in srgb,var(--jp-surface) 54%,transparent);padding:18px}
+.onward-upload-drop{gap:4px}.onward-upload-drop>.jp-button{margin-top:8px;min-width:176px}.onward-upload-icon{width:58px;height:58px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:6px;background:var(--jp-primary-container);color:var(--jp-primary)}
+.onward-data-note{display:grid;grid-template-columns:22px 1fr;gap:10px;width:100%;border:0;border-radius:8px;background:color-mix(in srgb,var(--jp-primary-container) 48%,var(--jp-bg));padding:13px 14px;text-align:left;color:var(--jp-primary);cursor:pointer}.onward-data-note>span{display:grid;gap:2px}.onward-data-note strong{font-size:11.5px;line-height:16px}.onward-data-note small{font-size:10px;line-height:15px;color:var(--jp-muted)}
 .jp-v1-cv-preview{border-radius:6px;background:var(--jp-surface)}
 .jp-v1-direction-choice{gap:0;border-top:1px solid var(--jp-outline)}
 .jp-v1-direction-choice button{border:0;border-bottom:1px solid var(--jp-outline);border-radius:0;background:transparent;padding:12px 2px}
@@ -197,8 +201,104 @@ hr{border-top-color:var(--jp-outline)}
 .onward-score-pair>div:last-child strong{color:var(--jp-primary)}.onward-score-pair b{font-family:var(--onward-serif);font-size:22px;font-weight:400;color:var(--jp-primary)}
 .onward-cv-impact>small{font-size:11px;font-weight:650;color:var(--jp-primary)}
 
+/* Refined identity: typography, brand geometry, information anchors and motion. */
+:root{--onward-motion-fast:120ms;--onward-motion-page:210ms;--onward-motion-sheet:260ms;--onward-ease:cubic-bezier(.22,.72,.24,1)}
+.jp-page{position:relative;isolation:isolate;animation:onward-page-in var(--onward-motion-page) var(--onward-ease) both}
+.jp-page> *:not(.onward-arc-motif){position:relative;z-index:1}
+@keyframes onward-page-in{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+.jp-sheet{animation:onward-sheet-in var(--onward-motion-sheet) cubic-bezier(.2,.82,.24,1.02) both}
+@keyframes onward-sheet-in{from{opacity:.86;transform:translateY(18px)}to{opacity:1;transform:none}}
+.jp-nav a,.jp-nav button,.jp-nav svg,.jp-nav span{transition:color var(--onward-motion-fast) ease,transform var(--onward-motion-fast) ease,opacity var(--onward-motion-fast) ease}
+.jp-nav .active svg{transform:translateY(-1px)}
+
+.onward-arc-motif{position:absolute;z-index:0;pointer-events:none;overflow:hidden;opacity:.075}
+.onward-arc-motif img{display:block;width:100%;height:100%;object-fit:contain;filter:saturate(.88)}
+.onward-arc-motif.home{width:220px;height:156px;right:-83px;top:70px;transform:rotate(-7deg)}
+.onward-arc-motif.job{width:230px;height:164px;right:-86px;top:-32px;opacity:.06;transform:rotate(4deg)}
+.onward-home{padding-top:18px;gap:0}
+.onward-home-greeting{font-size:12px;line-height:18px;color:var(--jp-text);margin:0 0 4px}
+.onward-identity{max-width:330px;padding:0 0 30px;animation:onward-section-in 220ms var(--onward-ease) both}
+.onward-identity h2{margin:0;font-family:var(--onward-serif);font-size:43px;line-height:.96;font-weight:400;letter-spacing:-.045em;color:var(--jp-text)}
+.onward-identity p{max-width:285px;margin:10px 0 0;font-size:13px;line-height:19px;color:var(--jp-muted)}
+.onward-home-empty{margin-top:4px;padding-top:0}
+.onward-home-empty h2{font-size:36px;line-height:38px}
+.onward-home-section{gap:7px;padding:0 0 29px;animation:onward-section-in 220ms var(--onward-ease) both}
+.onward-home-section.direction-section{animation-delay:38ms}.onward-home-section.offer-section{animation-delay:76ms}
+.onward-home-section>.jp-row h3,.onward-detail-section>h3{margin:0;font-family:var(--onward-serif);font-size:22px;line-height:26px;font-weight:400;letter-spacing:-.02em}
+@keyframes onward-section-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+.onward-medallion{width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:color-mix(in srgb,var(--jp-primary-container) 74%,var(--jp-bg));color:var(--jp-primary);flex:0 0 38px}
+.onward-company-mark{width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 44px;border-radius:9px;border:1px solid color-mix(in srgb,var(--jp-outline) 68%,transparent);font-family:var(--onward-serif);font-size:24px;line-height:1;color:var(--jp-primary);background:#f0efe8}
+.onward-company-mark.tone-1{background:#eef2e7}.onward-company-mark.tone-2{background:#f3eee5}.onward-company-mark.tone-3{background:#e7efeb}
+.onward-row-copy{display:grid;min-width:0;gap:2px;flex:1;text-align:left}
+.onward-row-copy>strong,.onward-row-copy>h2{margin:0;font-family:var(--onward-serif);font-size:18px;line-height:22px;font-weight:400;letter-spacing:-.018em;color:var(--jp-text)}
+.onward-row-copy .jp-company{font-family:var(--onward-sans);font-size:12px;line-height:17px;color:var(--jp-muted)}
+.onward-meta-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;color:var(--jp-muted);font-size:11px;line-height:15px}
+.onward-meta-row>span{display:inline-flex;align-items:center;gap:4px}
+.onward-match-label{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;padding:5px 9px;border-radius:999px;background:color-mix(in srgb,var(--jp-primary-container) 82%,var(--jp-bg));font-size:10.5px;line-height:14px;font-weight:600;color:var(--jp-primary)}
+.onward-interactive-row{transition:background var(--onward-motion-fast) ease,color var(--onward-motion-fast) ease}
+.onward-interactive-row>svg{transition:transform var(--onward-motion-fast) var(--onward-ease)}
+.onward-interactive-row:hover,.onward-interactive-row:focus-visible{background:color-mix(in srgb,var(--jp-primary-container) 30%,transparent)}
+.onward-interactive-row:hover>svg,.onward-interactive-row:focus-visible>svg{transform:translateX(3px)}
+.onward-interactive-row{animation:onward-row-in 180ms var(--onward-ease) both;animation-delay:var(--onward-delay,0ms)}
+@keyframes onward-row-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+.jp-direction-grid{border-top:1px solid var(--jp-outline)}
+.jp-direction-card{display:flex;flex-direction:row;align-items:center;gap:11px;min-height:57px;padding:9px 28px 9px 2px!important;border-bottom:1px solid var(--jp-outline)!important;text-align:left}
+.jp-direction-card .onward-row-copy .jp-hint{font-size:11px;line-height:15px}
+.onward-job-list{display:grid;gap:0;border-top:1px solid var(--jp-outline)}
+.jp-v1-role-card.onward-job-row{display:grid;grid-template-columns:44px minmax(0,1fr) auto 17px;align-items:center;gap:10px;margin:0;padding:13px 2px;border:0;border-bottom:1px solid var(--jp-outline);border-radius:0;background:transparent;box-shadow:none;text-align:left}
+.jp-v1-role-card.onward-job-row .jp-role-cv-label{justify-self:start;margin-top:3px;padding:2px 6px;border-radius:999px;background:var(--jp-primary-container);font-size:9.5px;color:var(--jp-primary)}
+.jp-v1-role-card.onward-job-row>svg{color:var(--jp-muted)}
+
+.onward-opportunities{gap:0}
+.onward-opportunities>.jp-title{margin-bottom:24px}
+.onward-opportunity-search{display:grid;gap:10px;padding:0 0 34px}
+.onward-opportunity-search .jp-field label{font-size:11px}
+.onward-opportunity-search .jp-ai-button{width:max-content;min-width:112px;justify-self:end;height:42px;min-height:42px;padding-inline:18px}
+.onward-results-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 0 11px;font-size:12px;color:var(--jp-text);border-bottom:0}
+.onward-filter-toggle{appearance:none;border:0;background:transparent;color:var(--jp-primary);font:600 12px/18px var(--onward-sans);padding:6px 0;cursor:pointer}
+.onward-filter-toggle:before{content:"";display:inline-block;width:13px;height:9px;margin-right:7px;border-top:1.5px solid currentColor;border-bottom:1.5px solid currentColor;vertical-align:1px}
+.onward-filter-strip{padding:0 0 12px;animation:onward-section-in 150ms ease-out both}
+.jp-search-history{margin-top:28px}
+
+.onward-job-hero{position:relative;overflow:hidden;display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:12px 13px;align-items:start;padding:16px 22px 20px;border-bottom:1px solid var(--jp-outline)}
+.onward-job-hero>.onward-company-mark{width:48px;height:48px;flex-basis:48px}
+.onward-job-hero-copy{display:grid;gap:5px;min-width:0}
+.onward-job-hero-copy h1{margin:0;font-family:var(--onward-serif);font-size:29px;line-height:30px;font-weight:400;letter-spacing:-.035em;color:var(--jp-text)}
+.onward-job-hero-copy>.jp-company{font-size:12px;color:var(--jp-primary);font-weight:600}
+.onward-job-hero-copy .jp-chips{margin-top:2px}
+.onward-detail-score{display:grid;gap:5px;min-width:62px;justify-items:end;color:var(--jp-primary)}
+.onward-detail-score>div{display:flex;align-items:baseline;gap:1px}
+.onward-detail-score strong{font-family:var(--onward-serif);font-size:46px;line-height:42px;font-weight:400;letter-spacing:-.05em;font-variant-numeric:tabular-nums}
+.onward-detail-score span{font-family:var(--onward-serif);font-size:20px}
+.onward-detail-score i{display:block;width:60px;height:3px;background:color-mix(in srgb,var(--jp-primary-container) 90%,transparent);overflow:hidden}
+.onward-detail-score b{display:block;height:100%;background:var(--jp-primary);transform-origin:left;animation:onward-score-line 430ms var(--onward-ease) both}
+@keyframes onward-score-line{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.onward-match-summary{display:grid;gap:10px;padding:12px 0 18px;border-bottom:1px solid var(--jp-outline)}
+.onward-match-summary h3,.onward-detail-section h3{margin:0;font-family:var(--onward-serif);font-size:22px;line-height:26px;font-weight:400}
+.onward-match-summary p{margin:5px 0 0;color:var(--jp-muted);font-size:12px;line-height:18px}
+.onward-detail-section{display:grid;gap:3px;padding:12px 0 15px;border-bottom:1px solid var(--jp-outline)}
+.onward-semantic-row{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:start;padding:7px 0}
+.onward-semantic-icon{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:color-mix(in srgb,var(--jp-primary-container) 86%,var(--jp-bg));color:var(--jp-primary)}
+.onward-semantic-row.gap .onward-semantic-icon{background:var(--jp-variant);color:var(--jp-muted)}
+.onward-semantic-copy{display:grid;gap:2px;min-width:0}.onward-semantic-copy strong{font-size:12.5px;line-height:18px;font-weight:550;color:var(--jp-text)}.onward-semantic-copy small{font-size:11px;line-height:16px;color:var(--jp-muted)}
+.onward-semantic-chevron{align-self:center;color:var(--jp-muted)}
+.onward-actions button,.onward-actions a{display:block;width:100%;border:0;background:transparent;color:inherit;text-decoration:none;padding:0;text-align:left;cursor:pointer}
+.onward-actions button:hover .onward-semantic-chevron,.onward-actions a:hover .onward-semantic-chevron{transform:translateX(3px)}
+
+/* Liquid remains the AI signature: two shallow phases, never glow or particles. */
+.jp-ai-button-fill:before{height:12px;top:-6px;border-radius:42% 58% 46% 54%/66% 62% 38% 34%;animation-duration:5.4s;opacity:.9}
+.jp-ai-button.liquid .jp-ai-button-fill:after,.jp-liquid-status .jp-ai-button-fill:after{height:9px;top:-4px;border-radius:55% 45% 58% 42%/62% 70% 30% 38%;animation-duration:6.6s;opacity:.72}
+@keyframes jp-onward-liquid-wave{from{transform:translateX(-5%) scaleY(.82)}to{transform:translateX(4%) scaleY(1.08)}}
+
 @media(max-width:600px){
   body{background:var(--jp-bg)}.jp-stage{padding:0}.jp-phone{border-radius:0;box-shadow:none}.jp-page{padding-left:22px;padding-right:22px}
   .jp-nav{padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+  .onward-identity h2{font-size:40px}.onward-job-hero{grid-template-columns:44px minmax(0,1fr) auto;padding-inline:18px}.onward-detail-score strong{font-size:40px}
 }
-@media(prefers-reduced-motion:reduce){.jp-ai-button-fill:before,.jp-ai-button-fill:after{animation:none!important}}
+@media(prefers-reduced-motion:reduce){
+  .jp-page,.jp-sheet,.onward-home-section,.onward-interactive-row,.onward-detail-score b{animation:none!important;transform:none!important}
+  .jp-ai-button-fill:before,.jp-ai-button-fill:after{animation:none!important}
+  .onward-interactive-row>svg,.jp-nav a,.jp-nav button,.jp-nav svg,.jp-nav span{transition:none!important}
+}

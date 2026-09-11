@@ -30,86 +30,103 @@ import androidx.compose.ui.unit.sp
 import org.json.JSONObject
 
 @Composable
+private fun HomeIdentity(signal: JSONObject?): Pair<String,String> {
+    val title=signal?.text("title").orEmpty()
+    val lower=title.lowercase()
+    val statement=when {
+        Regex("system|syst[eè]m|struct|architect|framework").containsMatchIn(lower) -> tr("你擅长把复杂问题理清。","Vous pensez en systèmes.","You think in systems.")
+        Regex("data|anal|quant|model|insight").containsMatchIn(lower) -> tr("你会从数据里看到方向。","Vous voyez ce que les données suggèrent.","You see where the data points.")
+        Regex("strateg|strat[eé]g|prior|decision").containsMatchIn(lower) -> tr("你先看结构，再做判断。","Vous voyez la structure avant le bruit.","You see structure before noise.")
+        Regex("commun|stakeholder|client|people|collab").containsMatchIn(lower) -> tr("你会把想法变成共识。","Vous reliez les idées aux personnes.","You connect ideas with people.")
+        Regex("deliver|execut|impact|result|build").containsMatchIn(lower) -> tr("你会把分析变成行动。","Vous transformez l’analyse en action.","You turn analysis into action.")
+        title.isNotBlank() -> title
+        else -> tr("你的经历已经形成一条主线。","Votre parcours dessine déjà une direction.","Your experience already points somewhere.")
+    }
+    return statement to (signal?.text("evidence")?.ifBlank {signal.text("why")} ?: "")
+}
+
+@Composable
 fun V1OverviewScreen(state: PilotState, vm: JobPilotViewModel, onExplore: () -> Unit, onProfile: () -> Unit) {
     val hasCv = state.snapshot.text("cv").isNotBlank()
     val v1 = state.snapshot.child("v1")
     val directions = v1.objects("careerDirections")
     val offers = state.snapshot.child("discovery").objects("offers").take(3)
     val signals = state.snapshot.child("analysis").objects("strengths").ifEmpty {state.snapshot.child("analysis").child("globalLayout").objects("signals")}
+    val identity=HomeIdentity(signals.firstOrNull())
+    val name=state.snapshot.child("profile").text("name").trim().substringBefore(' ').takeIf(String::isNotBlank)
     LazyColumn(
         Modifier.fillMaxSize(),
         state = analyticsListState(vm),
         contentPadding = PaddingValues(horizontal=22.dp,vertical=18.dp),
-        verticalArrangement = Arrangement.spacedBy(22.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
         overscrollEffect = null,
     ) {
         item {
-            Box(Modifier.fillMaxWidth().heightIn(min=110.dp)) {
-                OnwardHalo(Modifier.size(170.dp).align(Alignment.TopEnd).offset(x=58.dp,y=(-26).dp))
-                Column(Modifier.fillMaxWidth(.82f),verticalArrangement=Arrangement.spacedBy(7.dp)) {
-                    state.snapshot.child("profile").text("name").takeIf(String::isNotBlank)?.let { Hint(it) }
-                    EditorialTitle(tr("这是你会闪光的地方。", "Voici où votre profil peut vraiment ressortir.", "Here is where you can stand out."),large=true)
+            Box(Modifier.fillMaxWidth().heightIn(min=if(hasCv)170.dp else 136.dp)) {
+                OnwardHalo(Modifier.size(220.dp).align(Alignment.TopEnd).offset(x=82.dp,y=(-35).dp))
+                Column(Modifier.fillMaxWidth(.86f),verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                    Text(
+                        if(name!=null)tr("你好，$name。","Bonjour, $name.","Hello, $name.")else tr("你好。","Bonjour.","Hello."),
+                        style=MaterialTheme.typography.bodySmall,
+                        color=MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if(hasCv) {
+                        Text(identity.first,style=MaterialTheme.typography.displayLarge)
+                        if(identity.second.isNotBlank()) Text(identity.second,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=3)
+                    } else Text(tr("你的下一章，从这里开始。","Votre prochain chapitre commence ici.","Your next chapter starts here."),style=MaterialTheme.typography.displayLarge)
                 }
             }
         }
         if (!hasCv) item {
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(tr("上传一份简历，从真实岗位开始判断。", "Importez votre CV et comparez-le à de vraies offres.", "Upload your CV and compare it with real roles."), style=MaterialTheme.typography.headlineMedium)
-                Hint(tr("Onward 会先理解你的经历，再给出适合探索的职业方向和岗位。", "Onward comprend d’abord votre parcours, puis propose des directions et des offres à explorer.", "Onward first understands your experience, then suggests directions and roles to explore."))
+            Column(Modifier.fillMaxWidth().padding(bottom=30.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Hint(tr("上传简历，Onward 会从你的真实经历出发，找出值得探索的方向与岗位。","Importez votre CV : Onward part de votre parcours réel pour faire émerger les directions et les offres à explorer.","Upload your CV and Onward will use your real experience to surface directions and roles worth exploring."))
                 PrimaryButton(tr("上传我的简历", "Importer mon CV", "Upload my CV")) { onProfile() }
             }
         } else {
             if(v1.child("cvProgress").text("status")=="failed") item {
-                GlassCard {
-                    Hint(v1.child("cvProgress").child("failure").text("message"))
-                    PrimaryButton(tr("继续分析","Reprendre l’analyse","Continue analysis"),!state.working) {vm.retryV1()}
-                }
-            }
-            if (signals.isNotEmpty()) item {
-                EditorialSection(tr("你的优势在哪", "Vos points forts", "Where your strengths are")) {
-                    signals.take(4).forEachIndexed { index,signal ->
-                        Column(Modifier.fillMaxWidth().padding(vertical=4.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                            Text(signal.text("title"),style=MaterialTheme.typography.titleMedium)
-                            signal.text("evidence").takeIf { it.isNotBlank() }?.let { Hint(it) }
-                        }
-                        if(index<signals.take(4).lastIndex) HorizontalDivider(thickness=.6.dp,color=MaterialTheme.colorScheme.outlineVariant)
-                    }
-                }
+                GlassCard { Hint(v1.child("cvProgress").child("failure").text("message")); PrimaryButton(tr("继续分析","Reprendre l’analyse","Continue analysis"),!state.working) {vm.retryV1()} }
             }
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(tr("这些方向可能更适合你发力", "Des directions où votre profil peut ressortir", "Directions where your profile may stand out"), Modifier.weight(1f), style=MaterialTheme.typography.headlineSmall)
-                        TextButton(onProfile) { Text(tr("调整", "Modifier", "Edit")) }
-                    }
-                    if (directions.isEmpty() && v1.optBoolean("backgroundActive")) {
-                        LinearProgressIndicator(Modifier.fillMaxWidth())
-                        Hint(tr("为你准备新的方向。", "De nouvelles pistes se préparent.", "New possibilities are on their way."))
-                    } else directions.take(5).forEach { direction ->
-                        Column(
-                            Modifier.fillMaxWidth().clickable { vm.startTask(json("kind" to "search","query" to direction.text("searchQuery"),"silent" to true));onExplore() }.padding(vertical=11.dp),
-                            verticalArrangement = Arrangement.spacedBy(5.dp),
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(direction.text("title"), Modifier.weight(1f), style=MaterialTheme.typography.titleMedium)
-                                Icon(Icons.Rounded.ArrowForward, null, Modifier.size(17.dp), tint = MaterialTheme.colorScheme.primary)
-                            }
-                            direction.strings("evidence").take(2).joinToString(" · ").takeIf { it.isNotBlank() }?.let { Hint(it) }
+                OnwardReveal(35) {
+                    Column(Modifier.fillMaxWidth().padding(bottom=30.dp),verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(tr("值得探索的方向", "Directions à explorer", "Directions to explore"), Modifier.weight(1f), style=MaterialTheme.typography.headlineSmall)
+                            TextButton(onProfile) { Text(tr("调整", "Modifier", "Edit")) }
                         }
-                        HorizontalDivider(thickness=.6.dp,color=MaterialTheme.colorScheme.outlineVariant)
+                        if (directions.isEmpty() && v1.optBoolean("backgroundActive")) {
+                            LinearProgressIndicator(Modifier.fillMaxWidth().height(3.dp)); Hint(tr("为你准备新的方向。", "De nouvelles pistes se préparent.", "New possibilities are on their way."))
+                        } else directions.take(4).forEachIndexed { index,direction ->
+                            OnwardReveal(index*32) {
+                                Row(
+                                    Modifier.fillMaxWidth().onwardPress { vm.startTask(json("kind" to "search","query" to direction.text("searchQuery"),"silent" to true));onExplore() }.padding(vertical=9.dp),
+                                    verticalAlignment=Alignment.CenterVertically,
+                                    horizontalArrangement=Arrangement.spacedBy(11.dp),
+                                ) {
+                                    DirectionMedallion(direction.text("title"))
+                                    Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(2.dp)) {
+                                        Text(direction.text("title"),style=MaterialTheme.typography.titleMedium)
+                                        direction.strings("evidence").take(2).joinToString(" · ").takeIf { it.isNotBlank() }?.let { Text(it,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1) }
+                                    }
+                                    Icon(Icons.Rounded.ArrowForward,null,Modifier.size(17.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            HorizontalDivider(thickness=.6.dp,color=MaterialTheme.colorScheme.outlineVariant)
+                        }
                     }
                 }
             }
             if (offers.isNotEmpty()) {
                 item {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(tr("先试这几个真实岗位", "Essayez d’abord ces offres", "Try these real roles first"), Modifier.weight(1f), style=MaterialTheme.typography.headlineSmall)
-                        TextButton(onExplore) { Text(tr("全部", "Tout voir", "See all")) }
+                    OnwardReveal(70) {
+                        Row(Modifier.fillMaxWidth().padding(bottom=4.dp),verticalAlignment = Alignment.CenterVertically) {
+                            Text(tr("今天值得看的岗位", "Pour vous aujourd’hui", "For you today"), Modifier.weight(1f), style=MaterialTheme.typography.headlineSmall)
+                            TextButton(onExplore) { Text(tr("全部", "Tout voir", "See all")) }
+                        }
                     }
                 }
                 items(offers, key = { it.text("url") }) { offer -> V1OfferCard(offer) { vm.selectOffer(offer.text("url")) } }
+                item {Spacer(Modifier.height(18.dp))}
             }
-
         }
     }
 }
@@ -121,16 +138,19 @@ fun V1ExploreScreen(state:PilotState,vm:JobPilotViewModel) {
     val suggested=v1.child("journey").text("label").ifBlank {directions.firstOrNull()?.text("title").orEmpty()}
     var query by rememberSaveable(state.profileId){mutableStateOf(suggested)}
     var previousSuggestion by rememberSaveable(state.profileId){mutableStateOf(suggested)}
+    var showFilters by rememberSaveable(state.profileId){mutableStateOf(false)}
     LaunchedEffect(suggested){if(query==previousSuggestion||query.isBlank())query=suggested;previousSuggestion=suggested}
-    LazyColumn(Modifier.fillMaxSize(),state=analyticsListState(vm),contentPadding=PaddingValues(horizontal=22.dp,vertical=18.dp),verticalArrangement=Arrangement.spacedBy(18.dp),overscrollEffect=null) {
-        item {SectionTitle(tr("机会","Opportunités","Opportunities"),tr("看看你和工作的契合点。","Découvrez les postes qui vous correspondent.","Find the work that fits you."))}
+    LazyColumn(Modifier.fillMaxSize(),state=analyticsListState(vm),contentPadding=PaddingValues(horizontal=22.dp,vertical=18.dp),verticalArrangement=Arrangement.spacedBy(0.dp),overscrollEffect=null) {
         item {
-            Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(query,{query=it},Modifier.fillMaxWidth(),label={Text(tr("我想看看什么工作","Quel poste voulez-vous explorer ?","What role would you like to explore?"))},singleLine=true,shape=RoundedCornerShape(7.dp))
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    directions.forEach {direction->FilterChip(selected=query==direction.text("title"),onClick={query=direction.text("title")},label={Text(direction.text("title"),maxLines=1)})}
-                }
-                AiProgressButton(state,"search",label=tr("搜索这个方向","Rechercher cette direction","Search this direction"),enabled=query.isNotBlank()&&!state.working) {
+            Column(Modifier.padding(bottom=24.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                Text(tr("机会","Opportunités","Opportunities"),style=MaterialTheme.typography.displayMedium)
+                Text(tr("根据你的经历挑选的岗位。","Des postes choisis à partir de votre parcours.","Roles selected from your experience."),style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        item {
+            Column(Modifier.padding(bottom=32.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(query,{query=it},Modifier.fillMaxWidth(),label={Text(tr("搜索职位或公司","Rechercher un poste, une entreprise…","Search a role or company…"))},singleLine=true,shape=RoundedCornerShape(7.dp))
+                AiProgressButton(state,"search",label=tr("搜索","Rechercher","Search"),enabled=query.isNotBlank()&&!state.working) {
                     val search=directions.find {it.text("title")==query}?.text("searchQuery")?:query
                     vm.startTask(json("kind" to "search","query" to search,"silent" to true))
                 }
@@ -138,15 +158,25 @@ fun V1ExploreScreen(state:PilotState,vm:JobPilotViewModel) {
                 state.error?.let {Text(it,color=MaterialTheme.colorScheme.error,fontSize=13.sp)}
             }
         }
-        if(offers.isNotEmpty()) item {Text(tr("最值得先看的岗位","À regarder en premier","Roles worth a look"),fontWeight=FontWeight.SemiBold)}
+        item {
+            Row(Modifier.fillMaxWidth().padding(bottom=10.dp),verticalAlignment=Alignment.CenterVertically) {
+                Text(tr("${offers.size} 个为你挑选的机会","${offers.size} opportunités sélectionnées pour vous","${offers.size} opportunities selected for you"),Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
+                TextButton({showFilters=!showFilters}) {Text(tr("筛选","Filtres","Filters"))}
+            }
+        }
+        if(showFilters) item {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                directions.forEach {direction->FilterChip(selected=query==direction.text("title"),onClick={query=direction.text("title")},label={Text(direction.text("title"),maxLines=1)})}
+            }
+        }
         if(offers.isEmpty()) item {
-            Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.padding(top=12.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
                 if(v1.optBoolean("presentationFailed")) {Text(tr("这次没有准备好，请再试一次","La sélection n’est pas encore prête","This selection needs another try"));PrimaryButton(tr("重试","Réessayer","Retry"),!state.working){vm.retryV1()}}
                 else if(!v1.optBoolean("backgroundActive")) Hint(tr("还没有找到这个方向的合适岗位，试试其他方向。","Pas d’offre adaptée pour le moment. Essayez une autre piste.","No suitable roles yet. Try another direction."))
             }
         }
         items(offers,key={it.text("url")}) {offer->V1OfferCard(offer){vm.selectOffer(offer.text("url"))}}
-        if(history.isNotEmpty()) item {Text(tr("之前看过的方向","Recherches précédentes","Previously explored"),fontWeight=FontWeight.SemiBold)}
+        if(history.isNotEmpty()) item {Text(tr("之前看过的方向","Recherches précédentes","Previously explored"),Modifier.padding(top=28.dp,bottom=6.dp),style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.SemiBold)}
         history.forEach {group->
             val key=group.text("directionKey",group.text("taskId"))
             item(key="history-$key") {
@@ -158,11 +188,12 @@ fun V1ExploreScreen(state:PilotState,vm:JobPilotViewModel) {
                         val count=group.objects("offers").size
                         Hint(tr("${count} 个岗位","${count} offres","${count} roles"))
                     }
-                    AnimatedVisibility(expanded) {Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {group.objects("offers").forEach {offer->V1OfferCard(offer){vm.selectOffer(offer.text("url"))}}}}
+                    AnimatedVisibility(expanded) {Column {group.objects("offers").forEach {offer->V1OfferCard(offer){vm.selectOffer(offer.text("url"))}}}}
                     HorizontalDivider(thickness=.6.dp,color=MaterialTheme.colorScheme.outlineVariant)
                 }
             }
         }
+        item {Spacer(Modifier.height(18.dp))}
     }
 }
 
@@ -171,28 +202,23 @@ private fun V1OfferCard(offer: JSONObject, onClick: () -> Unit) {
     val deep = offer.child("deepMatch")
     val fast = offer.child("fastMatch")
     val score = if(offer.child("matchScore").has("current"))offer.child("matchScore").optInt("current") else if (deep.has("currentScore")) deep.optInt("currentScore") else fast.optInt("score", -1)
-    val strengths = if (deep.objects("strengths").isNotEmpty()) deep.objects("strengths").map { it.text("title") } else fast.objects("strengths").map { it.text("title") }
-    val gaps = if (deep.objects("capabilityGaps").isNotEmpty()) deep.objects("capabilityGaps").map { it.text("title") } else fast.objects("gaps").map { it.text("title") }
-    Column(
-        Modifier.fillMaxWidth().testTag("offer-${offer.text("url").hashCode()}").clickable(onClick=onClick).padding(vertical=13.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    val roleCv=offer.child("roleCv")
+    Row(
+        Modifier.fillMaxWidth().testTag("offer-${offer.text("url").hashCode()}").onwardPress(onClick).padding(vertical=13.dp),
+        verticalAlignment=Alignment.CenterVertically,
+        horizontalArrangement=Arrangement.spacedBy(10.dp),
     ) {
-            if(offer.child("roleCv").length()>0) Pill(when(offer.child("roleCv").text("status")) {"generating"->tr("岗位简历准备中","CV en préparation","Preparing role CV");"pending"->tr("岗位简历已就绪 · 待确认","CV prêt · à confirmer","Role CV ready · review");else->tr("已保留岗位简历","CV ciblé conservé","Role CV saved")})
-            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(offer.text("company"), style=MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                    Text(offer.text("title"), style=MaterialTheme.typography.titleLarge)
-                }
-                V1MatchBadge(score)
-            }
-            Hint(listOf(offer.text("location"), product(offer.text("contractType"))).filter { it.isNotBlank() && it != "unknown" }.joinToString(" · "))
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                strengths.take(2).forEach { Pill("+ $it") }
-                gaps.take(2).forEach { Pill("− $it", warm = true) }
-            }
-            OnwardCvOutcome(offer)
-            HorizontalDivider(Modifier.padding(top=4.dp),thickness=.6.dp,color=MaterialTheme.colorScheme.outlineVariant)
+        CompanyMark(offer.text("company"))
+        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(2.dp)) {
+            Text(offer.text("title"),style=MaterialTheme.typography.titleMedium,maxLines=2)
+            Text(offer.text("company"),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            OnwardMeta(offer.text("location"),offer.text("contractType").takeIf{it!="unknown"}.orEmpty())
+            if(roleCv.length()>0) Text(when(roleCv.text("status")){"generating"->tr("岗位简历准备中","CV en préparation","Preparing role CV");"pending"->tr("岗位简历已就绪 · 待确认","CV prêt · à confirmer","Role CV ready · review");else->tr("已保留岗位简历","CV ciblé conservé","Role CV saved")},fontSize=9.sp,color=MaterialTheme.colorScheme.primary,fontWeight=FontWeight.SemiBold)
+        }
+        MatchLabel(score)
+        Icon(Icons.Rounded.ArrowForward,null,Modifier.size(16.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
     }
+    HorizontalDivider(thickness=.6.dp,color=MaterialTheme.colorScheme.outlineVariant)
 }
 
 @Composable
@@ -246,12 +272,21 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
     var note by rememberSaveable(roleKey) { mutableStateOf(job.child("followup").text("note")) }
     ModalBottomSheet(onDismissRequest = { if(offer!=null)vm.selectOffer(null)else vm.selectJob(null) }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), modifier = Modifier.imePadding()) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(.92f).blockSheetEdgeMotion().testTag("v1-saved-job-detail")) {
-            Row(Modifier.padding(horizontal = 22.dp, vertical = 8.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(job.text("company"), color = MaterialTheme.colorScheme.primary, style=MaterialTheme.typography.labelLarge)
-                    Text(job.text("role"), style=MaterialTheme.typography.headlineMedium, maxLines = 3)
+            Box(Modifier.fillMaxWidth().padding(horizontal=22.dp,vertical=10.dp)) {
+                OnwardHalo(Modifier.size(190.dp).align(Alignment.TopEnd).offset(x=74.dp,y=(-34).dp))
+                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                    CompanyMark(job.text("company"),size=48)
+                    Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                        Text(job.text("company"),color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.labelLarge)
+                        Text(job.text("role"),style=MaterialTheme.typography.headlineMedium,maxLines=3)
+                        OnwardMeta(job.text("location"),product(job.text("contract")))
+                        FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                            job.text("contract").takeIf {it.isNotBlank()&&it!="unknown"}?.let {Pill(product(it))}
+                            job.text("workMode").takeIf(String::isNotBlank)?.let {Pill(product(it),warm=true)}
+                        }
+                    }
+                    if(display>=0) AnimatedMatchScore(display)
                 }
-                if (display >= 0) V1MatchBadge(display)
             }
             val labels = listOf(tr("匹配", "Match", "Fit"), "CV", tr("跟踪", "Suivi", "Tracking"))
             TabRow(tab, containerColor = androidx.compose.ui.graphics.Color.Transparent) {
@@ -269,19 +304,37 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
                             if(!job.child("localization").optBoolean("failed")) LinearProgressIndicator(Modifier.fillMaxWidth().height(3.dp))
                         }
                     } else {
-                        if (current >= 0) item {
-                            EditorialSection(tr("你的简历与这个岗位", "Votre CV pour ce poste", "Your CV for this role")) {
+                        if(current>=0) item {
+                            Column(Modifier.fillMaxWidth().padding(bottom=2.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Text(tr("你的匹配","Votre correspondance","Your match"),style=MaterialTheme.typography.headlineSmall)
+                                deep.text("roleSummary").takeIf(String::isNotBlank)?.let {Text(it,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)}
                                 OnwardCvOutcome(job,detail=true)
                             }
                         }
-                        item { TextButton({ runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(job.text("url")))) } }) { Icon(Icons.Rounded.OpenInNew, null, Modifier.size(17.dp)); Spacer(Modifier.width(7.dp)); Text(tr("打开原始职位页", "Ouvrir l’annonce officielle", "Open original posting")) } }
-                        if (deep.text("roleSummary").isNotBlank()) item { EditorialSection(tr("这个岗位做什么", "Ce que fait ce poste", "What this role does")) { Text(deep.text("roleSummary"), style=MaterialTheme.typography.bodyMedium); deep.strings("responsibilities").take(6).forEach { Text("• $it", style=MaterialTheme.typography.bodyMedium) } } }
-                        val strengths = deep.objects("strengths")
-                        if (strengths.isNotEmpty()) item { EditorialSection(tr("你的强项", "Vos points forts", "Your strengths")) { strengths.take(6).forEach { item -> Text("+ ${item.text("title")}", style=MaterialTheme.typography.titleSmall); Hint(item.text("evidence")) } } }
-                        val presentation = deep.objects("presentationGaps")
-                        if (presentation.isNotEmpty()) item { EditorialSection(tr("可以通过简历表达改善", "À améliorer dans la présentation du CV", "Can improve through CV presentation")) { presentation.take(6).forEach { item -> Text(item.text("title"), style=MaterialTheme.typography.titleSmall); Text(item.text("why"), style=MaterialTheme.typography.bodyMedium) } } }
-                        val gaps = deep.objects("capabilityGaps")
-                        if (gaps.isNotEmpty()) item { EditorialSection(tr("值得补强的地方", "Vos axes de progrès", "Where to grow")) { gaps.take(7).forEach { item -> Text("− ${item.text("title")}", style=MaterialTheme.typography.titleSmall); Text(item.text("why"), style=MaterialTheme.typography.bodyMedium); item.text("nextAction").takeIf(String::isNotBlank)?.let { Hint(it) } } } }
+                        val strengths=deep.objects("strengths")
+                        if(strengths.isNotEmpty()) item {
+                            EditorialSection(tr("为什么这个岗位适合你","Pourquoi ce poste vous va","Why this role fits")) {
+                                strengths.take(5).forEach {item->SemanticRow(item.text("title"),item.text("evidence"))}
+                            }
+                        }
+                        val gaps=deep.objects("capabilityGaps")
+                        if(gaps.isNotEmpty()) item {
+                            EditorialSection(tr("需要补强","À renforcer","To strengthen")) {
+                                gaps.take(5).forEach {item->SemanticRow(item.text("title"),item.text("nextAction").ifBlank {item.text("why")},kind="gap")}
+                            }
+                        }
+                        val presentation=deep.objects("presentationGaps")
+                        if(presentation.isNotEmpty()) item {
+                            EditorialSection(tr("简历表达可以更好","À mieux présenter dans le CV","CV presentation to sharpen")) {
+                                presentation.take(4).forEach {item->SemanticRow(item.text("title"),item.text("why"),kind="document")}
+                            }
+                        }
+                        item {
+                            EditorialSection(tr("建议操作","Actions suggérées","Suggested actions")) {
+                                Row(Modifier.fillMaxWidth().clickable {tab=1}.padding(vertical=2.dp)) {SemanticRow(tr("为这个岗位创建 CV","Créer un CV ciblé pour ce poste","Create a targeted CV for this role"),kind="document",chevron=true)}
+                                Row(Modifier.fillMaxWidth().clickable {runCatching {context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(job.text("url"))))}}.padding(vertical=2.dp)) {SemanticRow(tr("查看公司与原始职位","Découvrir l’entreprise et l’annonce","View the company and original posting"),kind="company",chevron=true)}
+                            }
+                        }
                         if (deep.length() == 0 && job.text("summary").isNotBlank()) item { GlassCard { Text(tr("历史岗位判断", "Lecture historique du poste", "Historical role assessment"), fontWeight = FontWeight.SemiBold); Markdown(job.text("summary")) } }
                         if (job.text("reportNum").isNotBlank()) item { TextButton({ vm.openReport(job) }) { Text(tr("查看历史正式报告", "Lire le rapport historique", "Read historical formal report")) } }
                     }

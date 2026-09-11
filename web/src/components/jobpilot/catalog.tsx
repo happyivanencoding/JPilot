@@ -1,25 +1,37 @@
 "use client";
 import {CvOutcome} from "./cv-outcome";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ArrowRight, CheckSquare, ChevronRight, GraduationCap, Square } from "lucide-react";
 import { DISCOVERY_OFFER_LIMIT } from "@/lib/mobile-domain.mjs";
 import { rows, texts, usePilot, type Json } from "./pilot-context";
 import { ACTIVE, safeExternalUrl } from "./model.mjs";
 import { AiProgressButton, Button, Card, Chip, Empty, External, Hint, Input, Pill, RowLink, Score, TextArea, Title } from "./ui";
+import {CompanyMark,DirectionMedallion,EditorialIdentity,MatchLabel,MetaRow,OnwardArcMotif} from "./onward-visual";
+
+function identityStatement(signal:Json|undefined,tr:(zh:string,fr:string,en:string)=>string){
+ const text=String(signal?.title||"").toLowerCase();
+ if(/system|syst[eè]m|struct|architect|framework/.test(text))return tr("你擅长把复杂问题理清。","Vous pensez en systèmes.","You think in systems.");
+ if(/data|anal|quant|model|insight/.test(text))return tr("你会从数据里看到方向。","Vous voyez ce que les données suggèrent.","You see where the data points.");
+ if(/strateg|strat[eé]g|prior|decision/.test(text))return tr("你先看结构，再做判断。","Vous voyez la structure avant le bruit.","You see structure before noise.");
+ if(/commun|stakeholder|client|people|collab/.test(text))return tr("你会把想法变成共识。","Vous reliez les idées aux personnes.","You connect ideas with people.");
+ if(/deliver|execut|impact|result|build/.test(text))return tr("你会把分析变成行动。","Vous transformez l’analyse en action.","You turn analysis into action.");
+ return signal?.title||tr("你的经历已经形成一条主线。","Votre parcours dessine déjà une direction.","Your experience already points somewhere.");
+}
 
 export function HomePage() {
-  const { data, tr, navigate, openOffer, startTask, retryV1 } = usePilot();
+  const { data, tr, navigate, openOffer, startTask, retryV1,product } = usePilot();
   const offers=rows(data.discovery?.offers),directions=rows(data.v1?.careerDirections),signals=rows(data.analysis?.strengths).length?rows(data.analysis?.strengths):rows(data.analysis?.globalLayout?.signals);
-  const hasCv = Boolean(data.cv?.trim());
+  const hasCv = Boolean(data.cv?.trim()),lead=signals[0];
   const analysing=hasCv && ["queued","running","reconciling","pending"].includes(String(data.v1?.analysisState||"")) && !directions.length;
-  return <div className="jp-page" data-testid="home-page">
-    <Title sub={data.profile?.name}>{tr("这是你会闪光的地方。", "Voici où votre profil peut vraiment ressortir.", "Here is where you can stand out.")}</Title>
-    {!hasCv ? <section className="jp-hero"><h2>{tr("上传一份简历，从真实岗位开始判断。","Importez votre CV et comparez-le à de vraies offres.","Upload your CV and compare it with real roles.")}</h2><Hint>{tr("Onward 会先理解你的经历，再给出适合探索的职业方向和岗位。","Onward comprend d’abord votre parcours, puis propose des directions et des offres à explorer.","Onward first understands your experience, then suggests directions and roles to explore.")}</Hint><Button onClick={()=>navigate({tab:"profile"})}>{tr("上传我的简历","Importer mon CV","Upload my CV")}</Button></section> : <>
+  const firstName=String(data.profile?.name||"").trim().split(/\s+/)[0];
+  return <div className="jp-page onward-home" data-testid="home-page">
+    <OnwardArcMotif className="home"/>
+    <div className="onward-home-greeting">{tr(firstName?`你好，${firstName}。`:"你好。",firstName?`Bonjour, ${firstName}.`:"Bonjour.",firstName?`Hello, ${firstName}.`:"Hello.")}</div>
+    {!hasCv ? <section className="jp-hero onward-home-empty"><h2>{tr("你的下一章，从这里开始。","Votre prochain chapitre commence ici.","Your next chapter starts here.")}</h2><Hint>{tr("上传简历，Onward 会从你的真实经历出发，找出值得探索的方向与岗位。","Importez votre CV : Onward part de votre parcours réel pour faire émerger les directions et les offres à explorer.","Upload your CV and Onward will use your real experience to surface directions and roles worth exploring.")}</Hint><Button onClick={()=>navigate({tab:"profile"})}>{tr("上传我的简历","Importer mon CV","Upload my CV")}</Button></section> : <>
+      <EditorialIdentity title={identityStatement(lead,tr)} detail={lead?.evidence||lead?.why}/>
       {data.v1?.cvProgress?.status==="failed"&&<Card><p role="alert">{data.v1.cvProgress.failure?.message}</p><Button onClick={()=>retryV1()}>{tr("继续分析","Reprendre l’analyse","Continue analysis")}</Button></Card>}
-      {signals.length>0&&<section className="jp-stack"><h3>{tr("你的优势在哪","Vos points forts","Where your strengths are")}</h3>{signals.slice(0,3).map((s,i)=><Card key={i}><strong>{s.title}</strong>{s.evidence&&<Hint>{s.evidence}</Hint>}</Card>)}</section>}
-      <section className="jp-stack"><div className="jp-row spread"><h3>{tr("这些方向可能更适合你发力","Des directions où votre profil peut ressortir","Directions where your profile may stand out")}</h3><Button kind="text" onClick={()=>navigate({tab:"profile"})}>{tr("调整","Modifier","Edit")}</Button></div>{analysing?<><div className="jp-progress indeterminate"/><Hint>{tr("为你准备新的方向。","De nouvelles pistes se préparent.","New possibilities are on their way.")}</Hint></>:<div className="jp-direction-grid">{directions.slice(0,5).map((d,i)=><button type="button" key={i} className="jp-direction-card" data-analytics="choose_direction" onClick={()=>{navigate({tab:"offers"});void startTask({kind:"search",query:d.searchQuery,silent:true});}}><strong>{d.title}</strong><Hint>{texts(d.evidence).slice(0,2).join(" · ")}</Hint><ArrowRight size={17}/></button>)}</div>}</section>
-      {!!offers.length&&<section className="jp-stack"><div className="jp-row spread"><h3>{tr("先试这几个真实岗位","Essayez d’abord ces offres","Try these real roles first")}</h3><Button kind="text" onClick={()=>navigate({tab:"offers"})}>{tr("全部","Tout voir","See all")}</Button></div>{offers.slice(0,3).map(offer=><button type="button" key={offer.url} className="jp-v1-role-card" data-analytics="open_job" onClick={()=>openOffer(String(offer.url))}><div className="jp-row"><div className="jp-grow"><div className="jp-company">{offer.company}</div><strong>{offer.title}</strong></div><Match100 value={offer.deepMatch?.currentScore ?? offer.fastMatch?.score}/></div><Hint>{offer.deepMatchState==="loading"?tr("正在补充岗位匹配…","Match détaillé en cours…","Adding detailed match…"):tr("点开看详细匹配","Ouvrez pour voir le match détaillé","Open for the detailed match")}</Hint></button>)}</section>}
-
+      <section className="jp-stack onward-home-section direction-section"><div className="jp-row spread"><h3>{tr("值得探索的方向","Directions à explorer","Directions to explore")}</h3><Button kind="text" onClick={()=>navigate({tab:"profile"})}>{tr("调整","Modifier","Edit")}</Button></div>{analysing?<><div className="jp-progress indeterminate"/><Hint>{tr("为你准备新的方向。","De nouvelles pistes se préparent.","New possibilities are on their way.")}</Hint></>:<div className="jp-direction-grid">{directions.slice(0,4).map((d,i)=><button type="button" key={i} className="jp-direction-card onward-interactive-row" style={{"--onward-delay":`${Math.min(i,4)*34}ms`} as CSSProperties} data-analytics="choose_direction" onClick={()=>{navigate({tab:"offers"});void startTask({kind:"search",query:d.searchQuery,silent:true});}}><DirectionMedallion label={String(d.title)}/><span className="onward-row-copy"><strong>{d.title}</strong><Hint>{texts(d.evidence).slice(0,2).join(" · ")}</Hint></span><ArrowRight size={17}/></button>)}</div>}</section>
+      {!!offers.length&&<section className="jp-stack onward-home-section offer-section"><div className="jp-row spread"><h3>{tr("今天值得看的岗位","Pour vous aujourd’hui","For you today")}</h3><Button kind="text" onClick={()=>navigate({tab:"offers"})}>{tr("全部","Tout voir","See all")}</Button></div>{offers.slice(0,3).map((offer,i)=>{const score=offer.deepMatch?.currentScore ?? offer.fastMatch?.score;return <button type="button" key={offer.url} className="jp-v1-role-card onward-job-row onward-interactive-row" style={{"--onward-delay":`${Math.min(i,4)*34}ms`} as CSSProperties} data-analytics="open_job" onClick={()=>openOffer(String(offer.url))}><CompanyMark company={String(offer.company||"")}/><span className="onward-row-copy"><strong>{offer.title}</strong><span className="jp-company">{offer.company}</span><MetaRow location={String(offer.location||"")} contract={offer.contractType&&offer.contractType!=="unknown"?product(offer.contractType):undefined}/></span><MatchLabel value={score}/><ChevronRight size={17}/></button>})}</section>}
     </>}
   </div>;
 }
@@ -39,37 +51,31 @@ export function SearchMetrics({ value: m }: { value: Json }) {
   const status = (s: string) => s === "ok" ? tr("可用", "actif", "active") : s === "unconfigured" ? tr("未配置", "non configuré", "not configured") : s === "error" ? tr("错误", "erreur", "error") : tr("关闭", "désactivé", "disabled");
   return <section className="jp-stack"><strong>{tr("本次搜索表现", "Performance de cette recherche", "Search performance")}</strong><Hint>{parts.join(" · ")}</Hint><Hint>{m.aiFallbackUsed ? tr("结构化源不足，已使用精简 AI 补充。", "Sources structurées insuffisantes : complément IA ciblé utilisé.", "Structured sources were insufficient; targeted AI fallback was used.") : tr("本次未调用搜索 Agent。", "Aucun agent de recherche utilisé pour cette requête.", "No search agent was used for this query.")}</Hint><Hint>{rows(m.providers).map(p => `${p.label}: ${status(p.status)}`).join(" · ")}</Hint><hr /></section>;
 }
-function OfferCard({offer}:{offer:Json}) {
+function OfferCard({offer,index=0}:{offer:Json;index?:number}) {
   const {tr,product,openOffer}=usePilot();
   const deep=offer.deepMatch||{},fast=offer.fastMatch||{};
   const score=offer.matchScore?.current ?? deep.currentScore ?? fast.score;
-  const strengths=rows(deep.strengths).length?rows(deep.strengths).map(x=>x.title):rows(fast.strengths).map(x=>x.title);
-  const gaps=rows(deep.capabilityGaps).length?rows(deep.capabilityGaps).map(x=>x.title):rows(fast.gaps).map(x=>x.title);
-  return <button type="button" className={`jp-v1-role-card jp-offer${offer.roleCv?" has-role-cv":""}`} data-testid="discovery-offer" onClick={()=>openOffer(String(offer.url))}>
-    {offer.roleCv&&<span className="jp-role-cv-label">{offer.roleCv.status==="generating"?tr("岗位简历准备中","CV en préparation","Preparing role CV"):offer.roleCv.status==="pending"?tr("岗位简历已就绪 · 待确认","CV prêt · à confirmer","Role CV ready · review"):tr("已保留岗位简历","CV ciblé conservé","Role CV saved")}</span>}
-    <div className="jp-row"><div className="jp-grow"><div className="jp-company">{offer.company}</div><h2>{offer.title}</h2></div><Match100 value={score}/></div>
-    <Hint>{[offer.location,offer.contractType!=="unknown"?product(offer.contractType):""].filter(Boolean).join(" · ")}</Hint>
-    <div className="jp-v1-signal-row">{strengths.slice(0,2).map((x,i)=><span className="jp-v1-plus" key={`s-${i}`}>+ {x}</span>)}{gaps.slice(0,2).map((x,i)=><span className="jp-v1-minus" key={`g-${i}`}>− {x}</span>)}</div>
-    <CvOutcome value={offer}/>
+  return <button type="button" className={`jp-v1-role-card jp-offer onward-job-row onward-interactive-row${offer.roleCv?" has-role-cv":""}`} style={{"--onward-delay":`${Math.min(index,4)*34}ms`} as CSSProperties} data-testid="discovery-offer" onClick={()=>openOffer(String(offer.url))}>
+    <CompanyMark company={String(offer.company||"")}/>
+    <span className="onward-row-copy"><h2>{offer.title}</h2><span className="jp-company">{offer.company}</span><MetaRow location={String(offer.location||"")} contract={offer.contractType!=="unknown"?product(offer.contractType):undefined}/>{offer.roleCv&&<span className="jp-role-cv-label">{offer.roleCv.status==="generating"?tr("岗位简历准备中","CV en préparation","Preparing role CV"):offer.roleCv.status==="pending"?tr("岗位简历已就绪 · 待确认","CV prêt · à confirmer","Role CV ready · review"):tr("已保留岗位简历","CV ciblé conservé","Role CV saved")}</span>}</span>
+    <MatchLabel value={score}/><ChevronRight size={17}/>
   </button>;
 }
 export function OffersPage() {
-  const { data, tr, product, startTask, retryV1 } = usePilot();
-  const directions=rows(data.v1?.careerDirections),keywords=texts(data.v1?.searchKeywords);
-  const targetRoles=texts(data.config?.target_roles?.primary);
+  const { data, tr, startTask, retryV1 } = usePilot();
+  const directions=rows(data.v1?.careerDirections);
   const defaultQuery = String(data.v1?.journey?.label || directions[0]?.title || tr("适合我当前经历的初级岗位","postes junior adaptés à mon parcours","junior roles suited to my experience"));
-  const [query, setQuery] = useState<string>(defaultQuery), priorDefault = useRef<string>(defaultQuery);
+  const [query, setQuery] = useState<string>(defaultQuery), [filtersOpen,setFiltersOpen]=useState(false), priorDefault = useRef<string>(defaultQuery);
   useEffect(() => { setQuery((previous:string) => previous === priorDefault.current ? defaultQuery : previous); priorDefault.current = defaultQuery; }, [defaultQuery]);
-  const searching = ACTIVE.has(String(data.v1?.searchState || "")) || data.v1?.backgroundActive===true && data.v1?.offersReady===false;
-  const discovery = data.discovery || {};
-  const offers=rows(discovery.offers).slice(0,DISCOVERY_OFFER_LIMIT);
-  const history=rows(discovery.history);
-  return <div className="jp-page" data-testid="offers-page"><Title sub={tr("看看你和工作的契合点。","Découvrez les postes qui vous correspondent.","Find the work that fits you.")}>{tr("机会", "Opportunités", "Opportunities")}</Title>
-    <div className="jp-stack"><Input label={tr("我想看看什么工作","Quel type de poste voulez-vous explorer ?","What roles do you want to explore?")} value={query} onChange={e=>setQuery(e.target.value)}/><div className="jp-chips">{directions.map(d=>({title:d.title,query:d.title})).slice(0,8).map((item,i)=><Chip key={i} selected={query===item.query} onClick={()=>setQuery(String(item.query))}>{item.title}</Chip>)}</div><Hint>{tr("也可以输入你更感兴趣的工作。","Vous pouvez aussi saisir le métier qui vous attire.","Or type the role you would like to explore.")}</Hint><AiProgressButton taskKind="search" data-testid="search-offers" disabled={!query.trim()} onClick={()=>startTask({kind:"search",query:directions.find(d=>d.title===query)?.searchQuery || query,silent:true})}>{tr("搜索这个方向","Rechercher cette direction","Search this direction")}</AiProgressButton><Hint>{data.v1?.searchNotice}</Hint></div>
-    <div className="jp-row spread"><strong>{tr("最值得先看的岗位","À regarder en premier","Best roles to inspect first")}</strong><Hint>{discovery.searchedAt?.slice(0,10)}</Hint></div>
-    {!offers.length&&<section className="jp-stack"><Empty title={data.v1?.presentationFailed?tr("这次没有准备好，请再试一次","La sélection n’est pas encore prête","This selection needs another try"):data.v1?.backgroundActive?tr("为你挑选值得一试的工作","Une sélection qui vous correspond","Finding roles worth your time"):tr("这个方向暂时没有合适的岗位","Pas encore d’offre adaptée à cette piste","No suitable roles for this direction yet")}>{tr("每份工作都会带上匹配分、优势和提升建议。也可以换个方向探索。","Chaque offre avec son match, vos atouts et vos prochaines actions. Vous pouvez aussi changer de piste.","Each role comes with your match, strengths and next steps. You can also explore another direction.")}</Empty>{data.v1?.presentationFailed&&<Button onClick={()=>retryV1()}>{tr("重试","Réessayer","Retry")}</Button>}</section>}
-    {offers.map(offer=><OfferCard key={offer.url} offer={offer}/>) }
-    {!!history.length&&<section className="jp-stack jp-search-history"><strong>{tr("之前看过的方向","Recherches précédentes","Previously explored")}</strong>{history.map((group,index)=><details className="jp-history-group" key={group.directionKey || group.taskId || index} data-testid="history-direction"><summary><span>{group.label || tr("之前的方向","Piste précédente","Previous direction")}</span><small>{tr(`${rows(group.offers).length} 个岗位`,`${rows(group.offers).length} offres`,`${rows(group.offers).length} roles`)}</small></summary><div className="jp-history-body">{rows(group.offers).map(offer=><OfferCard key={offer.url} offer={offer}/>)}</div></details>)}</section>}
+  const discovery = data.discovery || {},offers=rows(discovery.offers).slice(0,DISCOVERY_OFFER_LIMIT),history=rows(discovery.history);
+  return <div className="jp-page onward-opportunities" data-testid="offers-page">
+    <Title sub={tr("根据你的经历挑选的岗位。","Des postes choisis à partir de votre parcours.","Roles selected from your experience.")}>{tr("机会", "Opportunités", "Opportunities")}</Title>
+    <section className="onward-opportunity-search"><Input label={tr("搜索职位或公司","Rechercher un poste, une entreprise…","Search a role or company…")} value={query} onChange={e=>setQuery(e.target.value)}/><AiProgressButton taskKind="search" data-testid="search-offers" disabled={!query.trim()} onClick={()=>startTask({kind:"search",query:directions.find(d=>d.title===query)?.searchQuery || query,silent:true})}>{tr("搜索","Rechercher","Search")}</AiProgressButton><Hint>{data.v1?.searchNotice}</Hint></section>
+    <div className="onward-results-head"><span>{tr(`${offers.length} 个为你挑选的机会`,`${offers.length} opportunités sélectionnées pour vous`,`${offers.length} opportunities selected for you`)}</span><button type="button" className="onward-filter-toggle" aria-expanded={filtersOpen} onClick={()=>setFiltersOpen(v=>!v)}>{tr("筛选","Filtres","Filters")}</button></div>
+    {filtersOpen&&<div className="jp-chips onward-filter-strip">{directions.slice(0,8).map((d,i)=><Chip key={i} selected={query===d.title} onClick={()=>setQuery(String(d.title))}>{d.title}</Chip>)}</div>}
+    {!offers.length&&<section className="jp-stack"><Empty title={data.v1?.presentationFailed?tr("这次没有准备好，请再试一次","La sélection n’est pas encore prête","This selection needs another try"):data.v1?.backgroundActive?tr("为你挑选值得一试的工作","Une sélection qui vous correspond","Finding roles worth your time"):tr("这个方向暂时没有合适的岗位","Pas encore d’offre adaptée à cette piste","No suitable roles for this direction yet")}>{tr("换一个方向，或稍后再试。","Essayez une autre piste ou revenez un peu plus tard.","Try another direction or come back shortly.")}</Empty>{data.v1?.presentationFailed&&<Button onClick={()=>retryV1()}>{tr("重试","Réessayer","Retry")}</Button>}</section>}
+    <div className="onward-job-list">{offers.map((offer,index)=><OfferCard key={offer.url} offer={offer} index={index}/>)}</div>
+    {!!history.length&&<section className="jp-stack jp-search-history"><strong>{tr("之前看过的方向","Recherches précédentes","Previously explored")}</strong>{history.map((group,index)=><details className="jp-history-group" key={group.directionKey || group.taskId || index} data-testid="history-direction"><summary><span>{group.label || tr("之前的方向","Piste précédente","Previous direction")}</span><small>{tr(`${rows(group.offers).length} 个岗位`,`${rows(group.offers).length} offres`,`${rows(group.offers).length} roles`)}</small></summary><div className="jp-history-body">{rows(group.offers).map((offer,i)=><OfferCard key={offer.url} offer={offer} index={i}/>)}</div></details>)}</section>}
   </div>;
 }
 export function ApplicationsPage() {

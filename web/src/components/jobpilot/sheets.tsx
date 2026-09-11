@@ -9,6 +9,7 @@ import { ACTIVE, centerTasks, destinationFor } from "./model.mjs";
 import { AiProgressButton, Button, Card, Check, Chip, Empty, EstimatedProgress, External, Hint, Input, LiquidTaskProgress, Loading, Localization, Markdown, Pill, Score, Select, Sheet, Tabs, TextArea, Title, taskName } from "./ui";
 import { PracticeCard, PrepChecklist } from "./profile-prepare";
 import { Match100, SearchMetrics } from "./catalog";
+import {AnimatedMatchScore,CompanyMark,MetaRow,OnwardArcMotif,SemanticRow} from "./onward-visual";
 
 export function TasksSheet() {
   const { data, tr, openTask } = usePilot();
@@ -24,18 +25,22 @@ export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
   const { route, data, tr, product, navigate, startTask,tailorOffer,busy,error } = usePilot();
   const tab = Math.min(2, Math.max(0, Number(route.jobTab) || 0));
   const cv = job.cv || {}, cvDraft = job.cvDraft || null;
-  const hasCv=roleCvIsReady(job);
-  return <Sheet title={<><div className="jp-subtitle">{job.company}</div><div className="jp-row"><span className="jp-grow">{job.role}</span>{job.v1Match?<Match100 value={job.v1Match.displayScore ?? job.v1Match.currentScore}/>:<Score score={job.score} />}</div></>} testId={offer?"offer-detail":`job-detail-${job.id}`}>
+  const hasCv=roleCvIsReady(job),detailScore=job.v1Match?.displayScore ?? job.v1Match?.currentScore ?? job.score;
+  return <Sheet title={job.company} testId={offer?"offer-detail":`job-detail-${job.id}`}>
+    <div className="onward-job-hero">
+      <OnwardArcMotif className="job"/><CompanyMark company={String(job.company||"")}/>
+      <div className="onward-job-hero-copy"><span className="jp-company">{job.company}</span><h1>{job.role}</h1><MetaRow location={String(job.location||"")} contract={job.contract?product(job.contract):undefined}/><div className="jp-chips">{job.contract&&<Pill>{product(job.contract)}</Pill>}{job.workMode&&<Pill>{product(job.workMode)}</Pill>}</div></div>
+      {job.v1Match&&<AnimatedMatchScore value={detailScore}/>}
+    </div>
     <Tabs labels={[tr("匹配", "Match", "Fit"), "CV", tr("跟踪", "Suivi", "Tracking")]} selected={tab} prefix="job-tab" muted={hasCv?[]:[1]} onChange={i => navigate({ ...route, jobTab: String(i) }, true)} />
     <div className="jp-sheet-content" data-testid="job-content"><Localization value={job.localization} />
       {tab===0&&job.localization?.pending&&<Loading/>}
       {tab===0&&!job.localization?.pending&&job.v1Match&&<>
-        <Card><h3>{tr("你的简历与这个岗位","Votre CV pour ce poste","Your CV for this role")}</h3><CvOutcome value={job} detail/></Card>
-        <External url={job.url}>{tr("打开原始职位页","Ouvrir l’annonce officielle","Open original job page")}</External>
-        <Card><h3>{tr("这个岗位做什么","Ce que fait ce poste","What this role does")}</h3><p>{job.v1Match.deepMatch?.roleSummary}</p>{texts(job.v1Match.deepMatch?.responsibilities).map((text,i)=><p className="jp-bullet" key={i}>{text}</p>)}</Card>
-        {!!rows(job.v1Match.deepMatch?.strengths).length&&<Card><h3>{tr("你的强项","Vos points forts","Your strengths")}</h3>{rows(job.v1Match.deepMatch.strengths).map((item,i)=><div key={i}><strong>+ {item.title}</strong><Hint>{item.evidence}</Hint></div>)}</Card>}
-        {!!rows(job.v1Match.deepMatch?.presentationGaps).length&&<Card><h3>{tr("简历这样改","Mieux présenter votre CV","Sharpen your CV")}</h3>{rows(job.v1Match.deepMatch.presentationGaps).map((item,i)=><div key={i}><strong>{item.title}</strong><Hint>{item.why}</Hint></div>)}</Card>}
-        {!!rows(job.v1Match.deepMatch?.capabilityGaps).length&&<Card><h3>{tr("值得补强的地方","Vos axes de progrès","Where to grow")}</h3>{rows(job.v1Match.deepMatch.capabilityGaps).map((item,i)=><div key={i}><strong>− {item.title}</strong><p>{item.why}</p><Hint>{item.nextAction}</Hint></div>)}</Card>}
+        <section className="onward-match-summary"><div><h3>{tr("你的匹配","Votre correspondance","Your match")}</h3><p>{job.v1Match.deepMatch?.roleSummary||tr("基于你当前简历中的真实经历。","À partir des éléments réels de votre CV.","Based on evidence already present in your CV.")}</p></div><CvOutcome value={job} detail/></section>
+        {!!rows(job.v1Match.deepMatch?.strengths).length&&<section className="onward-detail-section"><h3>{tr("为什么这个岗位适合你","Pourquoi ce poste vous va","Why this role fits")}</h3>{rows(job.v1Match.deepMatch.strengths).slice(0,5).map((item,i)=><SemanticRow key={i} title={String(item.title)} detail={String(item.evidence||"")}/>)}</section>}
+        {!!rows(job.v1Match.deepMatch?.capabilityGaps).length&&<section className="onward-detail-section"><h3>{tr("需要补强","À renforcer","To strengthen")}</h3>{rows(job.v1Match.deepMatch.capabilityGaps).slice(0,5).map((item,i)=><SemanticRow key={i} kind="gap" title={String(item.title)} detail={String(item.nextAction||item.why||"")}/>)}</section>}
+        {!!rows(job.v1Match.deepMatch?.presentationGaps).length&&<section className="onward-detail-section"><h3>{tr("简历表达可以更好","À mieux présenter dans le CV","CV presentation to sharpen")}</h3>{rows(job.v1Match.deepMatch.presentationGaps).slice(0,4).map((item,i)=><SemanticRow key={i} kind="document" title={String(item.title)} detail={String(item.why||"")}/>)}</section>}
+        <section className="onward-detail-section onward-actions"><h3>{tr("建议操作","Actions suggérées","Suggested actions")}</h3><button type="button" onClick={()=>navigate({...route,jobTab:"1"},true)}><SemanticRow kind="document" title={tr("为这个岗位创建 CV","Créer un CV ciblé pour ce poste","Create a targeted CV for this role")} chevron/></button><External url={job.url}><SemanticRow kind="company" title={tr("查看公司与原始职位","Découvrir l’entreprise et l’annonce","View the company and original posting")} chevron/></External></section>
       </>}
       {tab === 0 && !job.localization?.pending && !job.v1Match && <>
         <div className="jp-row wrap"><Pill>{product(job.status)}</Pill>{job.lastChecked && <Pill>{job.lastChecked.slice(0, 10)}</Pill>}</div>

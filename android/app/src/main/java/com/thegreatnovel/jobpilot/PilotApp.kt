@@ -66,7 +66,7 @@ import kotlin.math.exp
             PilotChrome {
                 Column {
                     Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 18.dp,vertical = 8.dp),verticalAlignment = Alignment.CenterVertically) {
-                        OnwardBrand(Modifier.weight(1f))
+                        Box(Modifier.weight(1f),contentAlignment=Alignment.CenterStart) { OnwardBrand() }
                         if(canSwitchProfiles) Box {
                             TextButton({ profileMenu = true },modifier=Modifier.testTag("profile-switch"),contentPadding = PaddingValues(horizontal = 8.dp)) {
                                 Text(state.snapshot.objects("profiles").find { it.text("id") == state.profileId }?.text("shortName")?.substringBefore(" ·") ?: tr("档案","Profil","Profile"),maxLines = 1)
@@ -117,7 +117,7 @@ import kotlin.math.exp
                 }
                 LocalizationNotice(state.snapshot.child("localization"),vm::retryLocalization)
                 PullToRefreshBox(isRefreshing = state.loading,onRefresh = { vm.refresh() },modifier = Modifier.fillMaxSize()) {
-                    AnimatedContent(targetState = if(needsCv) 2 else tab,label = "destination",transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(100)) }) { page ->
+                    AnimatedContent(targetState = if(needsCv) 2 else tab,label = "destination",transitionSpec = { (fadeIn(tween(210)) + slideInVertically(tween(210)) { 8 }) togetherWith fadeOut(tween(110)) }) { page ->
                         holder.SaveableStateProvider("${state.profileId}:$page") {
                             when(page) {
                                 0 -> V1OverviewScreen(state,vm,onExplore = { tab = 1 },onProfile = { tab = 2 })

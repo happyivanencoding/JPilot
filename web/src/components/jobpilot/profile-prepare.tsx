@@ -3,7 +3,7 @@ import {CvPrivacyDialog} from "./cv-privacy";
 import {SearchAreaSettings} from "./search-area";
 import {ProfileApplications} from "./profile-applications";
 import { useEffect, useRef, useState } from "react";
-import { FileText } from "lucide-react";
+import { Bookmark, BriefcaseBusiness, FileText } from "lucide-react";
 import { rows, texts, usePilot, type Json } from "./pilot-context";
 import { ACTIVE } from "./model.mjs";
 import { AiProgressButton, Button, Card, Check, Chip, Hint, Input, Localization, Select, Sheet, TextArea, Title } from "./ui";
@@ -30,7 +30,11 @@ export function ProfilePage() {
   const authenticated = typeof window !== "undefined" && (window.location.hostname === "jobs.thegreatnovel.com" || window.location.port === "3002");
   const needsCv=Boolean(data.access?.needsCv);
   const jobs=rows(data.jobs),directions=rows(data.v1?.careerDirections);
+  const roleCvCount=jobs.filter(job=>job.cvDraft?.id||job.cv?.file).length;
+  const savedCount=jobs.length;
   return <div className="jp-page roomy" data-testid="profile-page">{privacyMode>0&&<CvPrivacyDialog onClose={()=>setPrivacyMode(0)} onAccepted={privacyMode===1?()=>picker.current?.click():undefined}/>}
+    <header className="onward-profile-head"><h1>{tr("我的职业档案","Mon profil","My profile")}</h1><p>{tr("你的资料、偏好和求职工具都集中在这里。","Vos informations, vos préférences et vos outils réunis pour aller plus loin.","Your information, preferences and career tools in one place.")}</p>{data.profile?.name&&<strong>{data.profile.name}</strong>}</header>
+    <div className="onward-profile-stats" aria-label={tr("职业档案统计","Résumé du profil","Profile summary")}><span><BriefcaseBusiness size={17}/><b>{jobs.length}</b><small>{tr("投递 / 跟踪","Candidatures","Applications")}</small></span><span><Bookmark size={17}/><b>{savedCount}</b><small>{tr("已保存岗位","Offres suivies","Saved roles")}</small></span><span><FileText size={17}/><b>{roleCvCount}</b><small>{tr("岗位版 CV","Versions de CV","CV versions")}</small></span></div>
     <div className="jp-segmented" role="tablist" aria-label={tr("我的页面","Espace personnel","My workspace")}>
       {[tr("个人资料","Mon profil","Profile"),tr("投递情况","Candidatures","Applications")].map((label,i)=><button type="button" key={i} id={`profile-tab-${i}`} role="tab" aria-selected={profileTab===i} aria-controls={`profile-panel-${i}`} className={profileTab===i?"selected":""} data-testid={`profile-tab-${i}`} onClick={()=>setProfileTab(i)}>{label}</button>)}
     </div>

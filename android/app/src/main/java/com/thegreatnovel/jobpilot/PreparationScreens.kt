@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -95,6 +96,14 @@ import java.time.ZoneOffset
     }
 }
 
+@Composable private fun ProfileMetric(icon:ImageVector,value:Int,label:String,modifier:Modifier=Modifier) {
+    Column(modifier,horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(2.dp)) {
+        Icon(icon,null,Modifier.size(17.dp),tint=MaterialTheme.colorScheme.primary)
+        Text(value.toString(),style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.primary)
+        Text(label,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun ProfileScreen(state: PilotState,vm: JobPilotViewModel) {
     val context = LocalContext.current
@@ -120,11 +129,22 @@ import java.time.ZoneOffset
         (it.text("company")+" "+it.text("role")).contains(applicationQuery.trim(),ignoreCase=true) }
         .sortedByDescending { it.text("updatedAt",it.text("createdAt")) }
     val directions=state.snapshot.child("v1").objects("careerDirections")
+    val roleCvCount=jobs.count {it.child("cvDraft").text("id").isNotBlank()||it.child("cv").text("file").isNotBlank()}
     LazyColumn(Modifier.fillMaxSize().imePadding().testTag("profile-content"),state=analyticsListState(vm),contentPadding = PaddingValues(22.dp),verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item {
             Column(verticalArrangement=Arrangement.spacedBy(5.dp)) {
                 EditorialTitle(tr("我的职业档案","Mon profil","My profile"),large=true)
-                state.snapshot.child("profile").text("name").takeIf(String::isNotBlank)?.let { Hint(it) }
+                Text(tr("你的资料、偏好和求职工具都集中在这里。","Vos informations, vos préférences et vos outils réunis pour aller plus loin.","Your information, preferences and career tools in one place."),style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                state.snapshot.child("profile").text("name").takeIf(String::isNotBlank)?.let {Text(it,Modifier.padding(top=5.dp),style=MaterialTheme.typography.labelLarge)}
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth().border(.6.dp,MaterialTheme.colorScheme.outlineVariant).padding(vertical=10.dp),verticalAlignment=Alignment.CenterVertically) {
+                ProfileMetric(Icons.Rounded.Work,jobs.size,tr("投递 / 跟踪","Candidatures","Applications"),Modifier.weight(1f))
+                VerticalDivider(Modifier.height(42.dp),thickness=.6.dp,color=MaterialTheme.colorScheme.outlineVariant)
+                ProfileMetric(Icons.Rounded.Bookmark,jobs.size,tr("已保存岗位","Offres suivies","Saved roles"),Modifier.weight(1f))
+                VerticalDivider(Modifier.height(42.dp),thickness=.6.dp,color=MaterialTheme.colorScheme.outlineVariant)
+                ProfileMetric(Icons.Rounded.Description,roleCvCount,tr("岗位版 CV","Versions de CV","CV versions"),Modifier.weight(1f))
             }
         }
         item {

@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.PersonOutline
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
@@ -173,8 +174,8 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
                         TextButton({languageChosen=false}) {Text(tr("更换语言","Changer de langue","Change language"))}
                     }
                     2 -> {
-                        EditorialTitle(tr("从你的简历开始","Tout commence avec votre CV","It starts with your CV"),large=true)
-                        Hint(tr("看看你擅长什么，以及哪些工作值得一试。","Découvrez vos atouts et les postes à explorer.","See what you bring and which roles are worth exploring."))
+                        EditorialTitle(tr("你的下一章，从这里开始。","Votre prochain chapitre commence ici.","Your next chapter starts here."),large=true)
+                        Hint(tr("上传简历，让 Onward 从你的真实经历出发找到与你匹配的机会。","Importez votre CV et laissez Onward trouver des opportunités en accord avec votre profil et vos ambitions.","Upload your CV and let Onward find opportunities aligned with your experience and ambitions."))
                         Text(tr("你想找哪类机会？","Quel type d’opportunité ?","What are you looking for?"),fontWeight=FontWeight.SemiBold)
                         listOf("Stage","Alternance","CDI","CDD").chunked(2).forEach { row ->
                             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -191,9 +192,38 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
                             Hint(tr("分析、岗位详情和公司信息跟随界面语言。","Les analyses, les offres et les informations sur les entreprises suivent la langue de l’application.","Analysis, role details and company information follow the app language."))
                         }
                         if(importFailed) Text(tr("这份文件暂时打不开，请换一份 PDF 或 Word。","Ce fichier ne s’ouvre pas. Essayez un autre PDF ou Word.","This file could not be opened. Try another PDF or Word file."),color=MaterialTheme.colorScheme.error)
-                        TextButton({showPrivacy=true}) {Text(tr("简历信息如何使用","Utilisation des informations du CV","How your CV information is used"),fontSize=12.sp)}
-                        PrimaryButton(tr("选择简历","Choisir mon CV","Choose my CV"),!state.working&&contracts.isNotEmpty()) {showPrivacy=true}
-                        Hint("PDF · Word · TXT · 12 MB")
+                        Surface(
+                            Modifier.fillMaxWidth(),
+                            shape=RoundedCornerShape(8.dp),
+                            color=MaterialTheme.colorScheme.surface.copy(alpha=.54f),
+                            border=BorderStroke(.8.dp,MaterialTheme.colorScheme.outlineVariant),
+                            tonalElevation=0.dp,
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(18.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                                Surface(shape=androidx.compose.foundation.shape.CircleShape,color=MaterialTheme.colorScheme.primaryContainer) {
+                                    Box(Modifier.size(58.dp),contentAlignment=Alignment.Center) {Icon(Icons.Rounded.Description,null,Modifier.size(23.dp),tint=MaterialTheme.colorScheme.primary)}
+                                }
+                                Text(tr("把 CV 放在这里","Déposez votre CV ici","Drop your CV here"),style=MaterialTheme.typography.titleMedium)
+                                Hint(tr("或从你的文件中选择","ou choisissez-le dans vos fichiers","or choose it from your files"))
+                                PrimaryButton(tr("选择文件","Choisir un fichier","Choose a file"),!state.working&&contracts.isNotEmpty()) {showPrivacy=true}
+                                Hint("PDF · Word · TXT · 12 MB")
+                            }
+                        }
+                        Surface(
+                            onClick={showPrivacy=true},
+                            modifier=Modifier.fillMaxWidth(),
+                            shape=RoundedCornerShape(8.dp),
+                            color=MaterialTheme.colorScheme.primaryContainer.copy(alpha=.48f),
+                            tonalElevation=0.dp,
+                        ) {
+                            Row(Modifier.padding(13.dp),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalAlignment=Alignment.Top) {
+                                Icon(Icons.Rounded.Lock,null,Modifier.size(18.dp),tint=MaterialTheme.colorScheme.primary)
+                                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(2.dp)) {
+                                    Text(tr("你的数据会受到保护","Vos données sont sécurisées","Your data is protected"),style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
+                                    Text(tr("CV 只用于为当前档案提供匹配与建议。","Votre CV est utilisé uniquement pour les correspondances et conseils de ce profil.","Your CV is used only to provide matches and guidance for this profile."),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
                     }
                     3 -> {
                         EditorialTitle(tr("你的下一步，可以有哪些可能？","Quelles possibilités pour la suite ?","What could your next step look like?"),large=true)

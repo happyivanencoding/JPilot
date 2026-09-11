@@ -4,7 +4,7 @@ import "@/components/jobpilot/onward.css";
 export const metadata: Metadata = {
   title: "Onward", description: "Votre recherche d’emploi. Vos preuves. Votre prochain pas.",
   applicationName: "Onward", manifest: "/manifest.webmanifest",
-  icons: { icon: [{ url: "/onward-icon.svg", type: "image/svg+xml" }], apple: "/onward-192.png" },
+  icons: { icon: [{ url: "/onward-symbol.svg", type: "image/svg+xml" }], apple: "/onward-192.png" },
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Onward" },
   robots: { index: false, follow: false },
 };
