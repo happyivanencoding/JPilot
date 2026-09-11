@@ -37,7 +37,7 @@ export async function POST(req: Request) {
   // blind-overwrite — snapshot the prior CV to a .bak first, write atomically.
   try {
     const result = await saveCanonicalCv(profileId, body.content, body.expectedVersionId);
-    const analysisTask=result.changed?await startMobileTask(profileId,{kind:"analysis",silent:true,source:"v1-auto-after-master-edit",uiLocale:requestUiLocale(req)}):null;
+    const analysisTask=result.changed?await startMobileTask(profileId,{kind:"analysis",silent:true,retry:true,source:"v1-auto-after-master-edit",uiLocale:requestUiLocale(req)}):null;
     return NextResponse.json({ ...result, backedUp: result.changed, analysisTaskId:analysisTask?.id || null, analysisState:analysisTask?.status || null });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "write failed" }, { status: 409 });

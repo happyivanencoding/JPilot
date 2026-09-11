@@ -67,18 +67,29 @@ export async function GET(req: Request) {
     const cv=read("cv");
     const analysis=currentAnalysis(profileId,version,tasks);
     const visibleTasks=tasks.filter((t:MobileTask)=>t.input?.silent!==true);
-    const latestAnalysis=tasks.find((t:MobileTask)=>t.kind==="analysis"&&t.inputVersionId===version.id);
-    const latestSearchTask=tasks.find((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id);
-    const latestSearch=tasks.find((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&t.result?.offers);
+    const careerDirections=Array.isArray((analysis as any)?.careerDirections)?(analysis as any).careerDirections:[];
+    const searchKeywords=Array.isArray((analysis as any)?.searchKeywords)?(analysis as any).searchKeywords:[];
+    const v1AnalysisReady=Boolean(analysis && (analysis as any).inputVersionId===version.id && (careerDirections.length || searchKeywords.length));
+    const activeAnalysis=tasks.find((t:MobileTask)=>t.kind==="analysis"&&t.inputVersionId===version.id&&["queued","running","reconciling"].includes(t.status));
+    const failedV1Analysis=tasks.find((t:MobileTask)=>t.kind==="analysis"&&t.inputVersionId===version.id&&["failed","interrupted"].includes(t.status)&&(String(t.input?.source||"").startsWith("v1-")||String(t.operationKey||"").includes("analysis-v2-v1-directions")));
+    const latestSearchTask=tasks.find((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&String(t.operationKey||"").includes("search-v6-live-providers"));
+    const latestSearch=tasks.find((t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&String(t.operationKey||"").includes("search-v6-live-providers")&&t.result?.offers);
     const snapshot={
-      version: "0.4.0", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
+      version: "0.4.1", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
       access:{role,canSwitchProfiles:role!=="user"&&profiles.length>1,needsCv:role==="user"&&!cv.trim()},
       cv, cvState:{versionId:version.id,cvVersion:version.cvVersion,revision:version.revision,changedAt:version.createdAt},
       languageSettings:{uiLocale:locale,applicationLanguage:applicationLanguage(config || {},read("cv")),documentLanguage:documentLanguage(version)},
       config: config || {}, jobs: projectedJobs, dashboard: dashboardFor(projectedJobs), statuses: APPLICATION_STATUSES,
       tasks: visibleTasks.slice(0,60).map((t:MobileTask)=>taskView(t,projectedJobs,false,locale)),
       analysis,
-      v1:{careerDirections:Array.isArray((analysis as any)?.careerDirections)?(analysis as any).careerDirections:[],searchKeywords:Array.isArray((analysis as any)?.searchKeywords)?(analysis as any).searchKeywords:[],analysisState:latestAnalysis?.status || (analysis?"ready":"pending"),searchState:latestSearchTask?.status || "pending",backgroundActive:tasks.some((t:MobileTask)=>t.input?.silent===true&&["queued","running","reconciling"].includes(t.status)),deepMatchPrefetchLimit:DISCOVERY_OFFER_LIMIT},
+      v1:{
+        careerDirections,searchKeywords,
+        analysisState:activeAnalysis?.status || (v1AnalysisReady?"completed":failedV1Analysis?.status || "pending"),
+        searchState:v1AnalysisReady ? (latestSearchTask?.status || "pending") : "pending",
+        needsBootstrap:Boolean(cv.trim())&&!v1AnalysisReady&&!activeAnalysis&&!failedV1Analysis,
+        backgroundActive:tasks.some((t:MobileTask)=>t.input?.silent===true&&["queued","running","reconciling"].includes(t.status)),
+        deepMatchPrefetchLimit:DISCOVERY_OFFER_LIMIT,
+      },
       discovery: (()=>{const result=discoveryProjection(latestSearch?.result || null,projectedJobs,tasks);const eligible=result.offers.filter((o:any)=>contractMatches(o,(config as any)?.target_roles?.contract_types || []).matches);return {...result,offers:topDiscoveryOffers(eligible),displayLimit:DISCOVERY_OFFER_LIMIT,availableCount:eligible.length};})(),
       flowEstimates:Object.fromEntries(Object.entries(FLOW_DEFAULTS).map(([kind,choice])=>[kind,estimateView(flowEstimate(tasks,kind,choice.model,choice.reasoning),locale)])),
       updatedAt: store.updatedAt,
@@ -97,6 +108,10 @@ export async function POST(req: Request) {
     const body = await req.json();
     const profileId = await activeProfileId(body.profileId);
     const locale=requestUiLocale(req,body.input?.uiLocale || body.input?.language || body.uiLocale);
+    if (body.action === "bootstrapV1") {
+      const task=await startMobileTask(profileId,{kind:"analysis",silent:true,retry:true,source:"v1-auto-bootstrap",uiLocale:locale});
+      return Response.json({ok:true,task:taskView(task,readCandidatureStore(profileId).jobs,false,locale)},{status:task.status==="completed"?200:202});
+    }
     if (body.action === "task") {
       const task = await startMobileTask(profileId, {...body.input,uiLocale:locale});
       const view=taskView(task,readCandidatureStore(profileId).jobs,true,locale);
@@ -136,7 +151,7 @@ export async function POST(req: Request) {
       if (task.kind !== "ingest" || task.status !== "completed" || body.confirmed !== true) throw new Error("Relire et confirmer l’aperçu avant d’enregistrer.");
       if (typeof body.content !== "string" || !body.content.trim()) throw new Error("CV vide.");
       const result = await saveCanonicalCv(profileId,body.content,body.expectedVersionId);
-      const analysisTask=await startMobileTask(profileId,{kind:"analysis",silent:true,source:"v1-auto-after-cv",uiLocale:locale});
+      const analysisTask=await startMobileTask(profileId,{kind:"analysis",silent:true,retry:true,source:"v1-auto-after-cv",uiLocale:locale});
       return Response.json({...result,analysisTaskId:analysisTask.id || null,analysisState:analysisTask.status});
     }
     if (body.action === "decideCvDraft") return Response.json(await decideCvDraft(profileId,String(body.draftId),String(body.decision)));

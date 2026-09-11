@@ -256,6 +256,9 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
         includeDevelopmentSource: process.env.JOBPILOT_SEARCH_ENABLE_DEV_SOURCE === "1",
         limit: 24,
       });
+      const providerRuns=structured.providerRuns || [];
+      const liveProviderReady=providerRuns.some((run:any)=>["france-travail","jsearch"].includes(String(run.id))&&["ok","partial"].includes(String(run.status)));
+      if(!liveProviderReady && !(structured.offers || []).length) throw new Error("Les sources d’offres JobPilot ne sont pas configurées pour cet environnement.");
       const fallbackOffers: Record<string, any>[] = [];
       const fallbackMetrics: Record<string, any> | null = null;
       task.result={offers:structured.offers || [],searchedAt:new Date().toISOString(),contractTypes:request.contractTypes || [],searchMetrics:structured.metrics,partial:true,warning:"Résultats structurés reçus. JobPilot n’autorise plus un agent ACP à naviguer sur le web en secours."};

@@ -421,8 +421,11 @@ test('another European country stays in the normal ranked pool with a mobility n
   assert.match(result.offers[0].why, /Autre pays européen/);
 });
 
-test('search operation key invalidates same-day results created before the soft-ranking change', () => {
-  const key = operationKey('search', { query: 'marketing Paris' }, { id: 'cv-v1' }, [], '2026-09-08');
-  assert.match(key, /search-v5-soft-ranking/);
-  assert.notEqual(key, JSON.stringify(['search', 'cv-v1', 'marketing Paris', '2026-09-08']));
+test('V1 operation keys invalidate pre-contract analysis and pre-provider search results', () => {
+  const searchKey = operationKey('search', { query: 'marketing Paris' }, { id: 'cv-v1' }, [], '2026-09-08');
+  const analysisKey = operationKey('analysis', {}, { id: 'cv-v1' }, [], '2026-09-08');
+  assert.match(searchKey, /search-v6-live-providers/);
+  assert.match(analysisKey, /analysis-v2-v1-directions/);
+  assert.notEqual(searchKey, JSON.stringify(['search', 'search-v5-soft-ranking', 'cv-v1', 'marketing Paris', '2026-09-08']));
+  assert.notEqual(analysisKey, JSON.stringify(['analysis', 'cv-v1']));
 });

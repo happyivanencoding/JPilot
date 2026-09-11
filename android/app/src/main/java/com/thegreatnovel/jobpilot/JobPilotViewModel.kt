@@ -50,6 +50,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     private var reportJob: Job? = null
     private var previewMetaJob: Job? = null
     private var displayJobIds: Set<String> = emptySet()
+    private var v1BootstrapVersion: String? = null
     fun watchJobDisplays(ids: Set<String>) {
         if(displayJobIds==ids)return
         displayJobIds=ids
@@ -118,6 +119,19 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
             else -> refresh(retryLocalization=true)
         }
     }
+    private fun ensureV1Bootstrap(data: JSONObject, profile: String, epoch: Int) {
+        val versionId=data.child("cvState").text("versionId")
+        if(!data.child("v1").optBoolean("needsBootstrap") || versionId.isBlank() || v1BootstrapVersion==versionId) return
+        v1BootstrapVersion=versionId
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { api.request("/api/mobile",profile,json("action" to "bootstrapV1","profileId" to profile,"uiLocale" to mutable.value.language)) }
+                if(epoch==generation) { delay(250); refresh(silent=true) }
+            } catch(e:Exception) {
+                if(epoch==generation) { v1BootstrapVersion=null; failure(e) }
+            }
+        }
+    }
     fun refresh(silent: Boolean = false, retryLocalization: Boolean = false) {
         if (refreshJob?.isActive == true) return
         val epoch = generation; val profile = mutable.value.profileId
@@ -143,6 +157,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
                     error = failedMessage ?: it.error,
                     task = failed ?: it.task,
                     taskLaunch = if(failed!=null) null else it.taskLaunch) }
+                ensureV1Bootstrap(data,actual,epoch)
                 val open = mutable.value.task
                 if (open != null && open.text("status") in activeStates) loadTask(open.text("id"))
                 else if(open?.child("result")?.child("localization")?.optBoolean("pending")==true && !open.child("result").child("localization").optBoolean("failed")) {
@@ -155,7 +170,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     fun selectProfile(id: String) {
-        displayJobIds=emptySet()
+        displayJobIds=emptySet();v1BootstrapVersion=null
         detailJob?.cancel();detailJob=null;reportJob?.cancel();reportJob=null
         generation++; refreshJob?.cancel(); refreshJob = null
         prefs.edit().putString("profile", id).apply()

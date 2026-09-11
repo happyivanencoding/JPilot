@@ -79,13 +79,17 @@ export function canAdoptLegacy(task, version) {
   return Number.isFinite(created) && ['cv','config','notes'].every(k => version.sources[k].modifiedMs <= created);
 }
 const clean = x => String(x ?? '').trim().replace(/\s+/g, ' ');
-const SEARCH_OPERATION_VERSION = 'search-v5-soft-ranking';
+// Operation keys are product-contract identities, not just input hashes. When a
+// flow starts requiring new persisted output fields, bump its version so an old
+// completed task cannot masquerade as a valid result for the new UI contract.
+const ANALYSIS_OPERATION_VERSION = 'analysis-v2-v1-directions';
+const SEARCH_OPERATION_VERSION = 'search-v6-live-providers';
 export function operationKey(kind, input, version, jobs, day = new Date().toISOString().slice(0,10)) {
   const job = jobs.find(j => j.id === input.jobId);
   const evidence = j => j ? [j.id, normalizeUrl(j.url), j.reportNum || null, j.score ?? null, j.summary || '', j.match || [], j.gaps || []] : null;
   if (kind === 'evaluate') return JSON.stringify([kind, normalizeUrl(input.url)]);
   if (kind === 'deep_match') return JSON.stringify([kind, 'v1', version.id, normalizeUrl(input.url || input.offer?.url)]);
-  if (kind === 'analysis') return JSON.stringify([kind, version.id]);
+  if (kind === 'analysis') return JSON.stringify([kind, ANALYSIS_OPERATION_VERSION, version.id]);
   if (kind === 'search') return JSON.stringify([kind, SEARCH_OPERATION_VERSION, version.id, clean(input.query), day]);
   if (kind === 'cv') return JSON.stringify([kind, version.id, evidence(job), ...(input.applicationLanguage ? [input.applicationLanguage] : [])]);
   if (kind === 'cv_review') return JSON.stringify([kind, input.jobId, input.draftId, Number(input.revision || 0)]);

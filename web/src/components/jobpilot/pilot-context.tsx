@@ -38,6 +38,7 @@ function useController(profileId: string) {
   const busyRef = useRef(false);
   const refreshRef = useRef<{ scope: string; promise: Promise<void> } | null>(null);
   const displayIdsRef = useRef("");
+  const v1BootstrapRef = useRef("");
   const tr = useCallback((zh: string, fr: string, en: string = fr) => locale === "zh" ? zh : locale === "en" ? en : fr, [locale]);
   const product = useCallback((value: unknown): string => {
     if (value == null) return "";
@@ -175,6 +176,16 @@ function useController(profileId: string) {
     window.addEventListener("focus", visible); document.addEventListener("visibilitychange", visible);
     return () => { disposed = true; clearTimeout(timer); controllers.current.forEach(c => c.abort()); controllers.current.clear(); window.removeEventListener("focus", visible); document.removeEventListener("visibilitychange", visible); };
   }, [ready, scope, refresh, refreshDetail]);
+  useEffect(() => {
+    const versionId=String(data.cvState?.versionId || "");
+    if(!ready || data.v1?.needsBootstrap !== true || !versionId) return;
+    const key=`${profileId}:${versionId}`;
+    if(v1BootstrapRef.current===key) return;
+    v1BootstrapRef.current=key;
+    void request("/api/mobile",{method:"POST",body:JSON.stringify({action:"bootstrapV1",profileId,uiLocale:locale})})
+      .then(()=>refresh())
+      .catch(e=>{if(scopeRef.current===scope){v1BootstrapRef.current="";fail(e);}});
+  }, [ready,data.v1?.needsBootstrap,data.cvState?.versionId,profileId,locale,request,refresh,scope,fail]);
   const selectedJob = rows(data.jobs).find(j => j.id === route.job || String(j.reportNum) === route.job);
   const selectedOffer = rows(data.discovery?.offers).find(offer => String(offer.url) === String(route.offer || ""));
   const displayIds = route.view === "compare" ? route.ids || "" : selectedJob && ["job", "report", "pdf"].includes(route.view || "") ? selectedJob.id : "";

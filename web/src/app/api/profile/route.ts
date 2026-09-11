@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       if (JSON.stringify(previous) !== JSON.stringify(updated)) atomicWriteWithBackup(file, yaml.dump(updated, { lineWidth: 100, noRefs: true }));
       currentCandidateVersion(profileId);
     });
-    const analysisTask=refreshV1?await startMobileTask(profileId,{kind:"analysis",silent:true,source:"v1-auto-after-intent-change",uiLocale:requestUiLocale(request)}):null;
+    const analysisTask=refreshV1?await startMobileTask(profileId,{kind:"analysis",silent:true,retry:true,source:"v1-auto-after-intent-change",uiLocale:requestUiLocale(request)}):null;
     return Response.json({ ok: true, seeded, analysisTaskId:analysisTask?.id || null, analysisState:analysisTask?.status || null });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "write failed" }, { status: error instanceof SyntaxError ? 409 : 500 });
