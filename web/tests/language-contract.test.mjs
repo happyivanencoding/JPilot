@@ -7,7 +7,7 @@ import {uiLocale,requestUiLocale,applicationLanguage,documentLanguage,contradict
 import {candidateVersion,operationKey} from '../src/lib/mobile-state.mjs';
 import {cvAnalysisPrompt} from '../src/lib/cv-analysis-prompt.mjs';
 import {preservePresentationLanguage,cvBlocks} from '../src/lib/cv-global-plan.mjs';
-import {displaySlots,setDisplaySlot,protectTranslation,restoreTranslation,translationKey,productText,reportForDisplay} from '../src/lib/localization-core.mjs';
+import {displaySlots,setDisplaySlot,protectTranslation,restoreTranslation,translationKey,productText,reportForDisplay,alreadyLocalized,translationLooksLikeTarget} from '../src/lib/localization-core.mjs';
 import {repairMojibake} from '../src/lib/text-repair.mjs';
 
 const english='# TEST CANDIDATE\n\n## EDUCATION\n\nStudent seeking a first role in marketing.\n\n## EXPERIENCE\n\nSupported campaign reporting and prepared presentations for the marketing team.\n\n## SKILLS\n\nEnglish C1, French B1.\n';
@@ -27,6 +27,14 @@ test('UI locale comes only from the client, never the CV or legacy language.outp
 test('provider mojibake is repaired without changing correct Unicode names',()=>{
   assert.equal(repairMojibake('VINCI Energies SÃ©nÃ©gal'),'VINCI Energies Sénégal');
   assert.equal(repairMojibake('VINCI Energies Sénégal'),'VINCI Energies Sénégal');
+});
+test('short English CV-assessment gaps are not mistaken for French display text',()=>{
+  const englishGap='No documented residential-building audit exposure.';
+  const frenchGap='Aucune expérience documentée en audit de bâtiments résidentiels.';
+  assert.equal(alreadyLocalized(englishGap,'fr','fr'),false);
+  assert.equal(translationLooksLikeTarget(englishGap,'fr'),false);
+  assert.equal(alreadyLocalized(frenchGap,'fr','fr'),true);
+  assert.equal(translationLooksLikeTarget(frenchGap,'fr'),true);
 });
 test('Chinese analysis explicitly requires English CV fragments and preserves original evidence',()=>{
   const prompt=cvAnalysisPrompt({candidate:candidate(),language:'zh'});

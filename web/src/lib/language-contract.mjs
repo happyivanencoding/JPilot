@@ -14,8 +14,8 @@ export function requestUiLocale(request, explicit) {
 export function choose(locale, zh, fr, en=fr) { return uiLocale(locale)==='zh'?zh:uiLocale(locale)==='en'?en:fr; }
 export function detectedDocumentLanguage(text) {
   const s=String(text || '');
-  const fr=(s.match(/\b(?:formation|expérience|compétences|étudiant|trésorerie|suivi|français|préparation|recherche|développement|avec|dans|pour|des|les|une|sur|du|aux)\b/giu)||[]).length;
-  const en=(s.match(/\b(?:education|experience|skills|student|supported|prepared|coordinated|internships|seeking|reporting|research|with|the|and|for|from|under|to|of)\b/giu)||[]).length;
+  const fr=(s.match(/\b(?:formation|expérience|compétences|étudiant|trésorerie|suivi|français|préparation|recherche|développement|aucune|documentée|bâtiments|résidentiels|avec|dans|pour|des|les|une|sur|du|aux)\b/giu)||[]).length;
+  const en=(s.match(/\b(?:education|experience|skills|student|supported|prepared|coordinated|internships|seeking|reporting|research|documented|residential|building|audit|exposure|with|the|and|for|from|under|to|of|no)\b/giu)||[]).length;
   if(fr>=2 && fr>en) return 'fr';
   if(en>=2 && en>fr) return 'en';
   return null;
