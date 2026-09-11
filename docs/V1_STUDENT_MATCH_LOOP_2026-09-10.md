@@ -1,5 +1,10 @@
 # JobPilot V1 — Student Match Loop
 
+## 2026-09-11 V1 0.4.6 delivery completed
+
+V1 Web 0.6.6 is live at source `7b85455ec339c986edf4583053969802cff2f6dc`; Samsung `.v1` 0.4.6/code20 was upgraded without clearing data, and the APK is in its Download folder. Live EN-source → ZH-insights → FR-role-CV acceptance, confirmed-contract first results, consistent reviewed scores and corrected real-PDF overlays passed. Details and native/Web verification boundaries: `docs/V1_0_4_6_RELEASE.md`. Production/Yifeng container IDs and start times unchanged. Ongoing parallel privacy/score-breakdown work is outside this release.
+
+
 ## 2026-09-11 V1 0.4.6 / Web 0.6.6 — first-run and role-CV continuity
 
 Implemented in the independent V1 feature branch: required contract choice at upload; shared full-screen CV/search waves without approximate signs; simpler first-result deck; unified language settings with optional independent insights language; bilingual role recall without a document-language filter; prominent role-CV card/detail entries; frozen match basis and consistently reviewed draft scores; real-PDF change overlays with original-version comparison. Android 0.4.6/code20 and Web 0.6.6 remain paired.
