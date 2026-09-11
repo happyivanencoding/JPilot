@@ -1,6 +1,8 @@
 // Market vocabulary only. CV/UI language and nationality are deliberately absent.
 const norm=v=>String(v||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 const families=[
+ ['finops',/finops|technology business management|\btbm\b|cloud cost|cloud financial|gouvernance.{0,20}(?:cout|coût).{0,12}cloud|(?:cout|coût).{0,12}cloud/, 'finops technical lead','responsable finops'],
+ ['enterprise-platform',/enterprise platform architect|platform architect|architecte.{0,20}plateforme|enterprise architect|architecte.{0,20}entreprise|solution architect|architecte.{0,12}solution/, 'enterprise platform architect','architecte plateforme entreprise'],
  ['quantitative',/(?:\bquant(?:itative)?\b|\bquantitat(?:if|ive)\b|量化)/, 'quantitative analyst','analyste quantitatif'],
  ['data-engineering',/data engineer|ingenieur.{0,12}(?:donnees|data)|ingenierie.{0,10}donnees|数据工程/, 'data engineer','ingenieur donnees'],
  ['data-analysis',/data analyst|analys[et].{0,12}(?:donnees|data)|business intelligence|数据分析/,'data analyst','analyste donnees'],

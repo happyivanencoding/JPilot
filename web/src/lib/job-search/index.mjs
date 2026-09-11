@@ -122,11 +122,17 @@ export function buildProviderInput({ query, targetRoles = [], city = '', country
   const contractQueries=(candidates, french=false)=>{
     if(!strictContract || !contractTypes.length || !candidates.length)return candidates.slice(0,3);
     const aliases=bilingualRoleQueries(hasExplicitIntent ? explicit : roles[0] || explicit);
-    const primary=french ? aliases.at(-1) || candidates[0] : candidates[0];
     const labels={Stage:french?'stage':'internship',Alternance:'alternance',CDI:'CDI',CDD:'CDD'};
     const selected=contractTypes.filter(type=>labels[type]);
-    const result=selected.map(type=>`${primary} ${labels[type]}`);
-    if(result.length<3 && aliases.length>1)for(const type of selected)result.push(`${aliases.at(-1)} ${labels[type]}`);
+    const preferred=french ? [aliases.at(-1),...candidates,...aliases] : [...candidates,...aliases];
+    const bases=[...new Set(preferred.filter(Boolean).map(value=>clean(value,120)))];
+    const result=[];
+    if(selected.length===1) {
+      for(const base of bases.slice(0,3))result.push(`${base} ${labels[selected[0]]}`);
+    } else {
+      for(const type of selected)result.push(`${bases[0]} ${labels[type]}`);
+      for(const base of bases.slice(1)) { if(result.length>=3)break;result.push(`${base} ${labels[selected[0]]}`); }
+    }
     return [...new Set(result)].slice(0,3);
   };
   return {
@@ -449,7 +455,8 @@ export function rankSearchResults(request, raw, runs = [], options = {}) {
     if(constraints.roleFit==='outside-primary') roleDemoted++;
     if(constraints.languageFit==='french-development-needed') languageDemoted++;
     if (input.contractTypes.length && contractType !== 'unknown' && !input.contractTypes.includes(contractType)) { contractRemoved++; return []; }
-    if (contractUnknown && input.strictContract) { contractUnknownRemoved++; return []; }
+    const retainUnknownCdi = contractUnknown && input.strictContract && input.contractTypes.includes('CDI');
+    if (contractUnknown && input.strictContract && !retainUnknownCdi) { contractUnknownRemoved++; return []; }
     let relevance = searchRelevance(offer, input);
     let relevanceTier = relevance >= (options.minimumRelevance ?? 18) ? 'strong' : 'none';
     if (relevanceTier === 'none') {

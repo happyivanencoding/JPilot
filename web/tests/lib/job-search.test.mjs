@@ -97,6 +97,30 @@ test('explicit quant search rejects unrelated closest fallbacks instead of filli
   assert.equal(noQuant.metrics.closestCount, 0);
 });
 
+test('Youness FinOps and enterprise-platform directions expand across market vocabulary', () => {
+  const finops=buildProviderInput({query:'Technical Lead FinOps Paris',targetRoles:[],city:'Paris',country:'France',contractTypes:['CDI'],strictContract:true});
+  assert.ok(finops.targetRoles.some(role=>/finops technical lead/i.test(role)));
+  assert.match(bilingualRoleQueries('Consultant cloud cost governance')[0],/^finops technical lead(?: cloud)?$/);
+  const platform=buildProviderInput({query:'Architecte plateforme entreprise Paris',targetRoles:[],city:'Paris',country:'France',contractTypes:['CDI'],strictContract:true});
+  assert.ok(platform.queries.some(query=>/enterprise platform architect/i.test(query)));
+  assert.equal(bilingualRoleQueries('Enterprise Platform Architect')[1],'architecte plateforme entreprise');
+});
+
+test('CDI search keeps highly relevant offers whose provider omitted contract metadata, but marks them to confirm', () => {
+  const request={query:'Architecte plateforme entreprise Paris',targetRoles:[],city:'Paris',country:'France',contractTypes:['CDI'],strictContract:true,fallbackPolicy:'closest'};
+  const result=rankSearchResults(request,[
+    {url:'https://example.invalid/platform',company:'Platform Co',title:'Enterprise Platform Architect',location:'Paris, France',contractType:'unknown',description:'Enterprise platform architecture, integrations and production delivery.'},
+    {url:'https://example.invalid/marketing',company:'Noise',title:'Marketing Assistant',location:'Paris, France',contractType:'unknown',description:'Marketing campaigns.'},
+  ],[],{now:NOW});
+  assert.equal(result.offers.length,1);
+  assert.equal(result.offers[0].title,'Enterprise Platform Architect');
+  assert.equal(result.offers[0].contractType,'unknown');
+  assert.equal(result.offers[0].relevanceTier,'adjacent');
+  assert.match(result.offers[0].why,/Type de contrat à confirmer/);
+  assert.equal(result.metrics.contractUnknownRetained,1);
+  assert.equal(result.metrics.contractUnknownRemoved,0);
+});
+
 test('flexible junior-marketing search broadens provider recall according to each contract without changing the target contract', () => {
   const expected = {
     CDI: { query: 'junior marketing', ft: 'marketing' },
@@ -268,7 +292,7 @@ test('unknown provider contract still lets a Stage title be rejected against CDI
   assert.equal(check.matches, false);
 });
 
-for (const desired of ['CDI', 'CDD', 'Stage', 'Alternance']) {
+for (const desired of ['CDD', 'Stage', 'Alternance']) {
   test(`${desired}: confirmed match stays, confirmed and unknown mismatches are removed under confirmed-only policy`, () => {
     const other = ({ CDI: 'CDD', CDD: 'Stage', Stage: 'Alternance', Alternance: 'CDI' })[desired];
     const request = {
@@ -465,9 +489,10 @@ test('V1 operation keys invalidate pre-contract analysis and pre-provider search
   const v1SearchKey = operationKey('search', { query: '量化分析师', experience: 'v1' }, { id: 'cv-v1' }, [], '2026-09-08');
   const analysisKey = operationKey('analysis', {}, { id: 'cv-v1' }, [], '2026-09-08');
   assert.match(searchKey, /search-v6-live-providers/);
-  assert.match(v1SearchKey, /search-v10-explicit-intent/);
+  assert.match(v1SearchKey, /search-v11-contract-seniority/);
   assert.match(analysisKey, /analysis-v2-v1-directions/);
   assert.notEqual(searchKey, JSON.stringify(['search', 'search-v5-soft-ranking', 'cv-v1', 'marketing Paris', '2026-09-08']));
+  assert.notEqual(v1SearchKey, JSON.stringify(['search', 'search-v10-explicit-intent', 'cv-v1', '量化分析师', '2026-09-08']));
   assert.notEqual(v1SearchKey, JSON.stringify(['search', 'search-v9-onward-area', 'cv-v1', '量化分析师', '2026-09-08']));
   assert.notEqual(analysisKey, JSON.stringify(['analysis', 'cv-v1']));
 });

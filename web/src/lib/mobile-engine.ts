@@ -1,6 +1,6 @@
 import {recordServerAiTask} from "@/lib/product-analytics.mjs";
 import {assertNotWithdrawn} from "@/lib/cv-privacy.mjs";
-import {planDirectionSearch,directionNotice,v1CandidatePriority} from "@/lib/v1-directions.mjs";
+import {planDirectionSearch,directionNotice,v1CandidatePriority,V1_SEARCH_REVISION} from "@/lib/v1-directions.mjs";
 import {orientationPrompt,parseOrientation} from "@/lib/v1-journey.mjs";
 import {setProfileDisplayName} from "@/lib/v1-session.mjs";
 import fs from "node:fs";
@@ -266,7 +266,11 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
         config.target_roles={...config.target_roles,contract_types:(analysis as any)?.suggestedContracts || []};
       }
       const request = searchRequestFromConfig(String(task.input.query),config,knownUrls,task.input.experience === "v1" ? "France" : "");
-      if(task.input.experience==="v1"&&!request.seniority)request.seniority=/senior|director|directeur|lead/i.test(String(task.input.query))?"experienced":"junior";
+      if(task.input.experience==="v1"&&!request.seniority) {
+        const q=String(task.input.query);
+        if(/senior|director|directeur|lead|principal|head|responsable/i.test(q)) request.seniority="experienced";
+        else if(/junior|graduate|entry|assistant|stage|intern|alternance|apprent/i.test(q)) request.seniority="junior";
+      }
       task.phase = "Interrogation des sources d’offres structurées"; saveTask(task);
       const structured = await searchStructuredOffers(request, {
         trackedAts: { dataRoot: workspaceRoot(), enabled: process.env.JOBPILOT_SEARCH_ENABLE_TRACKED_ATS === "1" },
@@ -470,6 +474,7 @@ export async function startMobileTask(profileId: string, input: Record<string, u
     if (Array.isArray(input.jobIds) && input.jobIds.some(id=>!jobs.some(j=>j.id===id))) throw new Error("Comparaison contenant un poste d’un autre profil.");
     const tasks=prepareTaskHistory(profileId,version);
     if(kind==="search" && input.experience==="v1") {
+      input={...input,searchRevision:V1_SEARCH_REVISION};
       const plan=planDirectionSearch(tasks,input,version.id,currentAnalysis(profileId,version,tasks) || {});
       if(plan.reason==="daily-limit") throw Object.assign(new Error(directionNotice(plan.reason,"",String(input.uiLocale))),{status:429,code:"direction-budget"});
       if(plan.reuse) {

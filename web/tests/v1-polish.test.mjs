@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {directionDescriptor,planDirectionSearch,compactDirectionHistory} from '../src/lib/v1-directions.mjs';
+import {directionDescriptor,planDirectionSearch,compactDirectionHistory,V1_SEARCH_REVISION} from '../src/lib/v1-directions.mjs';
 import {normalizeDeepMatch,matchScoreView,projectV1JobScores,friendlyGapTitle} from '../src/lib/v1-match.mjs';
 import {estimatedProgress,searchProgress} from '../src/lib/v1-progress.mjs';
 import {professionalReferenceHtml,textCvLayout} from '../src/lib/backend/reference-template.mjs';
@@ -24,6 +24,13 @@ test('one active selection is reused; six new directions per day still allow cac
  assert.equal(planDirectionSearch(tasks,{query:'unique 2'},'cv-a',{},now).reuse.id,'2');
  assert.equal(planDirectionSearch([active,...tasks],{query:'unique 2'},'cv-a',{},now).reuse.id,'2','existing results can be opened while another direction prepares');
  assert.equal(compactDirectionHistory([task('1','export sales'),task('2','assistant commercial export'),task('3','data analyst')]).length,2);
+});
+test('search revision invalidates stale cached zero-result directions without deleting history',()=>{
+ const old=task('old','Technical Lead FinOps Paris',{input:{query:'Technical Lead FinOps Paris',directionKey:'finops-lead-paris-technical'}});
+ const fresh=planDirectionSearch([old],{query:'Technical Lead FinOps Paris',searchRevision:V1_SEARCH_REVISION},'cv-a',{},now);
+ assert.equal(fresh.reason,'new');
+ const current=task('current','Technical Lead FinOps Paris',{input:{query:'Technical Lead FinOps Paris',directionKey:'finops-lead-paris-technical',searchRevision:V1_SEARCH_REVISION}});
+ assert.equal(planDirectionSearch([current],{query:'Technical Lead FinOps Paris',searchRevision:V1_SEARCH_REVISION},'cv-a',{},now).reuse.id,'current');
 });
 test('final rubric understands fit independently of retrieval score without an artificial 60 floor',()=>{
  const source={scoring_version:'role-fit-2',score_components:{role:25,duties:21,tools_languages:12,level:14},current_score:72,cv_potential_score:80,capability_potential_score:90};

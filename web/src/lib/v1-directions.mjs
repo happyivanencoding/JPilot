@@ -2,6 +2,7 @@
 // common bilingual job titles, and specialisms are never discarded when merging.
 export const V1_NEW_SEARCHES_PER_DAY=6;
 export const V1_SEARCH_CACHE_MS=24*60*60*1000;
+export const V1_SEARCH_REVISION='v11-contract-seniority';
 const norm=value=>String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[’']/g,' ').replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 const families=[
  ['export-sales',/\bexport\b|出口/,['Export sales support','Support commercial export','出口销售支持'],'assistant commercial export junior'],
@@ -35,7 +36,8 @@ export function directionDescriptor(query,analysis={},locale='en') {
 export function planDirectionSearch(tasks,input,versionId,analysis={},now=Date.now()) {
  const descriptor=directionDescriptor(input.query,analysis);
  const searches=tasks.filter(t=>t.kind==='search'&&t.inputVersionId===versionId);
- const compatible=t=>(t.input.directionKey || directionDescriptor(t.input.query,analysis).key)===descriptor.key;
+ const compatible=t=>(t.input.directionKey || directionDescriptor(t.input.query,analysis).key)===descriptor.key
+  && (!input.searchRevision || t.input.searchRevision===input.searchRevision);
  const inFlightUrls=new Set(tasks.filter(t=>t.kind==='deep_match'&&t.inputVersionId===versionId&&['queued','running','reconciling'].includes(t.status)).map(t=>t.input.url));
  const active=searches.find(t=>['queued','running','reconciling'].includes(t.status) || (t.result?.offers || []).slice(0,4).some(o=>inFlightUrls.has(o.url)));
  const cached=searches.find(t=>compatible(t)&&t.status==='completed'&&now-Date.parse(t.createdAt)<V1_SEARCH_CACHE_MS);
@@ -62,6 +64,7 @@ export function v1CandidatePriority(offer,query) {
  const requested=directionDescriptor(query).key.split(':')[0],actual=directionDescriptor(offer.title).key.split(':')[0];
  const commercial=new Set(['export-sales','business-development']);
  const affinity=requested===actual?45:commercial.has(requested)&&commercial.has(actual)?18:0;
- const senior=/\b(senior|director|directeur|head|lead|responsable|manager)\b/.test(norm(offer.title))&&!/\b(junior|assistant|graduate)\b/.test(norm(offer.title));
- return Number(offer.fastMatch?.score||0)+affinity-(offer.seniorityFit==='above-target'||senior?28:0);
+ // Search ordering follows the candidate constraint actually inferred upstream.
+ // A senior-looking title is not itself a mismatch for an experienced profile.
+ return Number(offer.fastMatch?.score||0)+affinity-(offer.seniorityFit==='above-target'?28:0);
 }
