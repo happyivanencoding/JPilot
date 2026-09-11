@@ -19,3 +19,11 @@ Scope: isolated V1 worktree and feature branch; Android com.thegreatnovel.jobpil
 ## Validation and delivery
 
 Android unit tests (5/5) and final assembleDebug passed; Web typecheck and production build passed; targeted backend/client/analytics/search regression checks passed. Browser acceptance used a synthetic profile, real upload/API/PDF rendering and controlled model/provider output: the prepared payload and final draft were identical, score 76→82 remained stable, both clean PDFs rendered, tracking edits survived navigation, and 60 persisted events completed all eight ordered funnel steps. Cross-profile reads were rejected. Final resumed acceptance made no additional model calls. Deployment/device receipts follow after the actual rollout. Synthetic model/provider browser acceptance is explicitly distinct from real upstream AI evaluation. Private screenshots, APK, logs and analytics exports stay in .career-ops-web/ and must not enter Git.
+
+## Delivery receipts — 2026-09-11
+
+- Product commit a569bec7bb305cf63cfa167ae32c053b06258022 pushed to the isolated V1 feature branch. VPS deployment returned V1_DEPLOY_OK for that exact SHA; Web package readback is 0.7.0 and public snapshot is 0.5.0.
+- https://jobs-v1.thegreatnovel.com shows Onward and the matching icon. Public empty-account smoke verified telemetry write/read, cross-profile denial and revoked logout, with no CV upload or model tasks. Existing production and Yifeng container IDs stayed unchanged.
+- Samsung SM_S928U1 successfully upgraded via adb install -r to com.thegreatnovel.jobpilot.v1 0.5.0/code24. Device package readback confirmed the version; cold launch succeeded in 694 ms. No uninstall or data clear.
+- Final APK SHA256: c1d0e2b0a643100430efa6149ef1ef3ddf60efe49e962c36fab0f1e27af9d4d2. Private APK and proof files are in .career-ops-web/onward-050/.
+- The full CV/search/score/PDF/tracking browser acceptance used controlled model/provider fixtures. Public smoke verifies the deployed service and configuration, not a new paid-model benchmark. Live product statistics begin with this release; smoke-test records are not evidence of real conversion rates.
