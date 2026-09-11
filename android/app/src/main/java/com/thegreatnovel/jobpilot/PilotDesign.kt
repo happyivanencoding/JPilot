@@ -25,7 +25,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import android.content.res.Configuration
 import android.os.LocaleList
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -39,10 +41,41 @@ import kotlin.math.sin
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
-val Indigo = Color(0xFF293F68)
-val Apricot = Color(0xFF64748B)
+val OnwardForest = Color(0xFF0A4438)
+val OnwardForestDeep = Color(0xFF06372F)
+val OnwardIvory = Color(0xFFFAF8F1)
+val OnwardPaper = Color(0xFFFFFDF8)
+val OnwardSage = Color(0xFFE9EFDB)
+val OnwardLeaf = Color(0xFFDDE77E)
+val OnwardWarmGray = Color(0xFF6E706A)
+val OnwardWarmLine = Color(0xFFDEDDD4)
+val OnwardError = Color(0xFF91443E)
+
+// Keep legacy names source-compatible while the visual layer moves to Onward.
+val Indigo = OnwardForest
+val Apricot = OnwardWarmGray
 val LocalPilotLanguage = staticCompositionLocalOf { "fr" }
 @Composable fun tr(zh: String, fr: String, en: String = fr): String = when(LocalPilotLanguage.current) { "zh" -> zh; "en" -> en; else -> fr }
+
+private val OnwardSerif = FontFamily.Serif
+private val OnwardSans = FontFamily.SansSerif
+private val OnwardTypography = Typography(
+    displayLarge = TextStyle(fontFamily=OnwardSerif,fontSize=38.sp,lineHeight=41.sp,fontWeight=FontWeight.Medium,letterSpacing=(-1.0).sp),
+    displayMedium = TextStyle(fontFamily=OnwardSerif,fontSize=32.sp,lineHeight=36.sp,fontWeight=FontWeight.Medium,letterSpacing=(-.7).sp),
+    displaySmall = TextStyle(fontFamily=OnwardSerif,fontSize=28.sp,lineHeight=33.sp,fontWeight=FontWeight.Medium,letterSpacing=(-.45).sp),
+    headlineLarge = TextStyle(fontFamily=OnwardSerif,fontSize=30.sp,lineHeight=35.sp,fontWeight=FontWeight.Medium,letterSpacing=(-.55).sp),
+    headlineMedium = TextStyle(fontFamily=OnwardSerif,fontSize=25.sp,lineHeight=31.sp,fontWeight=FontWeight.Medium,letterSpacing=(-.35).sp),
+    headlineSmall = TextStyle(fontFamily=OnwardSerif,fontSize=21.sp,lineHeight=27.sp,fontWeight=FontWeight.Medium,letterSpacing=(-.2).sp),
+    titleLarge = TextStyle(fontFamily=OnwardSerif,fontSize=20.sp,lineHeight=26.sp,fontWeight=FontWeight.Medium),
+    titleMedium = TextStyle(fontFamily=OnwardSans,fontSize=16.sp,lineHeight=22.sp,fontWeight=FontWeight.SemiBold),
+    titleSmall = TextStyle(fontFamily=OnwardSans,fontSize=14.sp,lineHeight=20.sp,fontWeight=FontWeight.SemiBold),
+    bodyLarge = TextStyle(fontFamily=OnwardSans,fontSize=15.sp,lineHeight=22.sp,fontWeight=FontWeight.Normal),
+    bodyMedium = TextStyle(fontFamily=OnwardSans,fontSize=14.sp,lineHeight=21.sp,fontWeight=FontWeight.Normal),
+    bodySmall = TextStyle(fontFamily=OnwardSans,fontSize=12.sp,lineHeight=18.sp,fontWeight=FontWeight.Normal),
+    labelLarge = TextStyle(fontFamily=OnwardSans,fontSize=14.sp,lineHeight=20.sp,fontWeight=FontWeight.SemiBold),
+    labelMedium = TextStyle(fontFamily=OnwardSans,fontSize=12.sp,lineHeight=17.sp,fontWeight=FontWeight.Medium),
+    labelSmall = TextStyle(fontFamily=OnwardSans,fontSize=11.sp,lineHeight=15.sp,fontWeight=FontWeight.Medium),
+)
 
 private object SheetContentEdgeBlocker : NestedScrollConnection {
     override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset =
@@ -58,17 +91,19 @@ fun Modifier.blockSheetEdgeMotion(): Modifier = nestedScroll(SheetContentEdgeBlo
 @Composable fun PilotTheme(state: PilotState, content: @Composable () -> Unit) {
     val dark = state.theme == "dark" || (state.theme == "system" && isSystemInDarkTheme())
     val colors = if (dark) darkColorScheme(
-        primary = Color(0xFFBBC9EB), onPrimary = Color(0xFF17253F), primaryContainer = Color(0xFF263B60),
-        secondary = Color(0xFFB6C4D3), secondaryContainer = Color(0xFF2C3946), onSecondaryContainer = Color(0xFFE6EDF3),
-        background = Color(0xFF111722), surface = Color(0xFF1B2433), surfaceVariant = Color(0xFF263347),
-        surfaceContainerLowest=Color(0xFF111722),surfaceContainerLow=Color(0xFF1B2433),surfaceContainer=Color(0xFF202C3C),surfaceContainerHigh=Color(0xFF29394E),surfaceContainerHighest=Color(0xFF35465C),
-        onSurface = Color(0xFFE6EDF3), onSurfaceVariant = Color(0xFFAFBCC9), outlineVariant = Color(0xFF344452)
+        primary = Color(0xFFB8D7C7), onPrimary = Color(0xFF082D27), primaryContainer = Color(0xFF203E35), onPrimaryContainer=Color(0xFFE7F0E8),
+        secondary = Color(0xFFD4DEA3), secondaryContainer = Color(0xFF344234), onSecondaryContainer = Color(0xFFF2F2E6),
+        background = Color(0xFF101A17), surface = Color(0xFF17231F), surfaceVariant = Color(0xFF23312C),
+        surfaceContainerLowest=Color(0xFF0C1512),surfaceContainerLow=Color(0xFF15201D),surfaceContainer=Color(0xFF1A2723),surfaceContainerHigh=Color(0xFF23332D),surfaceContainerHighest=Color(0xFF2C3B35),
+        onSurface = Color(0xFFF4F2E9), onSurfaceVariant = Color(0xFFB9BDB4), outline = Color(0xFF718078), outlineVariant = Color(0xFF35453E),
+        error=Color(0xFFE3A49D),errorContainer=Color(0xFF4A2926),onErrorContainer=Color(0xFFFFDAD5)
     ) else lightColorScheme(
-        primary = Indigo, onPrimary = Color.White, primaryContainer = Color(0xFFE8EDF6), onPrimaryContainer = Color(0xFF243854),
-        secondary = Color(0xFF526575), secondaryContainer = Color(0xFFE7EDF2), onSecondaryContainer = Color(0xFF202D43),
-        background = Color(0xFFF7F6F2), surface = Color.White, surfaceVariant = Color(0xFFEBEFF3),
-        surfaceContainerLowest=Color.White,surfaceContainerLow=Color(0xFFF7F6F2),surfaceContainer=Color(0xFFF0F0ED),surfaceContainerHigh=Color(0xFFE9ECEF),surfaceContainerHighest=Color(0xFFE1E5EC),
-        onSurface = Color(0xFF202D43), onSurfaceVariant = Color(0xFF5C687B), outlineVariant = Color(0xFFDEE2E8)
+        primary = OnwardForest, onPrimary = OnwardIvory, primaryContainer = OnwardSage, onPrimaryContainer = OnwardForestDeep,
+        secondary = Color(0xFF7A845E), secondaryContainer = Color(0xFFF0EFDF), onSecondaryContainer = Color(0xFF33372D),
+        background = OnwardIvory, surface = OnwardPaper, surfaceVariant = Color(0xFFF0EFE8),
+        surfaceContainerLowest=OnwardPaper,surfaceContainerLow=Color(0xFFF7F5ED),surfaceContainer=Color(0xFFF1F0E8),surfaceContainerHigh=Color(0xFFEAE9E0),surfaceContainerHighest=Color(0xFFE3E2D9),
+        onSurface = Color(0xFF15352F), onSurfaceVariant = OnwardWarmGray, outline = Color(0xFF94978E), outlineVariant = OnwardWarmLine,
+        error=OnwardError,errorContainer=Color(0xFFF6E3DF),onErrorContainer=Color(0xFF5D2420)
     )
     val view = LocalView.current
     SideEffect { (view.context as? Activity)?.window?.let { WindowCompat.getInsetsController(it,view).let { controller -> controller.isAppearanceLightStatusBars = !dark; controller.isAppearanceLightNavigationBars = !dark } } }
@@ -79,30 +114,58 @@ fun Modifier.blockSheetEdgeMotion(): Modifier = nestedScroll(SheetContentEdgeBlo
     // returns a ContextImpl and breaks file pickers / ActivityResult ownership.
     val localizedContext=remember(context,localeConfiguration) { android.view.ContextThemeWrapper(context,context.theme).apply { applyOverrideConfiguration(localeConfiguration) } }
     CompositionLocalProvider(LocalPilotLanguage provides state.language,LocalContext provides localizedContext,LocalConfiguration provides localeConfiguration) {
-        MaterialTheme(colorScheme = colors, shapes = Shapes(extraSmall = RoundedCornerShape(4.dp), small = RoundedCornerShape(8.dp), medium = RoundedCornerShape(10.dp), large = RoundedCornerShape(12.dp), extraLarge = RoundedCornerShape(16.dp)), content = content)
+        MaterialTheme(
+            colorScheme = colors,
+            typography = OnwardTypography,
+            shapes = Shapes(extraSmall = RoundedCornerShape(3.dp), small = RoundedCornerShape(6.dp), medium = RoundedCornerShape(8.dp), large = RoundedCornerShape(10.dp), extraLarge = RoundedCornerShape(14.dp)),
+            content = content,
+        )
     }
 }
 
 @Composable fun GlassCard(modifier: Modifier = Modifier, accent: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
-    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.surface, shadowElevation = 0.dp) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+    val bg=if(accent) MaterialTheme.colorScheme.primaryContainer.copy(alpha=.48f) else Color.Transparent
+    Column(
+        modifier.fillMaxWidth().background(bg, RoundedCornerShape(if(accent)8.dp else 0.dp)).padding(horizontal=if(accent)14.dp else 0.dp,vertical=12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        content()
+        if(!accent) HorizontalDivider(Modifier.padding(top=4.dp),thickness=.6.dp,color=MaterialTheme.colorScheme.outlineVariant)
     }
 }
 @Composable fun SectionTitle(title: String, subtitle: String = "") {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(title, fontSize = 25.sp, lineHeight = 31.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-.3).sp)
+        Text(title, style = MaterialTheme.typography.headlineLarge)
         if (subtitle.isNotEmpty()) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+@Composable fun EditorialTitle(text:String,modifier:Modifier=Modifier,large:Boolean=false) {
+    Text(text,modifier,style=if(large) MaterialTheme.typography.displayMedium else MaterialTheme.typography.headlineMedium)
+}
+@Composable fun EditorialSection(title:String,modifier:Modifier=Modifier,content:@Composable ColumnScope.()->Unit) {
+    Column(modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+        Text(title,style=MaterialTheme.typography.headlineSmall)
+        content()
+        HorizontalDivider(Modifier.padding(top=4.dp),thickness=.6.dp,color=MaterialTheme.colorScheme.outlineVariant)
+    }
+}
+@Composable fun OnwardHalo(modifier:Modifier=Modifier) {
+    val sage=MaterialTheme.colorScheme.primaryContainer
+    Canvas(modifier) {
+        val r=size.minDimension*.50f
+        drawCircle(sage.copy(alpha=.78f),r,Offset(size.width*.58f,size.height*.47f))
+        drawCircle(OnwardLeaf.copy(alpha=.24f),r*.72f,Offset(size.width*.82f,size.height*.46f))
+    }
+}
 @Composable fun Pill(text: String, warm: Boolean = false, modifier: Modifier = Modifier) {
-    Surface(modifier, shape = RoundedCornerShape(4.dp), color = if(warm) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer) {
-        Text(text, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+    Surface(modifier, shape = RoundedCornerShape(999.dp), color = if(warm) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer) {
+        Text(text, Modifier.padding(horizontal = 9.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, color = if(warm) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer)
     }
 }
 @Composable fun Hint(text: String) { Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
 @Composable fun EmptyCard(title: String, text: String) { GlassCard { Text(title, fontWeight = FontWeight.SemiBold); Hint(text) } }
 @Composable fun PrimaryButton(label: String, enabled: Boolean = true, onClick: () -> Unit) {
-    Button(onClick, Modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = enabled, shape = RoundedCornerShape(8.dp)) { Text(label, fontWeight = FontWeight.SemiBold) }
+    Button(onClick, Modifier.fillMaxWidth().heightIn(min = 50.dp), enabled = enabled, shape = RoundedCornerShape(999.dp),contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp)) { Text(label, style=MaterialTheme.typography.labelLarge) }
 }
 
 private val aiProgressActiveStates = setOf("queued", "running", "reconciling")
@@ -161,26 +224,36 @@ private fun aiProgressTask(state: PilotState, kind: String, jobId: String?): JSO
     val progress by animateFloatAsState(estimated,tween(if(completed)220 else 350),label="liquid-progress")
     val primary=MaterialTheme.colorScheme.primary
     val tint=if(failed)MaterialTheme.colorScheme.error else primary
-    val foreground=if(visible||outlined)tint else MaterialTheme.colorScheme.onPrimary
+    val errorColor=MaterialTheme.colorScheme.error
+    val foreground=when { failed&&visible -> MaterialTheme.colorScheme.error; visible -> MaterialTheme.colorScheme.onPrimary; outlined -> primary; else -> MaterialTheme.colorScheme.onPrimary }
     val caption=when {
         completed&&visible -> tr("已完成","Terminé","Completed")+" 100%"
         failed&&visible -> tr("未完成，请重试","Réessayez","Please retry")
         active -> (if(taskKind=="search")task?.text("label")?.ifBlank {label}?:label else label)+"  ${(progress*100).roundToInt()}%"
         else -> label
     }
-    Button(onClick={clickedAt=System.currentTimeMillis();finishedAt=0;now=clickedAt;onClick()},modifier=modifier.fillMaxWidth().heightIn(min=48.dp),enabled=enabled&&!active,shape=RoundedCornerShape(8.dp),
-        colors=ButtonDefaults.buttonColors(containerColor=if(visible)tint.copy(alpha=.10f)else if(outlined)Color.Transparent else primary,contentColor=foreground,
-            disabledContainerColor=if(visible)tint.copy(alpha=.10f)else primary.copy(alpha=.10f),disabledContentColor=if(visible)foreground else primary.copy(alpha=.65f)),
-        border=if(visible||outlined)BorderStroke(1.dp,tint.copy(alpha=.25f))else null,contentPadding=PaddingValues(0.dp)) {
+    Button(onClick={clickedAt=System.currentTimeMillis();finishedAt=0;now=clickedAt;onClick()},modifier=modifier.fillMaxWidth().heightIn(min=50.dp),enabled=enabled&&!active,shape=RoundedCornerShape(999.dp),
+        colors=ButtonDefaults.buttonColors(containerColor=if(visible&&!failed)primary.copy(alpha=.92f)else if(failed&&visible)MaterialTheme.colorScheme.errorContainer else if(outlined)Color.Transparent else primary,contentColor=foreground,
+            disabledContainerColor=if(visible&&!failed)primary.copy(alpha=.92f)else if(failed&&visible)MaterialTheme.colorScheme.errorContainer else primary.copy(alpha=.10f),disabledContentColor=if(visible)foreground else primary.copy(alpha=.65f)),
+        border=if(failed&&visible||outlined)BorderStroke(1.dp,tint.copy(alpha=.34f))else null,contentPadding=PaddingValues(0.dp)) {
         Box(Modifier.fillMaxWidth().height(52.dp),contentAlignment=Alignment.Center) {
             if(visible)Canvas(Modifier.matchParentSize()) {
                 for(layer in 0..1) {
-                    val edge=size.width*progress
-                    val wave=Path().apply {moveTo(0f,0f);lineTo(edge,0f);for(i in 0..24){val y=size.height*i/24f;val x=edge+sin(y/14f+now/600f+layer*2)*if(completed)0f else 4.dp.toPx();lineTo(x,y)};lineTo(0f,size.height);close()}
-                    drawPath(wave,tint.copy(alpha=if(layer==0).16f else .10f))
+                    val liquidTop=size.height*(1f-progress)
+                    val amplitude=if(completed)0f else (1.7f+layer*.8f).dp.toPx()
+                    val wave=Path().apply {
+                        for(i in 0..32){
+                            val x=size.width*i/32f
+                            val y=liquidTop+sin(i/32f*6.28318f+now/(1600f+layer*480f)+layer*1.7f)*amplitude
+                            if(i==0)moveTo(x,y)else lineTo(x,y)
+                        }
+                        lineTo(size.width,size.height);lineTo(0f,size.height);close()
+                    }
+                    val liquid=if(failed)errorColor else if(layer==0)OnwardSage else OnwardLeaf
+                    drawPath(wave,liquid.copy(alpha=if(layer==0).18f else .09f))
                 }
             }
-            Text(caption,Modifier.padding(horizontal=12.dp),fontWeight=FontWeight.SemiBold,fontSize=14.sp)
+            Text(caption,Modifier.padding(horizontal=16.dp),style=MaterialTheme.typography.labelLarge)
         }
     }
 }
@@ -192,9 +265,9 @@ private fun aiProgressTask(state: PilotState, kind: String, jobId: String?): JSO
 }
 @Composable fun ScoreBadge(score: Double?) {
     val value = score?.takeIf { it.isFinite() && it >= 0 && it <= 5 }
-    Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+    Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha=.72f)) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-            Text(value?.let { "%.1f".format(it) } ?: "—", fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+            Text(value?.let { "%.1f".format(it) } ?: "—", style=MaterialTheme.typography.headlineMedium,color=MaterialTheme.colorScheme.primary)
             Text(if(value == null) tr("待评估","À évaluer","Unrated") else tr("匹配 / 5","Match / 5","Fit / 5"), fontSize = 10.sp)
         }
     }
@@ -224,7 +297,7 @@ private fun inlineText(raw: String) = buildAnnotatedString {
                         if (row.any { !it.matches(Regex("[-: ]+")) }) rows.add(row)
                         index++
                     }
-                    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f)) {
+                    Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f)) {
                         Column(Modifier.horizontalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             rows.forEachIndexed { r, cells -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { cells.forEach { cell -> Text(inlineText(cell), Modifier.width(175.dp), fontSize = 13.sp, fontWeight = if(r == 0) FontWeight.SemiBold else FontWeight.Normal) } } }
                         }
@@ -247,6 +320,6 @@ private fun inlineText(raw: String) = buildAnnotatedString {
 
 // Restrained translucent chrome. No per-frame background blur or blurred document text.
 @Composable fun PilotChrome(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Surface(modifier, color = MaterialTheme.colorScheme.surface.copy(alpha = .93f), contentColor=MaterialTheme.colorScheme.onSurface,
-        border = BorderStroke(.5.dp,MaterialTheme.colorScheme.primary.copy(alpha = .13f)), tonalElevation = 0.dp) { content() }
+    Surface(modifier, color = MaterialTheme.colorScheme.background.copy(alpha = .96f), contentColor=MaterialTheme.colorScheme.onSurface,
+        border = BorderStroke(.5.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.7f)), tonalElevation = 0.dp) { content() }
 }

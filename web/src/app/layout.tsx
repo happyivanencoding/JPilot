@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Onward" },
   robots: { index: false, follow: false },
 };
-export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#F7F6F2", interactiveWidget: "resizes-content" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#FAF8F1", interactiveWidget: "resizes-content" };
 const appearance = `try { var t=localStorage.getItem('jobpilot:theme')||localStorage.getItem('career-ops:theme')||'system'; document.documentElement.dataset.theme=(t==='dark'||t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light'; } catch {}`;
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="en" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: appearance }} /></head><body>{children}</body></html>;

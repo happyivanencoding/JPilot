@@ -5,8 +5,8 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#F7F6F2",
-  "theme_color": "#293F68",
+  "background_color": "#FAF8F1",
+  "theme_color": "#0A4438",
   "icons": [
     {
       "src": "/onward-192.png",

@@ -1,3 +1,11 @@
+# Onward V1 0.6.0 / Web 0.8.0 — editorial design parity
+
+Android 0.6.0/code28 and Web 0.8.0 now share the same Forest/Ivory/Sage visual tokens, editorial Serif display hierarchy, Product Sans body hierarchy, reduced radii, thin-divider lists, restrained sheets/chrome and Onward symbol assets. The Web remains phone-first and does not reintroduce a desktop dashboard. First run, Home, Opportunities/history, role Match/CV/Tracking, CV impact, task/result sheets, Profile/preferences/privacy and common loading/error/empty states follow the same presentation rules as native Android.
+
+The cross-platform AI interaction remains one state contract: the established fast→slow ETA curve caps active work at 96%, real completion finishes at 100% and failure terminates it. Both clients now render that state as **Onward AI Liquid Progress**: a Forest surface with calm bottom-rising Sage/Leaf liquid; task-detail progress uses the same pattern rather than a separate generic indeterminate control. Web reduced-motion removes the decorative wave animation without changing progress semantics.
+
+Brand parity includes Android adaptive launcher/splash/header and Web header/favicon/PWA 192/512/app-icon assets. Tailored CV generation remains source-layout preserving; the deterministic identity/contact/layout-family test is 6/6 PASS. Android/Web production builds pass. Exact visual scope and rollout receipts are in `ONWARD_0_6_0_RELEASE.md`.
+
 # Onward V1 0.5.0 / Web 0.7.0
 
 Android and Web share the Onward icon/wordmark, automatic system UI language (FR/ZH, otherwise EN), automatic source-CV language detection with independently configurable insights/material language, collapsed optional language controls, city/all-France search scope, and no per-page walkthrough interruptions. Home focuses on strengths, directions and priority roles; role cards use one match scale and evidence-backed prepared-CV gains. The three role tabs remain Match / CV / Tracking. PDF comparison shows clean role/original versions; status, date, reply draft and notes autosave.

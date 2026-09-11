@@ -100,8 +100,8 @@ import org.json.JSONArray
                         items(interview.objects("questions")) { q -> GlassCard { Text(q.text("question"),fontWeight = FontWeight.SemiBold); Text(q.text("answer"),fontSize = 14.sp); Hint(q.text("proof")); TextButton({ practiceQuestion = q.text("question");scope.launch { val target=(contentState.layoutInfo.totalItemsCount-1).coerceAtLeast(0);contentState.animateScrollToItem(target) } },Modifier.testTag("practice-this-question")) { Text(tr("练习这道题","M’entraîner à cette question","Practice this question")) } } }
                         item { GlassCard {
                             Text(tr("针对性模拟","Simulation ciblée","Targeted practice"),fontSize = 18.sp,fontWeight = FontWeight.SemiBold)
-                            OutlinedTextField(practiceQuestion,{ practiceQuestion = it },Modifier.fillMaxWidth(),label = { Text(tr("问题","Question","Question")) },minLines = 2,shape = RoundedCornerShape(18.dp))
-                            OutlinedTextField(practiceAnswer,{ practiceAnswer = it },Modifier.fillMaxWidth(),label = { Text(tr("我的回答","Ma réponse","My answer")) },minLines = 4,maxLines = 10,shape = RoundedCornerShape(18.dp))
+                            OutlinedTextField(practiceQuestion,{ practiceQuestion = it },Modifier.fillMaxWidth(),label = { Text(tr("问题","Question","Question")) },minLines = 2,shape = RoundedCornerShape(7.dp))
+                            OutlinedTextField(practiceAnswer,{ practiceAnswer = it },Modifier.fillMaxWidth(),label = { Text(tr("我的回答","Ma réponse","My answer")) },minLines = 4,maxLines = 10,shape = RoundedCornerShape(7.dp))
                             AiProgressButton(state,"practice",job.text("id"),tr("获取反馈","Recevoir un retour","Get feedback"),!state.working && practiceQuestion.isNotBlank() && practiceAnswer.isNotBlank()) { vm.startTask(json("kind" to "practice","jobId" to job.text("id"),"question" to practiceQuestion,"answer" to practiceAnswer)) }
                         } }
                     }
@@ -109,15 +109,15 @@ import org.json.JSONArray
                         item { GlassCard {
                             Text(tr("投递状态","Statut de candidature","Application status"),fontWeight = FontWeight.SemiBold)
                             Box { OutlinedButton({ statusMenu = true },Modifier.fillMaxWidth()) { Text(product(status),Modifier.weight(1f)); Icon(Icons.Rounded.ExpandMore,null) }; DropdownMenu(statusMenu,{ statusMenu = false }) { state.snapshot.strings("statuses").forEach { s -> DropdownMenuItem(text = { Text(product(s)) },onClick = { status = s; statusMenu = false }) } } }
-                            OutlinedTextField(nextAction,{ nextAction = it;nextActionEdited=true },Modifier.fillMaxWidth(),label = { Text(tr("下一步行动","Prochaine action","Next action")) },shape = RoundedCornerShape(18.dp))
+                            OutlinedTextField(nextAction,{ nextAction = it;nextActionEdited=true },Modifier.fillMaxWidth(),label = { Text(tr("下一步行动","Prochaine action","Next action")) },shape = RoundedCornerShape(7.dp))
                             DateField(date,{ date = it },tr("跟进日期","Date de relance","Follow-up date"))
-                            OutlinedTextField(note,{ note = it },Modifier.fillMaxWidth(),label = { Text(tr("我的备注","Mes notes","My notes")) },minLines = 3,shape = RoundedCornerShape(18.dp))
+                            OutlinedTextField(note,{ note = it },Modifier.fillMaxWidth(),label = { Text(tr("我的备注","Mes notes","My notes")) },minLines = 3,shape = RoundedCornerShape(7.dp))
                             PrimaryButton(tr("保存跟踪状态","Enregistrer le suivi","Save tracking"),!state.working) { vm.updateJob(job.text("id"),json("status" to status,"dueDate" to date,"note" to note).apply { if(nextActionEdited)put("nextAction",nextAction) }) }
                         } }
                         item { GlassCard {
                             Text(tr("记录对方的回复","Une réponse du recruteur ?","Heard from the employer?"),fontWeight = FontWeight.SemiBold)
                             Row(Modifier.horizontalScroll(rememberScrollState(),overscrollEffect=null),horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("Accusé auto","Recruteur","Entretien","Refus","Offre").forEach { kind -> FilterChip(replyKind == kind,{ replyKind = kind },label = { Text(product(kind)) }) } }
-                            OutlinedTextField(reply,{ reply = it },Modifier.fillMaxWidth(),label = { Text(tr("粘贴或概括收到的回复","Coller ou résumer la réponse","Paste or summarize the reply")) },minLines = 4,maxLines = 8,shape = RoundedCornerShape(18.dp))
+                            OutlinedTextField(reply,{ reply = it },Modifier.fillMaxWidth(),label = { Text(tr("粘贴或概括收到的回复","Coller ou résumer la réponse","Paste or summarize the reply")) },minLines = 4,maxLines = 8,shape = RoundedCornerShape(7.dp))
                             Hint(tr("只保存记录，不会发送邮件。投递阶段可在上方调整。","Aucun email n’est envoyé. Vous pouvez ajuster le statut ci-dessus.","No email is sent. Update the stage above as needed."))
                             PrimaryButton(tr("保存回复","Enregistrer la réponse","Save reply"),reply.isNotBlank() && !state.working) { vm.updateJob(job.text("id"),json("reply" to reply,"replyKind" to replyKind)); reply = "" }
                         } }
@@ -158,11 +158,11 @@ import org.json.JSONArray
         if(assessment.strings("remainingGaps").isNotEmpty()){Text(tr("接下来可完善","Vos prochaines pistes","Next areas to develop"),fontWeight=FontWeight.SemiBold);assessment.strings("remainingGaps").forEach { Bullet(it) }}
         if(!draft.optBoolean("atsPass") && draft.objects("atsIssues").isNotEmpty()){Hint(tr("ATS 风险不会再让整份草稿失败；请在保留前检查。","Les alertes ATS n’annulent plus le brouillon ; vérifiez-les avant de le conserver.","ATS risks no longer fail the entire draft; review them before saving."));draft.objects("atsIssues").forEach { Hint(product(it.text("message"))) }}
         if(pending && editing) {
-            OutlinedTextField(payload.text("summary"),{v->mutate{it.put("summary",v)}},Modifier.fillMaxWidth(),label={Text(tr("职业摘要","Résumé professionnel","Professional summary"))},minLines=4,maxLines=10,shape=RoundedCornerShape(14.dp))
-            payload.objects("experience").forEachIndexed { index,entry -> Column(verticalArrangement=Arrangement.spacedBy(5.dp)){Text("${entry.text("company")} · ${entry.text("role")}",fontWeight=FontWeight.SemiBold);Hint(listOf(entry.text("location"),entry.text("dates")).filter(String::isNotBlank).joinToString(" · "));OutlinedTextField(entry.strings("bullets").joinToString("\n"),{v->mutate{root->val arr=root.optJSONArray("experience")?:JSONArray();val e=arr.optJSONObject(index)?:JSONObject();e.put("bullets",JSONArray(v.lines().map(String::trim).filter(String::isNotBlank)));arr.put(index,e);root.put("experience",arr)}},Modifier.fillMaxWidth(),label={Text(tr("经历要点（每行一条）","Points d’expérience (une ligne par point)","Experience bullets (one per line)"))},minLines=4,maxLines=12,shape=RoundedCornerShape(14.dp))} }
-            payload.objects("projects").forEachIndexed { index,entry -> OutlinedTextField(entry.text("description"),{v->mutate{root->val arr=root.optJSONArray("projects")?:JSONArray();val e=arr.optJSONObject(index)?:JSONObject();e.put("description",v);arr.put(index,e);root.put("projects",arr)}},Modifier.fillMaxWidth(),label={Text(tr("项目","Projet","Project")+" · "+entry.text("name"))},minLines=3,maxLines=8,shape=RoundedCornerShape(14.dp)) }
-            payload.objects("education").forEachIndexed { index,entry -> OutlinedTextField(entry.text("description"),{v->mutate{root->val arr=root.optJSONArray("education")?:JSONArray();val e=arr.optJSONObject(index)?:JSONObject();e.put("description",v);arr.put(index,e);root.put("education",arr)}},Modifier.fillMaxWidth(),label={Text(tr("教育","Formation","Education")+" · "+entry.text("title"))},minLines=2,maxLines=6,shape=RoundedCornerShape(14.dp)) }
-            payload.objects("skills").forEachIndexed { index,entry -> OutlinedTextField(entry.strings("items").joinToString(", "),{v->mutate{root->val arr=root.optJSONArray("skills")?:JSONArray();val e=arr.optJSONObject(index)?:JSONObject();e.put("items",JSONArray(v.split(',', '\n').map(String::trim).filter(String::isNotBlank)));arr.put(index,e);root.put("skills",arr)}},Modifier.fillMaxWidth(),label={Text(entry.text("category",tr("技能","Compétences","Skills")))},minLines=2,maxLines=5,shape=RoundedCornerShape(14.dp)) }
+            OutlinedTextField(payload.text("summary"),{v->mutate{it.put("summary",v)}},Modifier.fillMaxWidth(),label={Text(tr("职业摘要","Résumé professionnel","Professional summary"))},minLines=4,maxLines=10,shape=RoundedCornerShape(7.dp))
+            payload.objects("experience").forEachIndexed { index,entry -> Column(verticalArrangement=Arrangement.spacedBy(5.dp)){Text("${entry.text("company")} · ${entry.text("role")}",fontWeight=FontWeight.SemiBold);Hint(listOf(entry.text("location"),entry.text("dates")).filter(String::isNotBlank).joinToString(" · "));OutlinedTextField(entry.strings("bullets").joinToString("\n"),{v->mutate{root->val arr=root.optJSONArray("experience")?:JSONArray();val e=arr.optJSONObject(index)?:JSONObject();e.put("bullets",JSONArray(v.lines().map(String::trim).filter(String::isNotBlank)));arr.put(index,e);root.put("experience",arr)}},Modifier.fillMaxWidth(),label={Text(tr("经历要点（每行一条）","Points d’expérience (une ligne par point)","Experience bullets (one per line)"))},minLines=4,maxLines=12,shape=RoundedCornerShape(7.dp))} }
+            payload.objects("projects").forEachIndexed { index,entry -> OutlinedTextField(entry.text("description"),{v->mutate{root->val arr=root.optJSONArray("projects")?:JSONArray();val e=arr.optJSONObject(index)?:JSONObject();e.put("description",v);arr.put(index,e);root.put("projects",arr)}},Modifier.fillMaxWidth(),label={Text(tr("项目","Projet","Project")+" · "+entry.text("name"))},minLines=3,maxLines=8,shape=RoundedCornerShape(7.dp)) }
+            payload.objects("education").forEachIndexed { index,entry -> OutlinedTextField(entry.text("description"),{v->mutate{root->val arr=root.optJSONArray("education")?:JSONArray();val e=arr.optJSONObject(index)?:JSONObject();e.put("description",v);arr.put(index,e);root.put("education",arr)}},Modifier.fillMaxWidth(),label={Text(tr("教育","Formation","Education")+" · "+entry.text("title"))},minLines=2,maxLines=6,shape=RoundedCornerShape(7.dp)) }
+            payload.objects("skills").forEachIndexed { index,entry -> OutlinedTextField(entry.strings("items").joinToString(", "),{v->mutate{root->val arr=root.optJSONArray("skills")?:JSONArray();val e=arr.optJSONObject(index)?:JSONObject();e.put("items",JSONArray(v.split(',', '\n').map(String::trim).filter(String::isNotBlank)));arr.put(index,e);root.put("skills",arr)}},Modifier.fillMaxWidth(),label={Text(entry.text("category",tr("技能","Compétences","Skills")))},minLines=2,maxLines=5,shape=RoundedCornerShape(7.dp)) }
             PrimaryButton(tr("保存修改并重新生成 PDF","Enregistrer et régénérer le PDF","Save edits and regenerate PDF"),!state.working){vm.updateTailoredDraft(draft.text("id"),payload);editing=false}
             TextButton({payload=JSONObject(draft.child("payload").toString());editing=false}){Text(tr("取消编辑","Annuler les modifications","Cancel edits"))}
         } else if(pending) {
@@ -184,13 +184,32 @@ import org.json.JSONArray
         LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(.9f).blockSheetEdgeMotion(),contentPadding = PaddingValues(22.dp),verticalArrangement = Arrangement.spacedBy(16.dp),overscrollEffect=null) {
             item { Row(verticalAlignment = Alignment.CenterVertically) { Text(taskTitle(task.text("kind")),Modifier.weight(1f),fontSize = 23.sp,fontWeight = FontWeight.SemiBold); Pill(taskState(task.text("status")),warm = task.text("status") == "failed") } }
             item { Hint(task.text("phase"));LocalizationNotice(result.child("localization"),vm::retryLocalization) }
-            if(task.text("status") in setOf("queued","running")) item { LinearProgressIndicator(Modifier.fillMaxWidth()); Spacer(Modifier.height(10.dp)); Hint(tr("可以离开这个页面。结果会保存在当前档案的任务记录中。","Vous pouvez quitter cet écran. Le résultat sera conservé dans l’activité de ce profil.","You can leave this screen. Results will remain in this profile’s activity.")) }
+            if(task.text("status") in setOf("queued","running","reconciling")) item {
+                val liquid=rememberCvWaterLevel(task,false)
+                Surface(
+                    Modifier.fillMaxWidth().height(52.dp),
+                    shape=RoundedCornerShape(999.dp),
+                    color=MaterialTheme.colorScheme.primary,
+                ) {
+                    Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {
+                        CvAnalysisWater(liquid,false)
+                        Text(
+                            task.text("phase").ifBlank { tr("处理中…","Traitement…","Processing…") } + "  ${(liquid*100).toInt()}%",
+                            style=MaterialTheme.typography.labelLarge,
+                            color=MaterialTheme.colorScheme.onPrimary,
+                            maxLines=1,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Hint(tr("可以离开这个页面。结果会保存在当前档案的任务记录中。","Vous pouvez quitter cet écran. Le résultat sera conservé dans l’activité de ce profil.","You can leave this screen. Results will remain in this profile’s activity."))
+            }
             if(task.text("error").isNotBlank()) item { GlassCard { Text(task.text("error"),color = MaterialTheme.colorScheme.error); if(task.text("kind") != "ingest") OutlinedButton({ vm.dismissTask(); vm.startTask(JSONObject(task.child("input").toString()).put("kind",task.text("kind")).put("retry",true)) },Modifier.fillMaxWidth(),enabled = !state.working) { Text(tr("重试这项操作","Réessayer cette action","Retry this action")) } } }
             if(task.text("status") == "completed") {
                 when(task.text("kind")) {
                     "ingest" -> {
                         item { Text(result.text("filename"),fontWeight = FontWeight.SemiBold); Hint(tr("这是本地提取的原文，不是 AI 改写。请检查顺序、数字、日期以及当前档案。","Texte extrait localement, sans réécriture IA. Vérifiez l’ordre, les chiffres, les dates et le profil choisi.","Locally extracted text, not an AI rewrite. Check reading order, figures, dates and selected profile.")) }
-                        item { OutlinedTextField(preview,{ preview = it },Modifier.fillMaxWidth().heightIn(min = 300.dp,max = 450.dp),shape = RoundedCornerShape(20.dp)) }
+                        item { OutlinedTextField(preview,{ preview = it },Modifier.fillMaxWidth().heightIn(min = 300.dp,max = 450.dp),shape = RoundedCornerShape(7.dp)) }
                         item { PrimaryButton(tr("确认保存","Confirmer et enregistrer","Confirm and save"),!state.working && preview.isNotBlank()) { confirm = true }; TextButton(vm::dismissTask) { Text(tr("暂不修改主简历","Ne pas modifier mon CV actuel","Keep my current CV unchanged")) } }
                     }
                     "search" -> {

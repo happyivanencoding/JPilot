@@ -44,7 +44,8 @@ fun rememberCvWaterLevel(progress: JSONObject, paused: Boolean): Float {
 /** Two translucent waves fill the complete viewport, behind readable content. */
 @Composable
 fun CvAnalysisWater(level: Float, paused: Boolean) {
-    val primary = MaterialTheme.colorScheme.primary
+    val sage = if (MaterialTheme.colorScheme.background == OnwardIvory) OnwardSage else MaterialTheme.colorScheme.primaryContainer
+    val leaf = if (MaterialTheme.colorScheme.background == OnwardIvory) OnwardLeaf else MaterialTheme.colorScheme.secondaryContainer
     var phase by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(paused) {
         if (!paused) {
@@ -67,7 +68,7 @@ fun CvAnalysisWater(level: Float, paused: Boolean) {
             wave.lineTo(size.width, size.height)
             wave.lineTo(0f, size.height)
             wave.close()
-            drawPath(wave, primary.copy(alpha = if (layer == 0) .10f else .15f))
+            drawPath(wave, (if(layer==0)sage else leaf).copy(alpha = if (layer == 0) .42f else .20f))
         }
     }
 }

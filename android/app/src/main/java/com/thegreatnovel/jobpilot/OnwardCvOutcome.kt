@@ -23,15 +23,30 @@ fun onwardCvOutcome(value:JSONObject):JSONObject {
 @Composable
 fun OnwardCvOutcome(value:JSONObject,detail:Boolean=false) {
     val result=onwardCvOutcome(value);val baseline=result.optInt("baseline");val score=result.optInt("score");val gain=result.optInt("gain")
-    if(gain>0)Column(Modifier.fillMaxWidth().testTag("cv-uplift"),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-        Text(tr("岗位版简历","CV ciblé","Tailored CV"),fontSize=13.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text("$baseline → $score",fontSize=if(detail)28.sp else 16.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)
-            Text("+$gain",fontSize=if(detail)22.sp else 16.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)
+    if(gain>0)Column(Modifier.fillMaxWidth().testTag("cv-uplift"),verticalArrangement=Arrangement.spacedBy(if(detail)10.dp else 4.dp)) {
+        if(detail) {
+            Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
+                    Hint(tr("原始匹配","CV initial","Initial CV"))
+                    Text("$baseline%",style=MaterialTheme.typography.headlineMedium,color=MaterialTheme.colorScheme.onSurface)
+                }
+                Text("→",style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.primary)
+                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
+                    Hint(tr("优化后匹配","CV optimisé","Optimised CV"))
+                    Text("$score%",style=MaterialTheme.typography.headlineMedium,color=MaterialTheme.colorScheme.primary)
+                }
+            }
+            Text(tr("提升 +$gain 分","Gain +$gain points","+$gain point uplift"),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
+        } else {
+            Text(tr("岗位版简历","CV ciblé","Tailored CV"),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement=Arrangement.spacedBy(9.dp),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
+                Text("$baseline → $score",style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.primary)
+                Pill("+$gain")
+            }
         }
     } else if(detail)Column(Modifier.testTag("cv-current-score"),verticalArrangement=Arrangement.spacedBy(6.dp)) {
         Hint(tr("当前匹配","Match actuel","Current match"))
-        Text("$score/100",fontSize=28.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)
+        Text("$score/100",style=MaterialTheme.typography.headlineMedium,color=MaterialTheme.colorScheme.primary)
         Hint(tr("把相关经历放在更清晰的位置，让下一步更明确。","Mettez vos expériences pertinentes en valeur pour avancer.","Bring your relevant experience into focus for your next step."))
     } else Hint(tr("CV 优化空间：更清晰地呈现相关经历。","CV : mieux mettre en valeur les expériences pertinentes.","CV opportunity: bring relevant experience into focus."))
 }

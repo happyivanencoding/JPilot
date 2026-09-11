@@ -1,0 +1,12 @@
+<resources>
+    <style name="Theme.JobPilot" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:colorAccent">#0A4438</item>
+        <item name="android:windowBackground">#FAF8F1</item>
+        <item name="android:windowSplashScreenBackground">#FAF8F1</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/onward_splash</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#FAF8F1</item>
+    </style>
+</resources>

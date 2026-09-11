@@ -73,13 +73,13 @@ import java.time.ZoneOffset
             Hint(tr("反馈评分衡量回答质量，不代表录用概率。","Le score mesure votre réponse, pas votre chance d’être recruté.","Scores assess your answer, not your hiring probability."))
             val suggestions = (selected?.child("mobilePlan")?.strings("questions") ?: emptyList()) + (selected?.child("interview")?.objects("questions")?.map { it.text("question") } ?: emptyList())
             if(suggestions.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement = Arrangement.spacedBy(8.dp)) { suggestions.distinct().take(8).forEachIndexed { i,q -> AssistChip(onClick = { question = q },label = { Text(tr("问题 ${i+1}","Question ${i+1}","Question ${i+1}")) }) } }
-            OutlinedTextField(question,{ question = it },label = { Text(tr("面试问题","Question","Question")) },modifier = Modifier.fillMaxWidth(),minLines = 2,shape = RoundedCornerShape(18.dp))
-            OutlinedTextField(answer,{ answer = it },label = { Text(tr("我的回答","Ma réponse","My answer")) },modifier = Modifier.fillMaxWidth(),minLines = 5,maxLines = 10,shape = RoundedCornerShape(18.dp))
+            OutlinedTextField(question,{ question = it },label = { Text(tr("面试问题","Question","Question")) },modifier = Modifier.fillMaxWidth(),minLines = 2,shape = RoundedCornerShape(7.dp))
+            OutlinedTextField(answer,{ answer = it },label = { Text(tr("我的回答","Ma réponse","My answer")) },modifier = Modifier.fillMaxWidth(),minLines = 5,maxLines = 10,shape = RoundedCornerShape(7.dp))
             AiProgressButton(state,"practice",selected?.text("id"),tr("获取逐项反馈","Recevoir un retour précis","Get detailed feedback"),!state.working && answer.isNotBlank() && question.isNotBlank()) { vm.startTask(json("kind" to "practice","jobId" to selected?.text("id"),"question" to question,"answer" to answer)) }
         } }
         item { GlassCard {
             Text(tr("职业教练","Coach carrière","Career coach"),fontSize = 18.sp,fontWeight = FontWeight.SemiBold)
-            OutlinedTextField(coach,{ coach = it },modifier = Modifier.fillMaxWidth(),minLines = 2,label = { Text(tr("关于我的职业路径……","À propos de mon parcours…","About my career…")) },shape = RoundedCornerShape(18.dp))
+            OutlinedTextField(coach,{ coach = it },modifier = Modifier.fillMaxWidth(),minLines = 2,label = { Text(tr("关于我的职业路径……","À propos de mon parcours…","About my career…")) },shape = RoundedCornerShape(7.dp))
             AiProgressButton(state,"coach",selected?.text("id"),tr("一起思考","Réfléchir avec mon coach","Think with my coach"),!state.working && coach.isNotBlank(),outlined=true) { vm.startTask(json("kind" to "coach","jobId" to selected?.text("id"),"question" to coach)) }
         } }
     }
@@ -88,7 +88,7 @@ import java.time.ZoneOffset
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun DateField(value: String,onChange: (String) -> Unit,label: String) {
     var open by remember { mutableStateOf(false) }
-    Box { OutlinedTextField(value,{},Modifier.fillMaxWidth(),readOnly = true,label = { Text(label) },trailingIcon = { Icon(Icons.Rounded.CalendarMonth,null) },shape = RoundedCornerShape(18.dp)); Box(Modifier.matchParentSize().clickable { open = true }) }
+    Box { OutlinedTextField(value,{},Modifier.fillMaxWidth(),readOnly = true,label = { Text(label) },trailingIcon = { Icon(Icons.Rounded.CalendarMonth,null) },shape = RoundedCornerShape(7.dp)); Box(Modifier.matchParentSize().clickable { open = true }) }
     if(open) {
         val picker = rememberDatePickerState(initialSelectedDateMillis = runCatching { java.time.LocalDate.parse(value).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli() }.getOrNull())
         DatePickerDialog(onDismissRequest = { open = false }, confirmButton = { TextButton({ picker.selectedDateMillis?.let { onChange(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toString()) }; open = false }) { Text(tr("确认","Valider","Confirm")) } }, dismissButton = { TextButton({ onChange(""); open = false }) { Text(tr("清除","Effacer","Clear")) } }) { DatePicker(picker) }
@@ -122,6 +122,12 @@ import java.time.ZoneOffset
     val directions=state.snapshot.child("v1").objects("careerDirections")
     LazyColumn(Modifier.fillMaxSize().imePadding().testTag("profile-content"),state=analyticsListState(vm),contentPadding = PaddingValues(22.dp),verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item {
+            Column(verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                EditorialTitle(tr("我的职业档案","Mon profil","My profile"),large=true)
+                state.snapshot.child("profile").text("name").takeIf(String::isNotBlank)?.let { Hint(it) }
+            }
+        }
+        item {
             TabRow(profileTab) {
                 listOf(tr("个人资料","Mon profil","Profile"),tr("投递情况","Candidatures","Applications")).forEachIndexed { i,label ->
                     Tab(profileTab==i,{profileTab=i},modifier=Modifier.testTag("profile-tab-$i"),text={Text(label)})
@@ -131,7 +137,7 @@ import java.time.ZoneOffset
         if(profileTab==1) {
             item {
                 Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                    Text(tr("投递情况","Mes candidatures","My applications"),fontSize=22.sp,fontWeight=FontWeight.SemiBold)
+                    Text(tr("投递情况","Mes candidatures","My applications"),style=MaterialTheme.typography.headlineSmall)
                     Hint(tr("全部 ${jobs.size} 个岗位 · 当前显示 ${applications.size} 个","${jobs.size} offres · ${applications.size} affichées","${jobs.size} roles · ${applications.size} shown"))
                     OutlinedTextField(applicationQuery,{applicationQuery=it},Modifier.fillMaxWidth().testTag("application-query"),singleLine=true,label={Text(tr("搜索公司或岗位","Rechercher une entreprise ou un poste","Search company or role"))})
                     Box {
@@ -150,7 +156,7 @@ import java.time.ZoneOffset
         item {SearchAreaSettings(state,vm)}
         item { GlassCard(accent = true) {
             Icon(Icons.Rounded.Description,null,Modifier.size(34.dp),tint = MaterialTheme.colorScheme.primary)
-            Text(tr("让简历成为起点","Le CV comme point de départ","Start with your CV"),fontSize = 22.sp,fontWeight = FontWeight.SemiBold)
+            Text(tr("让简历成为起点","Le CV comme point de départ","Start with your CV"),style=MaterialTheme.typography.headlineSmall)
             Hint(tr("PDF、Word、TXT · 最大 12 MB","PDF, Word, TXT · 12 Mo maximum","PDF, Word, TXT · up to 12 MB"))
             TextButton({privacyMode=2}) {Text(tr("简历信息如何使用","Utilisation des informations du CV","How your CV information is used"),fontSize=12.sp)}
             PrimaryButton(tr("从手机上传简历","Importer un CV du téléphone","Upload a CV from my phone"),!state.working) {privacyMode=1}
@@ -161,7 +167,7 @@ import java.time.ZoneOffset
         } }
         if(!BuildConfig.APPLICATION_ID.endsWith(".v1")) item { GlassCard { AnalysisEntry(state,vm) } }
         if(!needsCv) item { GlassCard {
-            Row(verticalAlignment=Alignment.CenterVertically) { Text(tr("我的岗位版本","Mes versions par offre","My role-specific versions"),Modifier.weight(1f),fontWeight=FontWeight.SemiBold);Hint(jobs.size.toString()) }
+            Row(verticalAlignment=Alignment.CenterVertically) { Text(tr("我的岗位版本","Mes versions par offre","My role-specific versions"),Modifier.weight(1f),style=MaterialTheme.typography.headlineSmall);Hint(jobs.size.toString()) }
             Hint(tr("为不同岗位准备的简历，都在这里。","Retrouvez ici vos CV adaptés à chaque offre.","Your tailored CVs, organised by role."))
             if(jobs.isEmpty()) Hint(tr("当你在岗位页点击“查看我的 XX 分版本”，它会出现在这里。","Une offre apparaîtra ici lorsque vous demanderez votre version ciblée.","A role appears here after you request its tailored version."))
             jobs.forEach { job ->
@@ -171,9 +177,9 @@ import java.time.ZoneOffset
                     verticalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) { Text(job.text("company"), fontWeight = FontWeight.SemiBold); Text(job.text("role"), fontSize = 14.sp) }
+                        Column(Modifier.weight(1f)) { Text(job.text("company"), style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary); Text(job.text("role"), style=MaterialTheme.typography.titleLarge) }
                         val match = job.child("v1Match")
-                        if (match.has("displayScore")) Text("${match.optInt("displayScore")}/100", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        if (match.has("displayScore")) Text("${match.optInt("displayScore")}/100", style=MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
                     }
                     Hint(when { job.child("cvDraft").text("status") == "pending" -> tr("候选 CV 等待你确认", "Brouillon à confirmer", "CV draft awaiting your decision"); job.child("cv").text("file").isNotBlank() -> tr("已有岗位版 CV", "CV adapté conservé", "Tailored CV saved"); else -> tr("已保存岗位", "Offre enregistrée", "Role saved") })
                     HorizontalDivider()
@@ -186,7 +192,7 @@ import java.time.ZoneOffset
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { directions.forEach { direction -> FilterChip(false,{roles=direction.text("title");preferences=true},label={Text(direction.text("title"),maxLines=1)}) } }
         } }
         item { GlassCard {
-            Text(tr("语言","Langues","Languages"),fontWeight=FontWeight.SemiBold,fontSize=18.sp)
+            Text(tr("语言","Langues","Languages"),style=MaterialTheme.typography.headlineSmall)
             Text(tr("界面与分析","Application et conseils","App and insights"),fontWeight=FontWeight.Medium)
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) { listOf("zh" to "中文","fr" to "Français","en" to "English").forEach { (key,label) ->
                 FilterChip(state.language==key,{vm.experienceLanguage(key)},enabled=!state.working,modifier=Modifier.testTag("ui-language-$key"),label={Text(label)})
@@ -201,20 +207,20 @@ import java.time.ZoneOffset
             Hint(tr("只决定新生成简历的语言，不限制岗位搜索。","La langue de vos prochains CV, pas un filtre sur les offres.","The language of new CVs, not a filter on job opportunities."))
         } }
         item { GlassCard {
-            Row(verticalAlignment = Alignment.CenterVertically) { Text(tr("求职偏好","Mes critères","Job preferences"),Modifier.weight(1f),fontWeight = FontWeight.SemiBold); TextButton({ preferences = !preferences }) { Text(tr("编辑","Modifier","Edit")) } }
+            Row(verticalAlignment = Alignment.CenterVertically) { Text(tr("求职偏好","Mes critères","Job preferences"),Modifier.weight(1f),style=MaterialTheme.typography.headlineSmall); TextButton({ preferences = !preferences }) { Text(tr("编辑","Modifier","Edit")) } }
             Hint(listOf(roles,location,remote).filter { it.isNotBlank() }.joinToString("\n").ifBlank { tr("填写目标岗位与工作地点","Définissez les rôles et lieux ciblés.","Set target roles and locations.") })
             Text(tr("合同／职位类型","Types de contrat","Contract types"),fontWeight = FontWeight.Medium,fontSize = 14.sp)
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("Stage","Alternance","CDI","CDD").forEach { type -> FilterChip(type in contracts,{ contracts = if(type in contracts) contracts - type else contracts + type; vm.saveProfile(json("contractTypes" to JSONArray(contracts.toList()))) },label = { Text(product(type)) },enabled = !state.working) } }
             if(contracts.isEmpty()) Hint(tr("不限制合同类型","Tous les types de contrat","All contract types"))
             if(preferences) {
-                OutlinedTextField(roles,{ roles = it },Modifier.fillMaxWidth(),label = { Text(tr("目标岗位（逗号分隔）","Rôles ciblés (séparés par virgule)","Target roles (comma separated)")) },shape = RoundedCornerShape(18.dp))
-                OutlinedTextField(location,{ location = it },Modifier.fillMaxWidth(),label = { Text(tr("城市","Localisation","Location")) },shape = RoundedCornerShape(18.dp))
-                OutlinedTextField(remote,{ remote = it },Modifier.fillMaxWidth(),label = { Text(tr("远程办公偏好","Préférence télétravail","Remote preference")) },shape = RoundedCornerShape(18.dp))
+                OutlinedTextField(roles,{ roles = it },Modifier.fillMaxWidth(),label = { Text(tr("目标岗位（逗号分隔）","Rôles ciblés (séparés par virgule)","Target roles (comma separated)")) },shape = RoundedCornerShape(7.dp))
+                OutlinedTextField(location,{ location = it },Modifier.fillMaxWidth(),label = { Text(tr("城市","Localisation","Location")) },shape = RoundedCornerShape(7.dp))
+                OutlinedTextField(remote,{ remote = it },Modifier.fillMaxWidth(),label = { Text(tr("远程办公偏好","Préférence télétravail","Remote preference")) },shape = RoundedCornerShape(7.dp))
                 PrimaryButton(tr("保存偏好","Enregistrer mes critères","Save preferences"),!state.working) { vm.saveProfile(json("roles" to JSONArray(roles.split(',').map { it.trim() }.filter { it.isNotBlank() }),"location" to location,"remote" to remote)); preferences = false }
             }
         } }
         item { GlassCard {
-            Text(tr("外观","Apparence","Appearance"),fontWeight = FontWeight.SemiBold)
+            Text(tr("外观","Apparence","Appearance"),style=MaterialTheme.typography.headlineSmall)
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("system" to tr("系统","Système","System"),"light" to tr("亮色","Clair","Light"),"dark" to tr("暗色","Sombre","Dark")).forEach { (key,label) -> FilterChip(state.theme == key,{ vm.appearance(theme = key) },label = { Text(label) }) } }
         } }
 
@@ -224,7 +230,7 @@ import java.time.ZoneOffset
     if(editCv) ModalBottomSheet(onDismissRequest = { editCv = false },sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),modifier = Modifier.imePadding()) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(.88f).blockSheetEdgeMotion().padding(22.dp),verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionTitle(tr("我的主简历","Mon CV de référence","My master CV"))
-            OutlinedTextField(cvDraft,{ cvDraft = it },Modifier.fillMaxWidth().weight(1f),shape = RoundedCornerShape(20.dp))
+            OutlinedTextField(cvDraft,{ cvDraft = it },Modifier.fillMaxWidth().weight(1f),shape = RoundedCornerShape(7.dp))
             PrimaryButton(tr("保存修改","Enregistrer les modifications","Save changes"),!state.working && cvDraft.isNotBlank()) { confirmSave = true }
         }
     }

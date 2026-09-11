@@ -65,7 +65,7 @@ import kotlin.math.exp
         topBar = {
             PilotChrome {
                 Column {
-                    Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp,vertical = 8.dp),verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 18.dp,vertical = 8.dp),verticalAlignment = Alignment.CenterVertically) {
                         OnwardBrand(Modifier.weight(1f))
                         if(canSwitchProfiles) Box {
                             TextButton({ profileMenu = true },modifier=Modifier.testTag("profile-switch"),contentPadding = PaddingValues(horizontal = 8.dp)) {
@@ -83,16 +83,25 @@ import kotlin.math.exp
                             }
                         }
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    HorizontalDivider(thickness=.6.dp,color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
         },
         bottomBar = {
             AnimatedVisibility(!keyboard && !needsCv) {
                 Column {
-                    HorizontalDivider()
-                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha=.92f),tonalElevation = 1.dp) {
-                        labels.forEachIndexed { i,label -> NavigationBarItem(modifier=Modifier.testTag("nav-$i"),selected = tab == i,onClick = { vm.analytics.click(listOf("nav_home","nav_opportunities","nav_profile")[i]);tab = i; vm.showTabGuide(i) },icon = { Icon(icons[i],label,Modifier.size(22.dp)) },label = { Text(label,fontSize = 10.sp,maxLines = 1) },colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer)) }
+                    HorizontalDivider(thickness=.6.dp,color=MaterialTheme.colorScheme.outlineVariant)
+                    NavigationBar(containerColor = MaterialTheme.colorScheme.background.copy(alpha=.97f),tonalElevation = 0.dp) {
+                        labels.forEachIndexed { i,label -> NavigationBarItem(
+                            modifier=Modifier.testTag("nav-$i"),selected = tab == i,
+                            onClick = { vm.analytics.click(listOf("nav_home","nav_opportunities","nav_profile")[i]);tab = i; vm.showTabGuide(i) },
+                            icon = { Icon(icons[i],label,Modifier.size(22.dp)) },label = { Text(label,fontSize = 10.sp,maxLines = 1) },
+                            colors = NavigationBarItemDefaults.colors(
+                                indicatorColor = Color.Transparent,
+                                selectedIconColor=MaterialTheme.colorScheme.primary,selectedTextColor=MaterialTheme.colorScheme.primary,
+                                unselectedIconColor=MaterialTheme.colorScheme.onSurfaceVariant,unselectedTextColor=MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                        ) }
                     }
                 }
             }
@@ -120,7 +129,7 @@ import kotlin.math.exp
                 }
             }
             AnimatedVisibility(state.notice != null,modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),enter = fadeIn() + slideInVertically { it/2 },exit = fadeOut() + slideOutVertically { it/2 }) {
-                Surface(shape = RoundedCornerShape(10.dp),color = MaterialTheme.colorScheme.inverseSurface.copy(alpha=.96f),border=BorderStroke(.5.dp,MaterialTheme.colorScheme.primary.copy(alpha=.25f)),shadowElevation = 2.dp) {
+                Surface(shape = RoundedCornerShape(7.dp),color = MaterialTheme.colorScheme.inverseSurface.copy(alpha=.96f),border=BorderStroke(.5.dp,MaterialTheme.colorScheme.primary.copy(alpha=.20f)),shadowElevation = 0.dp) {
                     Row(Modifier.padding(start = 14.dp,end = 4.dp,top = 8.dp,bottom = 8.dp),verticalAlignment = Alignment.CenterVertically) {
                         Text(product(state.notice.orEmpty()),Modifier.weight(1f),fontSize = 12.sp,lineHeight = 17.sp,color = MaterialTheme.colorScheme.inverseOnSurface,maxLines = 3)
                         state.noticeTaskId?.takeIf { it.isNotBlank() }?.let { id -> TextButton({ vm.clearNotice(); val t = tasks.find { it.text("id") == id }; if(t?.text("status") == "completed") vm.loadTask(id) else taskCenter = true }) { Text(tr("查看","Voir","View"),color = MaterialTheme.colorScheme.inversePrimary) } }
@@ -180,19 +189,19 @@ import kotlin.math.exp
     ) {
         Surface(
             Modifier.offset(offsetX,offsetY).widthIn(max=326.dp).padding(horizontal=24.dp).graphicsLayer { scaleX=scale;scaleY=scale;this.alpha=alpha },
-            shape=RoundedCornerShape(24.dp),color=MaterialTheme.colorScheme.surface,shadowElevation=12.dp
+            shape=RoundedCornerShape(10.dp),color=MaterialTheme.colorScheme.background,border=BorderStroke(.6.dp,MaterialTheme.colorScheme.outlineVariant),shadowElevation=0.dp
         ) {
             Column(Modifier.padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 Box(contentAlignment=Alignment.Center) {
                     Icon(Icons.Rounded.PendingActions,null,Modifier.size(48.dp),tint=MaterialTheme.colorScheme.primary)
                 }
-                Text(tr("正在后台处理","Traitement en arrière-plan","Processing in the background"),fontSize=22.sp,fontWeight=FontWeight.SemiBold)
+                Text(tr("正在后台处理","Traitement en arrière-plan","Processing in the background"),style=MaterialTheme.typography.headlineSmall)
                 Text(feedback.title,fontSize=15.sp,fontWeight=FontWeight.Medium)
                 val launchTasks=state.snapshot.objects("tasks").filter { it.text("id") in feedback.ids }
                 val launchStatus=if(launchTasks.isNotEmpty() && launchTasks.all { it.text("status")=="completed" }) "completed" else null
                 EstimatedTaskProgress(feedback.createdAt,feedback.estimate,large=true,terminalStatus=launchStatus)
                 Hint(if(feedback.ids.size>1) tr("${feedback.ids.size} 个任务已经加入右上角任务列表。你可以继续使用其他页面。","${feedback.ids.size} tâches ont été ajoutées en haut à droite. Vous pouvez continuer à naviguer.","${feedback.ids.size} tasks were added to the top-right task center. You can keep browsing.") else tr("任务已经加入右上角任务列表。你可以继续使用其他页面。","La tâche a été ajoutée en haut à droite. Vous pouvez continuer à naviguer.","The task was added to the top-right task center. You can keep browsing."))
-                Button({ flying=true },Modifier.fillMaxWidth().testTag("confirm-background-task"),enabled=!flying) { Text(tr("知道了","Compris","Got it")) }
+                Button({ flying=true },Modifier.fillMaxWidth().heightIn(min=50.dp).testTag("confirm-background-task"),enabled=!flying,shape=RoundedCornerShape(999.dp)) { Text(tr("知道了","Compris","Got it"),style=MaterialTheme.typography.labelLarge) }
             }
         }
     }

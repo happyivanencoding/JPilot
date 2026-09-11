@@ -47,9 +47,9 @@ fun CvPrivacyDialog(vm:JobPilotViewModel,state:PilotState,onClose:()->Unit,onAcc
         }
     }
     Dialog(onDismissRequest={if(!working)onClose()},properties=DialogProperties(usePlatformDefaultWidth=false)) {
-        Surface(Modifier.fillMaxWidth().fillMaxHeight(.94f).testTag("cv-privacy-dialog"),color=MaterialTheme.colorScheme.surface) {
+        Surface(Modifier.fillMaxWidth().fillMaxHeight(.94f).testTag("cv-privacy-dialog"),color=MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                Text(title,fontWeight=FontWeight.SemiBold,fontSize=22.sp)
+                Text(title,style=MaterialTheme.typography.headlineMedium)
                 Text("Onward · V1 · ${data?.child("notice")?.text("version") ?: "…"}",style=MaterialTheme.typography.labelMedium)
                 TabRow(listOf("en","fr","zh").indexOf(locale)) {
                     listOf("en" to "English","fr" to "Français","zh" to "中文").forEach { (code,label) ->
@@ -58,8 +58,8 @@ fun CvPrivacyDialog(vm:JobPilotViewModel,state:PilotState,onClose:()->Unit,onAcc
                 }
                 Column(Modifier.weight(1f).verticalScroll(bodyScroll),verticalArrangement=Arrangement.spacedBy(14.dp)) {
                     data?.child("notice")?.objects("sections")?.forEachIndexed {index,section->
-                        Text("${index+1}. ${section.child("title").text(locale)}",fontWeight=FontWeight.SemiBold)
-                        Text(section.child("body").text(locale),fontSize=14.sp,lineHeight=21.sp)
+                        Text("${index+1}. ${section.child("title").text(locale)}",style=MaterialTheme.typography.titleMedium)
+                        Text(section.child("body").text(locale),style=MaterialTheme.typography.bodyMedium)
                     }
                     data?.child("recipients")?.let {r->Hint(noticeTr("AI 分析接口：","Interface IA : ","AI analysis endpoint: ")+r.text("analysis")+"\n"+noticeTr("翻译接口：","Traduction : ","Translation endpoint: ")+r.text("translation"))}
                 }

@@ -72,24 +72,24 @@ private data class GuideTab(val icon: ImageVector, val title: String, val summar
     val tabs = guideTabs()
     val selected = tab?.let { tabs.getOrNull(it) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = false, dismissOnClickOutside = false)) {
-        Surface(Modifier.fillMaxSize().safeDrawingPadding().padding(20.dp), shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 4.dp) {
+        Surface(Modifier.fillMaxSize().safeDrawingPadding().padding(20.dp), shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.background, border=BorderStroke(.6.dp,MaterialTheme.colorScheme.outlineVariant), tonalElevation = 0.dp) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (welcome) {
                     OnwardBrand(large=true)
-                    Text(tr("欢迎使用 Onward", "Bienvenue dans Onward", "Welcome to Onward"), fontSize = 25.sp, lineHeight = 31.sp, fontWeight = FontWeight.SemiBold)
+                    Text(tr("欢迎使用 Onward", "Bienvenue dans Onward", "Welcome to Onward"), style=MaterialTheme.typography.headlineMedium)
                     Text(tr("用几步了解你的求职工作台。", "Découvrez votre espace de recherche en quelques étapes.", "Learn your job-search workspace in a few steps."), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(vertical = 6.dp)) {
                         tabs.forEach { item -> Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                            Surface(Modifier.size(38.dp), shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.primaryContainer) { Box(contentAlignment = Alignment.Center) { Icon(item.icon, item.title, tint = MaterialTheme.colorScheme.primary) } }
+                            Surface(Modifier.size(38.dp), shape = RoundedCornerShape(7.dp), color = MaterialTheme.colorScheme.primaryContainer) { Box(contentAlignment = Alignment.Center) { Icon(item.icon, item.title, tint = MaterialTheme.colorScheme.primary) } }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) { Text(item.title, fontWeight = FontWeight.SemiBold); Hint(item.summary) }
                         } }
                     }
                     PrimaryButton(tr("开始使用", "Commencer", "Get started"), onClick = onDismiss)
                     TextButton(onClick = onSkip, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text(tr("跳过引导", "Passer le guide", "Skip guide")) }
                 } else if (selected != null) {
-                    Surface(Modifier.size(54.dp), shape = RoundedCornerShape(15.dp), color = MaterialTheme.colorScheme.primaryContainer) { Box(contentAlignment = Alignment.Center) { Icon(selected.icon, selected.title, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp)) } }
+                    Surface(Modifier.size(54.dp), shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) { Box(contentAlignment = Alignment.Center) { Icon(selected.icon, selected.title, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp)) } }
                     Text(tr("第一次查看这个 Tab", "Première découverte de cet onglet", "First look at this tab"), color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Text(selected.title, fontSize = 25.sp, lineHeight = 31.sp, fontWeight = FontWeight.SemiBold)
+                    Text(selected.title, style=MaterialTheme.typography.headlineMedium)
                     Text(selected.summary, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(vertical = 8.dp)) { selected.details.forEach { detail -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) { Text("✓", color = MaterialTheme.colorScheme.primary, fontSize = 17.sp, fontWeight = FontWeight.Bold); Text(detail, style = MaterialTheme.typography.bodyLarge, lineHeight = 22.sp) } } }
                     PrimaryButton(tr("知道了，开始使用", "Compris, commencer", "Got it, start exploring"), onClick = onDismiss)
@@ -158,22 +158,22 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
                 Spacer(Modifier.height(12.dp))
                 when(page) {
                     0 -> {
-                        Text(tr("让你的下一步更清晰。","Votre prochaine étape, plus claire.","Make your next move clearer."),fontSize=30.sp,lineHeight=37.sp,fontWeight=FontWeight.SemiBold)
+                        EditorialTitle(tr("让你的下一步更清晰。","Votre prochaine étape, plus claire.","Make your next move clearer."),large=true)
                         Hint(tr("你的优势，值得尝试的方向，还有下一份工作。","Vos forces, vos pistes et votre prochain poste.","Your strengths, your possibilities, your next role."))
                         Text(tr("选择语言","Choisissez votre langue","Choose your language"),fontWeight=FontWeight.SemiBold)
                         JourneyLanguageChoices(state.language) { vm.appearance(language=it) }
                         PrimaryButton(tr("开始","Commencer","Get started"),!state.working) { languageChosen=true }
                     }
                     1 -> {
-                        Text(tr("找到属于你的机会","Trouvez votre prochaine opportunité","Find your next opportunity"),fontSize=29.sp,lineHeight=36.sp,fontWeight=FontWeight.SemiBold)
+                        EditorialTitle(tr("找到属于你的机会","Trouvez votre prochaine opportunité","Find your next opportunity"),large=true)
                         Hint(tr("输入邮箱，开始探索或回到你的空间。","Votre e-mail pour commencer ou retrouver votre espace.","Enter your email to begin or return to your space."))
-                        OutlinedTextField(email,{email=it},Modifier.fillMaxWidth(),label={Text(tr("邮箱","E-mail","Email"))},placeholder={Text("name@example.com")},singleLine=true,shape=RoundedCornerShape(12.dp),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Email,imeAction=ImeAction.Done),keyboardActions=KeyboardActions(onDone={if(validEmail&&!state.working){focus.clearFocus();vm.previewLogin(email.trim())}}))
+                        OutlinedTextField(email,{email=it},Modifier.fillMaxWidth(),label={Text(tr("邮箱","E-mail","Email"))},placeholder={Text("name@example.com")},singleLine=true,shape=RoundedCornerShape(7.dp),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Email,imeAction=ImeAction.Done),keyboardActions=KeyboardActions(onDone={if(validEmail&&!state.working){focus.clearFocus();vm.previewLogin(email.trim())}}))
                         PrimaryButton(tr("继续","Continuer","Continue"),!state.working&&validEmail) { focus.clearFocus();vm.previewLogin(email.trim()) }
                         Hint(tr("V1 测试入口 · 暂不验证邮箱，请使用测试简历。","Accès test V1 · e-mail non vérifié, CV de test uniquement.","V1 test access · email is not verified; use test CVs."))
                         TextButton({languageChosen=false}) {Text(tr("更换语言","Changer de langue","Change language"))}
                     }
                     2 -> {
-                        Text(tr("从你的简历开始","Tout commence avec votre CV","It starts with your CV"),fontSize=29.sp,lineHeight=36.sp,fontWeight=FontWeight.SemiBold)
+                        EditorialTitle(tr("从你的简历开始","Tout commence avec votre CV","It starts with your CV"),large=true)
                         Hint(tr("看看你擅长什么，以及哪些工作值得一试。","Découvrez vos atouts et les postes à explorer.","See what you bring and which roles are worth exploring."))
                         Text(tr("你想找哪类机会？","Quel type d’opportunité ?","What are you looking for?"),fontWeight=FontWeight.SemiBold)
                         listOf("Stage","Alternance","CDI","CDD").chunked(2).forEach { row ->
@@ -196,29 +196,29 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
                         Hint("PDF · Word · TXT · 12 MB")
                     }
                     3 -> {
-                        Text(tr("你的下一步，可以有哪些可能？","Quelles possibilités pour la suite ?","What could your next step look like?"),fontSize=29.sp,lineHeight=36.sp,fontWeight=FontWeight.SemiBold)
+                        EditorialTitle(tr("你的下一步，可以有哪些可能？","Quelles possibilités pour la suite ?","What could your next step look like?"),large=true)
                         if(cvFailed) {
                             Text(progress.child("failure").text("message").ifBlank {tr("简历已保存，分析暂未完成。可以直接继续，无需重新上传。","Votre CV est enregistré. Reprenez l’analyse sans renvoyer le fichier.","Your CV is saved. Continue the analysis without uploading it again.")},color=MaterialTheme.colorScheme.onSurfaceVariant,lineHeight=24.sp)
                             PrimaryButton(tr("继续分析","Reprendre l’analyse","Continue analysis"),!state.working) {vm.retryV1()}
                         } else {
                             Hint(progress.text("label").ifBlank {tr("正在读取简历","Lecture de votre CV","Reading your CV")})
                             Spacer(Modifier.height(28.dp))
-                            Text(if(progress.text("status")=="completed") "100%" else "${(waterLevel*100).roundToInt()}%",fontSize=58.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary,modifier=Modifier.semantics {progressBarRangeInfo=ProgressBarRangeInfo(waterLevel,0f..1f)})
+                            Text(if(progress.text("status")=="completed") "100%" else "${(waterLevel*100).roundToInt()}%",style=MaterialTheme.typography.displayLarge,color=MaterialTheme.colorScheme.primary,modifier=Modifier.semantics {progressBarRangeInfo=ProgressBarRangeInfo(waterLevel,0f..1f)})
                             Hint(tr("你的优势与方向，即将浮现。","Vos atouts et vos pistes prennent forme.","Your strengths and directions are taking shape."))
                         }
                     }
                     4 -> {
-                        Text(if(displayName.isBlank()) tr("这是你会闪光的地方。","Voici vos atouts.","Here is where you stand out.") else tr("你好，$displayName。","Bonjour $displayName.","Hi, $displayName."),fontSize=29.sp,lineHeight=36.sp,fontWeight=FontWeight.SemiBold)
+                        EditorialTitle(if(displayName.isBlank()) tr("这是你会闪光的地方。","Voici vos atouts.","Here is where you stand out.") else tr("你好，$displayName。","Bonjour $displayName.","Hi, $displayName."),large=true)
                         analysis.objects("strengths").take(3).forEach { strength ->
-                            Surface(shape=RoundedCornerShape(12.dp),color=MaterialTheme.colorScheme.surface) { Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {Text(strength.text("title"),fontWeight=FontWeight.SemiBold);Hint(strength.text("evidence"))} }
+                            Column(Modifier.fillMaxWidth().padding(vertical=6.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {Text(strength.text("title"),style=MaterialTheme.typography.titleMedium);Hint(strength.text("evidence"));HorizontalDivider(Modifier.padding(top=5.dp),thickness=.6.dp,color=MaterialTheme.colorScheme.outlineVariant)}
                         }
                         analysis.objects("growthAreas").take(1).forEach { gap -> Text(gap.text("nextAction"),fontSize=15.sp,lineHeight=23.sp) }
-                        Text(tr("你想先看看哪个方向？","Quelle piste vous attire ?","Which direction interests you?"),fontSize=21.sp,fontWeight=FontWeight.SemiBold)
+                        Text(tr("你想先看看哪个方向？","Quelle piste vous attire ?","Which direction interests you?"),style=MaterialTheme.typography.headlineSmall)
                         directions.forEach { direction ->
                             val query=direction.text("searchQuery")
                             FilterChip(selected=chosenQuery==query&&customQuery.isBlank(),onClick={chosenQuery=query;customQuery=""},label={Text(direction.text("title"))})
                         }
-                        OutlinedTextField(customQuery,{customQuery=it},Modifier.fillMaxWidth(),label={Text(tr("我有其他想法","J’ai une autre idée","I have something else in mind"))},shape=RoundedCornerShape(12.dp))
+                        OutlinedTextField(customQuery,{customQuery=it},Modifier.fillMaxWidth(),label={Text(tr("我有其他想法","J’ai une autre idée","I have something else in mind"))},shape=RoundedCornerShape(7.dp))
                         PrimaryButton(tr("看看这些工作","Voir les offres","Show me the roles"),(customQuery.trim().ifBlank {chosenQuery}).isNotBlank()&&!state.working) {
                             val query=customQuery.trim().ifBlank {chosenQuery};chooseAgain=false
                             vm.startTask(json("kind" to "search","query" to query,"silent" to true,"source" to "v1-onboarding"))
@@ -226,11 +226,11 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
                     }
                     5 -> {
                         val empty=v1.text("searchState")=="completed"&&discovery.optInt("availableCount")==0
-                        Text(if(empty)tr("这个方向暂时没有合适的岗位","Pas encore d’offre adaptée à cette piste","No suitable roles for this direction yet") else tr("为你挑选值得一试的工作","Une sélection qui vous correspond","Finding roles worth your time"),fontSize=29.sp,lineHeight=36.sp,fontWeight=FontWeight.SemiBold)
+                        EditorialTitle(if(empty)tr("这个方向暂时没有合适的岗位","Pas encore d’offre adaptée à cette piste","No suitable roles for this direction yet") else tr("为你挑选值得一试的工作","Une sélection qui vous correspond","Finding roles worth your time"),large=true)
                         if(!empty && !waveFailed) {
                             Hint(progress.text("label").ifBlank {tr("正在找岗位","Recherche des offres","Finding roles")})
                             Spacer(Modifier.height(28.dp))
-                            Text(if(progress.text("status")=="completed") "100%" else "${(waterLevel*100).roundToInt()}%",fontSize=58.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary,modifier=Modifier.semantics {progressBarRangeInfo=ProgressBarRangeInfo(waterLevel,0f..1f)})
+                            Text(if(progress.text("status")=="completed") "100%" else "${(waterLevel*100).roundToInt()}%",style=MaterialTheme.typography.displayLarge,color=MaterialTheme.colorScheme.primary,modifier=Modifier.semantics {progressBarRangeInfo=ProgressBarRangeInfo(waterLevel,0f..1f)})
                             Hint(tr("匹配、优势和建议，准备好后一起呈现。","Match, atouts et conseils arrivent ensemble.","Your match, strengths and insights arrive together."))
                         }
                         if(waveFailed) PrimaryButton(tr("再试一次","Réessayer","Try again"),!state.working) {vm.retryV1()}
@@ -238,7 +238,7 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
                         if(empty) TextButton({vm.completeV1FirstRun()}) {Text(tr("先进入首页","Aller à l’accueil","Go to Home"))}
                     }
                     else -> {
-                        Text(tr("这几份工作，值得你看看。","Ces offres méritent votre attention.","These roles are worth a look."),fontSize=29.sp,lineHeight=36.sp,fontWeight=FontWeight.SemiBold)
+                        EditorialTitle(tr("这几份工作，值得你看看。","Ces offres méritent votre attention.","These roles are worth a look."),large=true)
                         Hint(tr("左右滑动，点开查看匹配与提升建议。","Faites défiler, puis ouvrez une offre pour voir le match.","Swipe, then open a role to explore your fit."))
                         LazyRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp),contentPadding=PaddingValues(end=24.dp)) {
                             items(offers,key={it.text("url")}) {offer->FirstRunOfferCard(offer) {vm.completeV1FirstRun();vm.selectOffer(offer.text("url"))}}
@@ -265,12 +265,12 @@ private fun FirstRunOfferCard(offer: JSONObject, onClick: () -> Unit) {
     val strengths = if (deep.objects("strengths").isNotEmpty()) deep.objects("strengths").map { it.text("title") } else fast.objects("strengths").map { it.text("title") }
     val gaps = if (deep.objects("capabilityGaps").isNotEmpty()) deep.objects("capabilityGaps").map { it.text("title") } else fast.objects("gaps").map { it.text("title") }
     val potential = deep.optInt("cvPotentialScore", score).coerceAtLeast(score)
-    Surface(onClick = onClick, modifier = Modifier.width(292.dp).heightIn(min = 330.dp), shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), shadowElevation = 3.dp) {
+    Surface(onClick = onClick, modifier = Modifier.width(292.dp).heightIn(min = 330.dp), shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), shadowElevation = 0.dp) {
         Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text(offer.text("company"), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                    Text(offer.text("title"), fontSize = 21.sp, lineHeight = 27.sp, fontWeight = FontWeight.SemiBold)
+                    Text(offer.text("company"), color = MaterialTheme.colorScheme.primary, style=MaterialTheme.typography.labelMedium)
+                    Text(offer.text("title"), style=MaterialTheme.typography.headlineSmall)
                 }
                 V1MatchBadge(score)
             }

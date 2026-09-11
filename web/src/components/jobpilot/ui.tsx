@@ -86,6 +86,25 @@ export function EstimatedProgress({ createdAt, estimate, large = false, status }
     <span className="jp-estimated-copy"><strong>{progressText}</strong><small>{estimate?.label}</small></span>
   </div>;
 }
+export function LiquidTaskProgress({task}:{task:Json}) {
+  const {tr}=usePilot();
+  const [now,setNow]=useState(()=>Date.now());
+  const active=["queued","running","reconciling"].includes(String(task.status));
+  const started=Date.parse(String(task.createdAt||""));
+  const target=Number(task.estimate?.targetSeconds||task.estimate?.maxSeconds||90);
+  useEffect(()=>{
+    if(!active)return;
+    setNow(Date.now());
+    const id=window.setInterval(()=>setNow(Date.now()),80);
+    return()=>window.clearInterval(id);
+  },[active,task.id,task.createdAt]);
+  const elapsed=Number.isFinite(started)?Math.max(0,(now-started)/1000):0;
+  const pct=Math.round(estimatedProgress(elapsed,String(task.status||""),target)*100);
+  const label=String(task.phase||task.title||tr("处理中…","Traitement…","Processing…"));
+  return <div className="jp-liquid-status" role="status" aria-label={`${label} ${pct}%`} style={{"--jp-ai-progress":`${pct}%`} as CSSProperties}>
+    <span className="jp-ai-button-fill" aria-hidden="true"/><span className="jp-ai-button-label">{label} <span className="jp-ai-percent">{pct}%</span></span>
+  </div>;
+}
 export function Loading({ children }: { children?: ReactNode }) { const { tr } = usePilot(); return <div className="jp-loading" role="status"><Spinner /><Hint>{children || tr("正在读取你的档案…", "Chargement de votre profil…", "Loading your profile…")}</Hint></div>; }
 export function Localization({ value, onRetry }: { value?: Json; onRetry?: () => void }) {
   const { tr, retryLocalization } = usePilot();

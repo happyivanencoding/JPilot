@@ -159,7 +159,7 @@ function useController(profileId: string, preview: boolean) {
     const apply = () => {
       const dark = theme === "dark" || theme === "system" && media.matches;
       document.documentElement.dataset.theme = dark ? "dark" : "light";
-      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#10191D" : "#F3F5F3");
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#101A17" : "#FAF8F1");
     };
     apply(); media.addEventListener("change", apply); return () => media.removeEventListener("change", apply);
   }, [ready, locale, theme]);

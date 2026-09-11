@@ -14,12 +14,12 @@ fun onwardSystemLanguage(tag:String):String=when(tag.lowercase().substringBefore
 @Composable
 fun SearchAreaFields(scope:String,city:String,onScope:(String)->Unit,onCity:(String)->Unit) {
     Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
-        Text(tr("你想在哪儿工作？","Où souhaitez-vous travailler ?","Where would you like to work?"),fontWeight=FontWeight.SemiBold)
+        Text(tr("你想在哪儿工作？","Où souhaitez-vous travailler ?","Where would you like to work?"),style=MaterialTheme.typography.headlineSmall)
         Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             FilterChip(scope=="city",{onScope("city")},label={Text(tr("选择城市","Une ville","Choose a city"))})
             FilterChip(scope=="france",{onScope("france")},label={Text(tr("全法国","Toute la France","All of France"))})
         }
-        if(scope=="city")OutlinedTextField(city,{onCity(it.take(80))},Modifier.fillMaxWidth().testTag("search-city"),singleLine=true,label={Text(tr("城市","Ville","City"))},placeholder={Text("Paris")})
+        if(scope=="city")OutlinedTextField(city,{onCity(it.take(80))},Modifier.fillMaxWidth().testTag("search-city"),singleLine=true,label={Text(tr("城市","Ville","City"))},placeholder={Text("Paris")},shape=androidx.compose.foundation.shape.RoundedCornerShape(7.dp))
     }
 }
 @Composable
