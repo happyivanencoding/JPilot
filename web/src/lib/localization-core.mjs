@@ -9,11 +9,17 @@ export function translationKey(text) {return createHash('sha256').update('displa
 export function alreadyLocalized(text,locale,hint='fr') {
   if(!text.trim() || !/[\p{L}]/u.test(text)) return true;
   const han=(text.match(/[\p{Script=Han}]/gu)||[]).length;
+  const latin=(text.match(/[\p{Script=Latin}]/gu)||[]).length;
+  const detected=detectedDocumentLanguage(text);
   // Legacy candidature projections wrap translated facts in French templates.
   // One Chinese word does not make that whole explanation Chinese.
   if(locale==='zh' && /^(?:Mettre en avant|Construire la candidature|Comment répondez-vous|Préparer (?:un cas|l[’']écart)|Évaluation career-ops)/i.test(text.trim()))return false;
-  const detected=han>0 ? 'zh' : detectedDocumentLanguage(text) || hint;
-  return detected===locale;
+  // A mostly English/French explanation can legitimately contain a short Chinese
+  // source phrase. Do not let those few Han characters mark the whole segment as
+  // already Chinese (for example: Reframed “设计问卷” as “define requirements”…).
+  if(locale==='zh' && han>0 && detected && detected!=='zh' && latin>=24 && latin>han*3)return false;
+  const language=han>0 ? 'zh' : detected || hint;
+  return language===locale;
 }
 
 

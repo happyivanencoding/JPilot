@@ -77,6 +77,17 @@ test('French wrappers around Chinese facts still require localization',()=>{
   assert.equal(alreadyLocalized('Comment répondez-vous à cet écart : 法语 B1 ?','zh'),false);
   assert.equal(alreadyLocalized('已核实的 ESSEC Marketing 实习。','zh'),true);
 });
+test('an English CV explanation containing a short Chinese quote is still localized into Chinese',async()=>{
+  const mixed='Reframed “设计问卷” as “define questionnaire requirements,” making the existing project more visibly relevant to structured business requirements without claiming formal specification ownership.';
+  assert.equal(alreadyLocalized(mixed,'zh','zh'),false);
+  assert.equal(translationLooksLikeTarget(mixed,'zh'),false);
+  const job={id:'mixed-cv-language',cvDraft:{notesLocale:'zh',assessment:{baselineScore:56,draftScore:58,delta:2,summary:'改进后的版本更贴近岗位。',improvements:[mixed],remainingGaps:['仍需补充真实业务分析经验。']}}};
+  const count=calls;
+  const view=await finishedScope('fixture-a','zh',job,'job',{identity:'mixed-cv-language'});
+  assert.equal(view.localization.pending,false);assert.equal(view.localization.failed,false);assert.ok(calls>count);
+  assert.notEqual(view.cvDraft.assessment.improvements[0],mixed);
+  assert.match(view.cvDraft.assessment.improvements[0],/^中文说明 /);
+});
 test('Chinese report tables preserve gap, partial and unknown states instead of defaulting strong',()=>{
   const report='## B) 匹配分析\n| 岗位要求 | 已有证据 | 匹配情况 |\n| --- | --- | --- |\n| 法语 | B1 | 存在差距 |\n| 营销 | 一段实习 | 部分匹配 |\n| Excel | 已记录 | 强匹配 |\n| Python | 待核实 | 待确认 |\n## C) 下一步';
   assert.deepEqual(blockBMatches(report).map(r=>r.fit),['Écart','Partiel','Fort','À confirmer']);
