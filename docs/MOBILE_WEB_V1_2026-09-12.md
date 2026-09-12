@@ -1,5 +1,15 @@
 # Onward V1 — Mobile Web Only handoff (2026-09-12)
 
+## Strict nine-task audit follow-up — final two gaps closed in code
+
+A strict reread of `JOBPILOT_V1_9_TASKS_DEV_PROMPT_2026-09-12.md` after the `cc6ac87` rollout found two requirements that the earlier review evidence had overstated. This follow-up closes those exact gaps without reopening the seven tasks that were already complete.
+
+**Job tracking IA:** the redundant third `Tracking` tab has been removed. Job detail now has only **Fit / CV** tabs. `Track application` remains next to the role title and expands the existing Tracking editor inline, using the same candidature/tracking writer, autosave state, replies and status history. Old links that still carry `jobTab=2` degrade to Fit with the inline tracker opened, rather than losing access to saved tracking data.
+
+**Pre-generation role-CV guidance:** before the first role-CV generation, the user can optionally add (1) factual information and (2) presentation/selection preferences. New facts cannot be saved or sent to generation until the user explicitly confirms that they are true and supplied by them. They are persisted on the job as `source: user-provided`, not written into the Master CV and not treated as if the uploaded source CV already proved them. Preferences are presentation instructions only. Both generation and role-CV review receive the exact confirmed facts with an explicit no-inference boundary. Changing guidance changes the CV operation identity/cache key, and a generated draft snapshots the guidance used. A separate `Save context` action allows the guidance to survive a refresh before the user chooses to generate.
+
+Validation on the final code shape: targeted `mobile-persistence + v1-cv-consistency + v1-polish` regressions **47/47 PASS**; `npm run typecheck` **PASS**; production `npm run build` **PASS**; `git diff --check` **PASS**. These checks specifically cover the confirmation requirement, persistence, prompt injection boundary, CV task identity invalidation, removal of the third Tracking tab, inline Tracking access, existing score semantics and long/multi-page CV behavior. Deployment status for this follow-up is recorded separately after the V1-only rollout; do not infer deployment from this implementation section alone.
+
 ## 9-task Mobile Web V1 hardening — code pushed, public rollout pending
 
 The Project OS nine-task development prompt has now been implemented on `feature/v1-mobile-web-only-20260912` in two coherent product commits: **`d7dc9d8`** (`fix(v1): decouple search from progressive enrichment`) and **`b92d37f`** (`fix(v1): tighten mobile opportunity and CV flow`). Both commits are pushed to `origin/feature/v1-mobile-web-only-20260912`; `main`, Yifeng staging and the frozen Android V1 source were not modified.

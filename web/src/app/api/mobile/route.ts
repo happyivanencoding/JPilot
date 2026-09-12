@@ -19,7 +19,7 @@ import { discoveryProjection, withProfileLock, evaluationProjection, contractMat
 import { taskView,estimateView } from "@/lib/mobile-view";
 import {localizeDisplay} from "@/lib/display-localization";
 import {requestUiLocale,applicationLanguage,documentLanguage,publicError} from "@/lib/language-contract.mjs";
-import {updateTailoredCvDraft,decideTailoredCvDraft} from "@/lib/tailored-cv";
+import {updateTailoredCvDraft,decideTailoredCvDraft,updateTailoredCvGuidance} from "@/lib/tailored-cv";
 import {reportForDisplay} from "@/lib/localization-core.mjs";
 import { FLOW_DEFAULTS, flowEstimate } from "@/lib/ai-metrics.mjs";
 import { reconcileMobileTasks } from "@/lib/mobile-recovery";
@@ -222,6 +222,7 @@ export async function POST(req: Request) {
       return Response.json({...result,analysisTaskId:analysisTask.id || null,analysisState:analysisTask.status});
     }
     if (body.action === "decideCvDraft") return Response.json(await decideCvDraft(profileId,String(body.draftId),String(body.decision)));
+    if (body.action === "updateTailoredCvGuidance") return Response.json({ok:true,...updateTailoredCvGuidance(profileId,String(body.jobId),{facts:body.facts,preferences:body.preferences,userProvidedConfirmed:body.userProvidedConfirmed===true})});
     if (body.action === "updateTailoredCvDraft") {
       const draft=await updateTailoredCvDraft(profileId,String(body.draftId),body.payload,body.userProvidedConfirmed===true);
       const store=readCandidatureStore(profileId);

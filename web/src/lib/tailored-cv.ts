@@ -79,6 +79,14 @@ export type TailoredAssessment = {
   improvements:string[]; remainingGaps:string[]; assessedAt:string; revision:number; needsSubstantiveImprovement:boolean;
 };
 
+export type TailoredCvGuidance = {
+  facts:string;
+  preferences:string;
+  source:"user-provided";
+  confirmedAt?:string;
+  updatedAt:string;
+};
+
 export type TailoredDraft = {
   matchBasis?:Record<string,any>;
   id:string; status:"pending"|"accepted"|"rejected"; baseVersionId:string; language:string; notesLocale:string; revision:number;
@@ -86,6 +94,7 @@ export type TailoredDraft = {
   rendererVersion?:string;
   onePageTargetMet?:boolean; warnings?:string[]; rejectionReason?:string;
   userProvidedEdit?:{confirmedAt:string;revision:number};
+  userProvidedGuidance?:TailoredCvGuidance;
   atsGrade?:string; atsIssues:Array<{severity?:string;message?:string}>; keywordCoverage:number|null; changes:string[]; baselinePresentationScore?:number|null; assessment?:TailoredAssessment|null;
 };
 
@@ -162,11 +171,14 @@ export function tailoredJobContext(job: Job) {
   };
 }
 
-function buildPrompt(profileId: string, job: Job, version: Record<string,any>, uiLocale: string, material: string) {
+export function buildTailoredCvPrompt(profileId: string, job: Job, version: Record<string,any>, uiLocale: string, material: string) {
   const p = getProfile(profileId);
   const cvOptions = {...profileCvOptions(profileId),language:material};
   const target = tailoredJobContext(job);
   const rejected=(job as any).cvDraft?.status==='rejected' ? String((job as any).cvDraft?.rejectionReason || '').trim().slice(0,2000) : '';
+  const guidance=((job as any).cvGuidance || {}) as Partial<TailoredCvGuidance>;
+  const userFacts=boundedText(guidance.facts,4000).trim();
+  const userPreferences=boundedText(guidance.preferences,4000).trim();
   return `You are producing the CONTENT for a CV tailored to one concrete job. This is a real application for ${p.name}; accuracy matters more than keyword coverage.
 
 CANDIDATE EVIDENCE IS EMBEDDED BELOW. Do not read files or use tools.
@@ -180,10 +192,13 @@ ${version.sources.config.text}
 CANDIDATE POSITIONING / CV SELECTION RULES:
 ${version.sources.notes.text}
 
-The Master CV is deliberately comprehensive. It is NOT a request to put every historical experience on the sent CV. Follow the candidate-specific selection and positioning rules in the notes file. Prefer recent, direct evidence; use older or adjacent evidence only when it materially strengthens this job. Never turn an adjacent experience into direct experience, and never invent a missing skill, metric, employer, responsibility or credential. Never add or imply willingness to relocate, a different availability/start date, work authorization, contact details, a higher language level, or a changed location preference unless that fact is explicitly documented in the candidate evidence. If the job location differs from the documented preference, do not invent a relocation claim.
+The Master CV is deliberately comprehensive. It is NOT a request to put every historical experience on the sent CV. Follow the candidate-specific selection and positioning rules in the notes file. Prefer recent, direct evidence; use older or adjacent evidence only when it materially strengthens this job. Never turn an adjacent experience into direct experience, and never invent a missing skill, metric, employer, responsibility or credential. Never add or imply willingness to relocate, a different availability/start date, work authorization, contact details, a higher language level, or a changed location preference unless that fact is explicitly documented in the candidate evidence or in the explicitly confirmed user-provided facts section below. If the job location differs from the documented preference, do not invent a relocation claim.
 
 TARGET JOB ANALYSIS (this is the authoritative job-specific context already prepared by career-ops):
 ${JSON.stringify(target, null, 2)}
+
+${userFacts?`USER-PROVIDED FACTS (explicitly confirmed by the user for this draft; these are not automatically treated as facts proven by the uploaded CV):\n${userFacts}\nUse them only at their exact factual strength. Do not add metrics, scope, seniority, tools, credentials or outcomes that the user did not state.`:''}
+${userPreferences?`USER CV PREFERENCES (presentation/selection guidance, not evidence):\n${userPreferences}\nFollow these preferences when compatible with accuracy and the one-page target. They never override the factual guardrails above.`:''}
 
 ${rejected?`PREVIOUS DRAFT FEEDBACK FROM THE USER:\n${rejected}\nAddress this feedback without inventing facts. Do not mention the feedback inside the CV.`:''}
 
@@ -274,9 +289,11 @@ async function renderDraftFiles(profileId:string,job:Job,version:Record<string,a
 }
 
 async function compareCvPresentation(profileId:string,job:Job,version:Record<string,any>,payload:TailoredPayload,locale:string,revision:number,hooks?:{onRun?:(run:any)=>void;onMetrics?:(metrics:any)=>void}) {
-  const legacyPrompt=`You are comparing how well TWO CV versions PRESENT the same candidate for ONE job. This is not hiring probability and not a new candidate-fit evaluation. The candidate's real capability is unchanged. Score only how clearly each CV surfaces documented, job-relevant evidence without exaggeration.\n\nUse the exact same 0-100 rubric for both versions: relevance/selection 35, specificity of evidence 30, recruiter scan clarity 20, honest keyword/requirement alignment 15. Do not reward keyword stuffing. Penalize invented or unsupported claims.\n\nReturn ONE JSON object only: {"baseline_score":0,"draft_score":0,"summary":"...","improvements":["..."],"remaining_gaps":["..."]}. Scores are integers 0-100.\n\nJOB DATA:\n${JSON.stringify({company:job.company,role:job.role,location:job.location,summary:job.summary,angle:job.angle,strengths:job.strengths,gaps:job.gaps,match:job.match,description:boundedText(job.sourceDescription||job.description,18000)},null,2)}\n\nMASTER CV:\n${boundedText(version.sources.cv.text,35000)}\n\nTAILORED DRAFT:\n${payloadText(payload)}\n\nOUTPUT LANGUAGE: ${locale}. ${explanationDirective(locale)}`;
+  const guidance=((job as any).cvGuidance || {}) as Partial<TailoredCvGuidance>;
+  const userFacts=boundedText(guidance.facts,4000).trim();
+  const legacyPrompt=`You are comparing how well TWO CV versions PRESENT the same candidate for ONE job. This is not hiring probability and not a new candidate-fit evaluation. The candidate's real capability is unchanged. Score only how clearly each CV surfaces documented, job-relevant evidence without exaggeration.\n\nUse the exact same 0-100 rubric for both versions: relevance/selection 35, specificity of evidence 30, recruiter scan clarity 20, honest keyword/requirement alignment 15. Do not reward keyword stuffing. Penalize invented or unsupported claims. ${userFacts?'Facts in USER-CONFIRMED FACTS are allowed candidate evidence at exactly the strength stated; do not infer beyond them.':''}\n\nReturn ONE JSON object only: {"baseline_score":0,"draft_score":0,"summary":"...","improvements":["..."],"remaining_gaps":["..."]}. Scores are integers 0-100.\n\nJOB DATA:\n${JSON.stringify({company:job.company,role:job.role,location:job.location,summary:job.summary,angle:job.angle,strengths:job.strengths,gaps:job.gaps,match:job.match,description:boundedText(job.sourceDescription||job.description,18000)},null,2)}\n\nMASTER CV:\n${boundedText(version.sources.cv.text,35000)}${userFacts?`\n\nUSER-CONFIRMED FACTS:\n${userFacts}`:''}\n\nTAILORED DRAFT:\n${payloadText(payload)}\n\nOUTPUT LANGUAGE: ${locale}. ${explanationDirective(locale)}`;
   const basis=job.v1Match as Record<string,any>|undefined;
-  const prompt=basis ? roleCvReviewPrompt({basis,master:boundedText(version.sources.cv.text,35000),draft:payloadText(payload),job:tailoredJobContext(job),locale}) : legacyPrompt;
+  const prompt=basis ? roleCvReviewPrompt({basis,master:boundedText(version.sources.cv.text,35000),draft:payloadText(payload),job:tailoredJobContext(job),locale,userProvidedFacts:userFacts}) : legacyPrompt;
   let output="",metrics:any={};
   await runModelTransport({cwd:workspaceRoot(),prompt,model:FLOW_DEFAULTS.cv.model as any,reasoning:FLOW_DEFAULTS.cv.reasoning as any,timeoutMs:180_000,onRun:run=>hooks?.onRun?.(run),onMetrics:m=>{metrics=m;hooks?.onMetrics?.(m);},onText:text=>{output+=text;},onFinalText:complete=>{output=complete;}});
   const parsed=extractJsonObject(output).obj as any;if(!parsed)throw new Error("La comparaison du CV n'a pas renvoyé de résultat structuré.");
@@ -300,6 +317,16 @@ function findDraft(store:Store,draftId:string) {
 }
 
 function writeStore(profileId:string,store:Store) { store.updatedAt=new Date().toISOString();atomicWrite(profileFile(profileId,"candidatures"),`${JSON.stringify(store,null,2)}\n`); }
+
+export function updateTailoredCvGuidance(profileId:string,jobId:string,input:{facts?:unknown;preferences?:unknown;userProvidedConfirmed?:boolean}) {
+  const store=readStore(profileId),job=store.jobs.find(item=>item.id===jobId);if(!job)throw new Error("Candidature introuvable.");
+  const facts=boundedText(input?.facts,4000).trim(),preferences=boundedText(input?.preferences,4000).trim();
+  if(facts && input?.userProvidedConfirmed!==true)throw new Error("Confirmez que les faits ajoutés viennent de vous avant de générer le CV.");
+  if(!facts && !preferences){delete (job as any).cvGuidance;writeStore(profileId,store);return {job,guidance:null};}
+  const now=new Date().toISOString();
+  const guidance:TailoredCvGuidance={facts,preferences,source:"user-provided",updatedAt:now,...(facts?{confirmedAt:now}:{})};
+  (job as any).cvGuidance=guidance;writeStore(profileId,store);return {job,guidance};
+}
 
 /** Existing V1 drafts predate the original-layout renderer. Re-render their
  * already-saved payload mechanically on first preview/download: no model call,
@@ -446,7 +473,7 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
   const locale=requestUiLocale(req,body.uiLocale);
   const material=["fr","en"].includes(String(body.applicationLanguage)) ? String(body.applicationLanguage) : profileCvOptions(profileId).language;
   const rejectedDraft=(job as any).cvDraft?.status==='rejected' ? (job as any).cvDraft : null;
-  const generationKey=JSON.stringify(["tailored-cv-v5-explicit-feedback",operationKey("cv",{jobId:job.id,applicationLanguage:material},inputVersion,[job]),rejectedDraft?[rejectedDraft.id,rejectedDraft.updatedAt,rejectedDraft.rejectionReason || '']:null]);
+  const generationKey=JSON.stringify(["tailored-cv-v6-user-guidance",operationKey("cv",{jobId:job.id,applicationLanguage:material},inputVersion,[job]),rejectedDraft?[rejectedDraft.id,rejectedDraft.updatedAt,rejectedDraft.rejectionReason || '']:null]);
   const generationFile=path.join(historyDirectory(profileId),"cv-generations",inputVersion.id,encodeURIComponent(job.id)+"-"+material+".json");
 
   const encoder = new TextEncoder();
@@ -459,7 +486,7 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
       };
       try {
         emit({ t: "progress", label: "Lecture du profil et du poste" });
-        const prompt = buildPrompt(profileId, job!, inputVersion,locale,material);
+        const prompt = buildTailoredCvPrompt(profileId, job!, inputVersion,locale,material);
         const cached=readJson(generationFile);
         let output = "";
         let generationMetrics:Record<string,any>={};
@@ -499,7 +526,7 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
           onMetrics:m=>{assessmentMetrics=m;},
         });
         const changes=cleanArray(payload.change_notes),now=new Date().toISOString();
-        const draft:TailoredDraft={matchBasis:job!.v1Match?structuredClone(job!.v1Match as Record<string,any>):undefined,id:draftId,status:"pending",baseVersionId:inputVersion.id,language:material,notesLocale:locale,revision,createdAt:now,updatedAt:now,payload,...rendered,changes:changes.length?changes:job!.cv?.changes??[],baselinePresentationScore:comparison.assessment.baselineScore,assessment:comparison.assessment};
+        const draft:TailoredDraft={matchBasis:job!.v1Match?structuredClone(job!.v1Match as Record<string,any>):undefined,id:draftId,status:"pending",baseVersionId:inputVersion.id,language:material,notesLocale:locale,revision,createdAt:now,updatedAt:now,payload,...rendered,changes:changes.length?changes:job!.cv?.changes??[],baselinePresentationScore:comparison.assessment.baselineScore,assessment:comparison.assessment,...((job as any).cvGuidance?{userProvidedGuidance:structuredClone((job as any).cvGuidance)}:{})};
         const latestStore=readStore(profileId),latestJob=latestStore.jobs.find(item=>item.id===body.id);
         if(!latestJob)return fail("La candidature a été supprimée pendant la génération ; le PDF de brouillon est conservé dans output.");
         (latestJob as any).cvDraft=draft;writeStore(profileId,latestStore);

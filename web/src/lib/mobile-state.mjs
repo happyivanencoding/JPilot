@@ -91,7 +91,7 @@ export function operationKey(kind, input, version, jobs, day = new Date().toISOS
   if (kind === 'deep_match') return JSON.stringify([kind, input.experience==='v1'?'role-fit-3-analysis-only-v1':'v1', version.id, normalizeUrl(input.url || input.offer?.url)]);
   if (kind === 'analysis') return JSON.stringify([kind, input.experience==='v1' ? 'analysis-v3-personal-orientation' : ANALYSIS_OPERATION_VERSION, version.id]);
   if (kind === 'search') return JSON.stringify([kind, input.experience==='v1' ? 'search-v12-candidate-lifecycle' : SEARCH_OPERATION_VERSION, version.id, clean(input.query), day, ...(input.experience==='v1'?[input.searchRevision || 'legacy',Number(input.refreshSequence || 0)]:[])]);
-  if (kind === 'cv') return JSON.stringify([kind, version.id, evidence(job), ...(input.applicationLanguage ? [input.applicationLanguage] : [])]);
+  if (kind === 'cv') return JSON.stringify([kind, version.id, evidence(job), job?.cvGuidance || null, ...(input.applicationLanguage ? [input.applicationLanguage] : [])]);
   if (kind === 'cv_review') return JSON.stringify([kind, input.jobId, input.draftId, Number(input.revision || 0)]);
   if (kind === 'rewrite') return JSON.stringify([kind, version.id, input.analysisId, [...(input.suggestionIds || [])].sort()]);
   if (kind === 'plan') return JSON.stringify([kind, version.id, evidence(job), Number(input.minutesPerDay || 30), clean(input.interviewDate)]);

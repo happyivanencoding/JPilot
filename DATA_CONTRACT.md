@@ -83,3 +83,13 @@ This source-file rule is presentation/data provenance. It does not authorize rew
 Search output belongs to the frozen Candidate Version that produced it. Updating or re-uploading a CV creates a new Candidate evidence version but does not delete earlier search history. Historical groups remain visible with their CV-version identity; scores from an older Candidate Version must not be projected as if they were scores for the current CV. The per-day new-direction budget is also scoped to the current Candidate Version. Presentation locale does not create another search identity. Explicit refresh may create a fresh search operation for the same direction without consuming another distinct-direction slot.
 
 Fast Match search results are a usable product result on their own. Deep Match, display localization and role-CV generation are enrichment layers and must not be required to declare the search itself complete. Failure or timeout in one enrichment layer must not remove already available offer rows or overwrite the Candidate/search provenance recorded above.
+
+## V1 role-specific CV user guidance authority (2026-09-12)
+
+Optional guidance entered before generating a role-specific CV belongs to that **saved candidature/job**, not to the Master CV or Candidate Version:
+
+- `cvGuidance.facts` contains facts explicitly supplied by the user for this one role. Non-empty factual guidance must be explicitly confirmed before it is persisted or used. It is marked `source: user-provided`; it must not be represented as if the uploaded CV already proved it.
+- `cvGuidance.preferences` contains presentation/selection preferences for this role CV only. Preferences are instructions, not candidate evidence, and cannot authorize invented experience, metrics, skills, credentials or availability.
+- Saving or changing guidance changes the role-CV operation identity, so an older equivalent CV-generation task/cache cannot be reused after the user's guidance changes.
+- Generation and role-CV review may use the exact confirmed user-provided facts at the strength stated by the user, but must not infer stronger claims. The generated draft snapshots the guidance used for traceability.
+- This guidance does not rewrite the Master CV, Candidate facts, original uploaded file, current role-match baseline or capability-gap authority. Existing Keep/Reject and draft confirmation boundaries remain unchanged.

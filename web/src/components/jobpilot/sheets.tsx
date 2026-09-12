@@ -22,24 +22,46 @@ export function OfferSheet({offer}:{offer:Json}) {
   return <JobSheet job={roleDetailForOffer(offer,rows(data.jobs))} offer={offer}/>;
 }
 export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
-  const { route, data, tr, product, navigate, startTask,tailorOffer,busy,error } = usePilot();
-  const tab = Math.min(2, Math.max(0, Number(route.jobTab) || 0));
+  const { route, data, tr, product, navigate, startTask,act,busy,error } = usePilot();
+  const requestedTab=Math.max(0,Number(route.jobTab)||0),tab=requestedTab===1?1:0;
+  const [trackingOpen,setTrackingOpen]=useState(requestedTab===2);
   const content=useRef<HTMLDivElement>(null);
   useEffect(()=>{if(content.current)content.current.scrollTop=0;},[tab,job.id]);
+  useEffect(()=>{setTrackingOpen(requestedTab===2);},[requestedTab,job.id]);
   const cv = job.cv || {}, cvDraft = job.cvDraft || null;
+  const guidance=job.cvGuidance || {};
+  const [guidanceFacts,setGuidanceFacts]=useState(String(guidance.facts||"")),[guidancePreferences,setGuidancePreferences]=useState(String(guidance.preferences||"")),[guidanceConfirmed,setGuidanceConfirmed]=useState(Boolean(guidance.confirmedAt));
+  useEffect(()=>{setGuidanceFacts(String(guidance.facts||""));setGuidancePreferences(String(guidance.preferences||""));setGuidanceConfirmed(Boolean(guidance.confirmedAt));},[job.id,guidance.updatedAt]);
+  const guidanceDirty=guidanceFacts.trim()!==String(guidance.facts||"").trim()||guidancePreferences.trim()!==String(guidance.preferences||"").trim()||Boolean(guidanceFacts.trim())&&guidanceConfirmed!==Boolean(guidance.confirmedAt);
   const hasCv=roleCvIsReady(job),detailScore=job.v1Match?.displayScore ?? job.v1Match?.currentScore ?? job.score;
   const deep=job.v1Match?.deepMatch || {},scoreRows=rows(deep.scoreBreakdown);
   const criterionTitle=(key:string,gap=false)=>key==='role'?(gap?tr("职业方向需确认","Domaine à confirmer","Role domain to clarify"):tr("职业方向直接匹配","Domaine directement aligné","Direct role fit")):key==='duties'?tr("职责覆盖","Couverture des responsabilités","Responsibility coverage"):key==='tools_languages'?tr("工具与语言","Outils et langues","Tools and languages"):key==='level'?tr("经验范围","Niveau d’expérience","Experience level"):tr("匹配依据","Élément de correspondance","Match evidence");
   const explicitStrengths=rows(deep.strengths),explicitGaps=rows(deep.capabilityGaps);
   const matchStrengths=explicitStrengths.length?explicitStrengths:scoreRows.filter(r=>Number(r.rating)>=3).slice(0,3).map(r=>({title:criterionTitle(String(r.key)),evidence:[r.reason,r.candidateEvidence].filter(Boolean).join(" · ")}));
   const matchGaps=explicitGaps.length?explicitGaps:scoreRows.filter(r=>Number(r.rating)<=2&&Number(r.deducted)>0).slice(0,4).map(r=>({title:criterionTitle(String(r.key),true),why:r.reason||r.jobEvidence||"",nextAction:""}));
+  const persistRoleCvGuidance=async()=>{
+    let jobId=String(job.id||"");
+    if(!jobId&&offer){const saved=await act({action:"saveOffer",offer});jobId=String(saved?.job?.id||"");}
+    if(!jobId)return "";
+    const facts=guidanceFacts.trim(),preferences=guidancePreferences.trim();
+    if(!guidanceDirty&&!facts&&!preferences)return jobId;
+    if(!guidanceDirty&&String(job.id||""))return jobId;
+    const saved=await act({action:"updateTailoredCvGuidance",jobId,facts,preferences,userProvidedConfirmed:!facts||guidanceConfirmed});
+    return saved?String(saved.job?.id||jobId):"";
+  };
+  const generateRoleCv=async()=>{
+    const jobId=await persistRoleCvGuidance();
+    if(!jobId)return;
+    await startTask({kind:"cv",jobId,retry:true});
+  };
   return <Sheet title={job.company} testId={offer?"offer-detail":`job-detail-${job.id}`}>
     <div className="onward-job-hero">
       <OnwardArcMotif className="job"/><CompanyMark company={String(job.company||"")}/>
-      <div className="onward-job-hero-copy"><span className="jp-company">{job.company}</span><h1>{job.role}</h1><MetaRow location={String(job.location||"")} contract={job.contract?product(job.contract):undefined}/><div className="jp-chips">{job.contract&&<Pill>{product(job.contract)}</Pill>}{job.workMode&&<Pill>{product(job.workMode)}</Pill>}</div><Button kind="text" onClick={()=>navigate({...route,jobTab:"2"},true)}>{tr("跟踪投递","Suivre la candidature","Track application")}</Button></div>
+      <div className="onward-job-hero-copy"><span className="jp-company">{job.company}</span><h1>{job.role}</h1><MetaRow location={String(job.location||"")} contract={job.contract?product(job.contract):undefined}/><div className="jp-chips">{job.contract&&<Pill>{product(job.contract)}</Pill>}{job.workMode&&<Pill>{product(job.workMode)}</Pill>}</div><Button kind="text" data-testid="toggle-job-tracking" onClick={()=>setTrackingOpen(value=>!value)}>{trackingOpen?tr("收起跟踪","Réduire le suivi","Hide tracking"):tr("跟踪投递","Suivre la candidature","Track application")}</Button></div>
       {job.v1Match&&<AnimatedMatchScore value={detailScore}/>}
     </div>
-    <Tabs labels={[tr("匹配", "Match", "Fit"), "CV", tr("跟踪", "Suivi", "Tracking")]} selected={tab} prefix="job-tab" muted={hasCv?[]:[1]} onChange={i => navigate({ ...route, jobTab: String(i) }, true)} />
+    {trackingOpen&&<div className="onward-inline-tracking" data-testid="inline-job-tracking"><Tracking key={job.url||job.id} job={job} offer={offer}/></div>}
+    <Tabs labels={[tr("匹配", "Match", "Fit"), "CV"]} selected={tab} prefix="job-tab" muted={hasCv?[]:[1]} onChange={i => navigate({ ...route, jobTab: String(i) }, true)} />
     <div className="jp-sheet-content" data-testid="job-content" ref={content}><Localization value={job.localization} />
       {tab===0&&job.localization?.pending&&<div className="jp-stack"><Loading/><Hint>{tr("正在翻译岗位分析…","Traduction de l’analyse du poste…","Translating role analysis…")}</Hint></div>}
       {tab===0&&!job.localization?.pending&&job.v1Match&&<>
@@ -64,14 +86,14 @@ export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
         <Card>{!hasCv&&<LockKeyhole size={28} className="jp-cv-locked-icon"/>}<h2 style={{fontSize:22}}>{tr("岗位版简历","Votre CV pour cette offre","Your CV for this role")}</h2>{!hasCv&&<Hint>{tr("根据这份岗位要求，重新组织你已有的经历。由你决定是否生成和保留。","Présentez votre parcours pour cette offre. Vous décidez de créer et de conserver le CV.","Present your existing experience for this role. You choose whether to generate and keep it.")}</Hint>}
           {!cvDraft?.id&&!cv.file&&<Hint>{tr("生成前不承诺加分。只有真实 PDF 生成并复核后，才会显示这份岗位简历带来的实际变化；没有提升时会明确显示 +0。","Aucun gain n’est promis avant la génération. La variation n’apparaît qu’après création et vérification du vrai PDF ; si rien ne progresse, le résultat affichera clairement +0.","No score gain is promised before generation. We show the actual change only after the real PDF is generated and reviewed; if there is no improvement, it will clearly show +0.")}</Hint>}
           {!cvDraft?.id&&!!rows(deep.presentationGaps).length&&<div className="jp-stack"><strong>{tr("这份岗位版 CV 会优先处理","Ce CV ciblera d’abord","This role CV will focus on")}</strong>{rows(deep.presentationGaps).slice(0,3).map((item,i)=><SemanticRow key={i} kind="document" title={String(item.title)} detail={String(item.why||"")}/>)}</div>}
+          {!cvDraft?.id&&(!cv.file||cv.inputVersionId!==data.cvState?.versionId)&&<div className="jp-stack onward-cv-guidance" data-testid="pre-generation-cv-guidance"><strong>{tr("生成前补充（可选）","Précisions avant génération (facultatif)","Add context before generating (optional)")}</strong><TextArea data-testid="cv-guidance-facts" label={tr("补充真实信息","Informations factuelles à ajouter","Additional factual information")} rows={3} value={guidanceFacts} onChange={e=>{setGuidanceFacts(e.target.value);setGuidanceConfirmed(false);}} placeholder={tr("只写你本人确认真实的经历、技能、数字或职责。","Ajoutez uniquement des faits réels que vous confirmez vous-même.","Only add experience, skills, figures or responsibilities you personally confirm are true.")}/><TextArea data-testid="cv-guidance-preferences" label={tr("这份简历怎么改","Préférences de réécriture","How you want this CV adapted")} rows={3} value={guidancePreferences} onChange={e=>setGuidancePreferences(e.target.value)} placeholder={tr("例如：保留某段经历；摘要更短；优先突出某个项目。","Ex. : conserver une expérience, raccourcir le résumé, mettre un projet en avant.","For example: keep a specific experience, shorten the summary, emphasize a project.")}/>{guidanceFacts.trim()&&<Check checked={guidanceConfirmed} onChange={setGuidanceConfirmed}>{tr("我确认以上补充事实来自本人且真实","Je confirme que les faits ajoutés viennent de moi et sont exacts","I confirm the added facts are mine and accurate")}</Check>}<div className="jp-row spread"><Hint>{tr("补充事实会标记为 user-provided，不会冒充原简历中已经证明的内容；改写偏好只影响这一个岗位版本。","Les faits ajoutés sont marqués user-provided et ne sont pas présentés comme déjà prouvés par le CV d’origine ; les préférences ne concernent que cette offre.","Added facts are marked user-provided and are not treated as already proven by the original CV; preferences apply only to this role version.")}</Hint><Button kind="text" data-testid="save-cv-guidance" disabled={busy||!guidanceDirty||Boolean(guidanceFacts.trim()&&!guidanceConfirmed)} onClick={()=>void persistRoleCvGuidance()}>{tr("保存补充","Enregistrer","Save context")}</Button></div></div>}
           {cv.file&&<Button kind="outline" onClick={()=>navigate({view:"pdf",job:job.id})}>{tr("查看已保留的岗位版简历","Voir le CV ciblé conservé","View saved role CV")}</Button>}
-          {cvDraft?.status!=="pending"&&(!cv.file||cv.inputVersionId!==data.cvState?.versionId)&&<AiProgressButton taskKind="cv" jobId={job.id||undefined} offerUrl={offer?.url} data-testid="generate-role-cv" disabled={busy} onClick={()=>offer?tailorOffer(offer):startTask({kind:"cv",jobId:job.id,retry:true})}>{cvDraft?.status==="rejected"?tr("根据反馈生成新版本","Créer une nouvelle version avec mon retour","Generate a new version from my feedback"):tr("生成我的岗位专属简历","Créer mon CV pour cette offre","Generate my role-specific CV")}</AiProgressButton>}
+          {cvDraft?.status!=="pending"&&(!cv.file||cv.inputVersionId!==data.cvState?.versionId)&&<AiProgressButton taskKind="cv" jobId={job.id||undefined} offerUrl={offer?.url} data-testid="generate-role-cv" disabled={busy||Boolean(guidanceFacts.trim()&&!guidanceConfirmed)} onClick={()=>void generateRoleCv()}>{cvDraft?.status==="rejected"?tr("根据反馈生成新版本","Créer une nouvelle version avec mon retour","Generate a new version from my feedback"):guidanceFacts.trim()||guidancePreferences.trim()?tr("确认补充并生成岗位简历","Confirmer et générer le CV ciblé","Confirm context and generate role CV"):tr("生成我的岗位专属简历","Créer mon CV pour cette offre","Generate my role-specific CV")}</AiProgressButton>}
           {error&&<p className="jp-error" role="alert">{error}</p>}
         </Card>
         {cvDraft && <TailoredCvDraftPanel job={job} />}
         {!!texts(cv.changes).length && <Card><h3>{tr("已保留版本的调整", "Adaptations de la version conservée", "Saved version changes")}</h3>{texts(cv.changes).map((s, i) => <p className="jp-bullet" key={i}>{s}</p>)}</Card>}{!!texts(cv.keywords).length && <Card><h3>{tr("岗位关键词", "Mots-clés du poste", "Role keywords")}</h3><p>{texts(cv.keywords).join(" · ")}</p></Card>}
       </>}
-      {tab === 2 && <Tracking key={job.url||job.id} job={job} offer={offer} />}
     </div>
   </Sheet>;
 }

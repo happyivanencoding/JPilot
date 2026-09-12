@@ -27,8 +27,9 @@ test('legacy drafts project one actual score without overwriting raw assessments
 test('negative or unsupported changes retain the baseline or original ceiling',()=>{
  assert.equal(normalizeRoleCvReview(basis,{raw_draft_score:20}).draftScore,31);assert.equal(normalizeRoleCvReview(basis,{raw_draft_score:100}).draftScore,43);
  assert.throws(()=>normalizeRoleCvReview(basis,{raw_draft_score:'invalid'}));
- const prompt=roleCvReviewPrompt({basis,master:'Original',draft:'Actual',job:{role:'Backend'},locale:'zh'});
+ const prompt=roleCvReviewPrompt({basis,master:'Original',draft:'Actual',job:{role:'Backend'},locale:'zh',userProvidedFacts:'Built a Tableau dashboard used weekly.'});
  assert.match(prompt,/SAME frozen/);assert.match(prompt,/31\/100/);assert.match(prompt,/NOT a promised/);assert.match(prompt,/NOT language ability/i);
+ assert.match(prompt,/explicitly supplied and confirmed by the user/);assert.match(prompt,/Built a Tableau dashboard used weekly/);
  assert.match(deepMatchPrompt({candidate:{},offer:{},fastMatch:{}}),/Never infer language proficiency/);
 });
 test('output language neither filters search nor claims a language skill',()=>{

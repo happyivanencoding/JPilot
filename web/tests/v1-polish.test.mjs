@@ -86,6 +86,14 @@ test('role-CV detail keeps the same before-after score surface even when uplift 
  assert.match(android,/if\(\(detail&&ready\)\|\|gain>0\)/);
  assert.match(android,/匹配分没有变化/);
 });
+test('job detail uses inline tracking instead of a third tab and exposes grounded pre-generation CV guidance',()=>{
+ const sheets=fs.readFileSync(new URL('../src/components/jobpilot/sheets.tsx',import.meta.url),'utf8');
+ assert.match(sheets,/data-testid="toggle-job-tracking"/);assert.match(sheets,/data-testid="inline-job-tracking"/);
+ assert.match(sheets,/labels=\{\[tr\("匹配", "Match", "Fit"\), "CV"\]\}/);
+ assert.doesNotMatch(sheets,/labels=\{\[tr\("匹配", "Match", "Fit"\), "CV", tr\("跟踪"/);
+ assert.match(sheets,/data-testid="pre-generation-cv-guidance"/);assert.match(sheets,/data-testid="cv-guidance-facts"/);assert.match(sheets,/data-testid="cv-guidance-preferences"/);
+ assert.match(sheets,/userProvidedConfirmed:!facts\|\|guidanceConfirmed/);assert.match(sheets,/标记为 user-provided/);
+});
 test('final rubric understands fit independently of retrieval score without an artificial 60 floor',()=>{
  const source={scoring_version:'role-fit-2',score_components:{role:25,duties:21,tools_languages:12,level:14},current_score:72,cv_potential_score:80,capability_potential_score:90};
  const match=normalizeDeepMatch(source,{score:35});

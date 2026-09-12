@@ -31,7 +31,7 @@ fs.mkdirSync(path.join(root,'reports'));
 const history=await import('../src/lib/mobile-history.ts');
 const engine=await import('../src/lib/mobile-engine.ts');
 const {evaluationCandidateFiles}=await import('../src/lib/evaluation-transport.ts');
-const {decideTailoredCvDraft,floorTailoredPresentationScore,tailoredJobContext}=await import('../src/lib/tailored-cv.ts');
+const {decideTailoredCvDraft,floorTailoredPresentationScore,tailoredJobContext,updateTailoredCvGuidance,buildTailoredCvPrompt}=await import('../src/lib/tailored-cv.ts');
 const {taskView}=await import('../src/lib/mobile-view.ts');
 const {findExistingCandidature}=await import('../src/lib/candidatures.ts');
 const p='fixture-a',q='fixture-b';
@@ -250,4 +250,20 @@ test('V1 tailored CV has full posting and deep-match context without requiring a
  assert.equal(context.v1_match.current_score,64);
  assert.deepEqual(context.v1_match.tools,['Excel','Power BI']);
  assert.equal(context.summary,undefined);
+});
+
+test('pre-generation tailored CV guidance is persisted, grounded, and changes CV task identity',()=>{
+ const file=path.join(root,profiles[0].candidatures),version=history.currentCandidateVersion(p);
+ const baseJob={id:'guidance-job',company:'Fixture',role:'Data Analyst',url:'https://example.org/guidance-job',status:'À candidater',cv:{file:'',changes:[],keywords:[]},followup:{nextAction:'',dueDate:'',note:''},v1Match:{currentScore:62,cvPotentialScore:70,deepMatch:{roleSummary:'Data analysis',capabilityGaps:[]}}};
+ writeJson(file,{candidate:p,jobs:[structuredClone(baseJob)],updatedAt:new Date().toISOString()});
+ assert.throws(()=>updateTailoredCvGuidance(p,'guidance-job',{facts:'Built a Tableau dashboard used weekly.',preferences:'Keep the analytics project prominent.'}),/Confirmez/);
+ const before=operationKey('cv',{jobId:'guidance-job',applicationLanguage:'en'},version,readCandidatureStore(p).jobs);
+ const saved=updateTailoredCvGuidance(p,'guidance-job',{facts:'Built a Tableau dashboard used weekly.',preferences:'Keep the analytics project prominent.',userProvidedConfirmed:true});
+ assert.equal(saved.guidance.source,'user-provided');assert.ok(saved.guidance.confirmedAt);
+ const persisted=readCandidatureStore(p).jobs.find(job=>job.id==='guidance-job');
+ assert.equal(persisted.cvGuidance.facts,'Built a Tableau dashboard used weekly.');
+ const afterKey=operationKey('cv',{jobId:'guidance-job',applicationLanguage:'en'},version,[persisted]);
+ assert.notEqual(afterKey,before,'confirmed guidance must invalidate a previously equivalent CV task/cache identity');
+ const prompt=buildTailoredCvPrompt(p,persisted,version,'en','en');
+ assert.match(prompt,/USER-PROVIDED FACTS/);assert.match(prompt,/Built a Tableau dashboard used weekly/);assert.match(prompt,/USER CV PREFERENCES/);assert.match(prompt,/analytics project prominent/);
 });
