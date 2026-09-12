@@ -42,6 +42,14 @@ test('AI action buttons progress left-to-right while first-run full-screen water
  assert.match(androidButton,/val liquidRight=size\.width\*progress/);
  assert.match(androidWater,/val waterY = size\.height \* \(1 - level\)/);
 });
+test('role-CV detail keeps the same before-after score surface even when uplift is zero',()=>{
+ const web=fs.readFileSync(new URL('../src/components/jobpilot/cv-outcome.tsx',import.meta.url),'utf8');
+ const android=fs.readFileSync(new URL('../../android/app/src/main/java/com/thegreatnovel/jobpilot/OnwardCvOutcome.kt',import.meta.url),'utf8');
+ assert.match(web,/if\(outcome\.ready && detail\)/);
+ assert.match(web,/匹配分没有变化/);
+ assert.match(android,/if\(\(detail&&ready\)\|\|gain>0\)/);
+ assert.match(android,/匹配分没有变化/);
+});
 test('final rubric understands fit independently of retrieval score without an artificial 60 floor',()=>{
  const source={scoring_version:'role-fit-2',score_components:{role:25,duties:21,tools_languages:12,level:14},current_score:72,cv_potential_score:80,capability_potential_score:90};
  const match=normalizeDeepMatch(source,{score:35});

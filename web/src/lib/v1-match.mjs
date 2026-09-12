@@ -65,6 +65,33 @@ function overlap(a,b){if(!a.size||!b.size)return 0;let hit=0;for(const token of 
 function evidenceText(candidate){return [candidate?.sources?.cv?.text,candidate?.sources?.config?.text,candidate?.sources?.notes?.text].map(value=>clean(value)).join('\n');}
 function offerText(offer){return [offer?.title,offer?.description,offer?.why,offer?.location,offer?.contractType].map(value=>clean(value)).join('\n');}
 
+const BREAKDOWN_TITLES={
+  role:'Direct role fit',duties:'Responsibilities to strengthen',tools_languages:'Tools / languages to clarify',level:'Level / scope to clarify',
+};
+function safeStructuredStrings(value,limit){
+  return (Array.isArray(value)?value:[]).map(x=>clean(x,1200))
+    .map(x=>x.replace(/\s*\]\s*,?\s*$/,'').trim())
+    .filter(x=>x&&!/^(requirements?|requirements?\s*\[|任职要求\s*\[|tools?\s*\[)/i.test(x))
+    .slice(0,limit);
+}
+function breakdownFallback(rows){
+  const source=Array.isArray(rows)?rows:[];
+  const strengths=source.filter(row=>Number(row?.rating)>=3).slice(0,3).map(row=>({
+    title:BREAKDOWN_TITLES[row.key]||'Relevant fit',
+    evidence:[clean(row?.reason,700),clean(row?.candidateEvidence,500)].filter(Boolean).join(' '),
+    impact:Math.max(1,Math.min(10,Math.round(Number(row?.rating||1)*2.5))),
+    fallback:true,
+  }));
+  const capabilityGaps=source.filter(row=>Number(row?.rating)<=2&&Number(row?.deducted)>0).slice(0,4).map(row=>({
+    title:BREAKDOWN_TITLES[row.key]||'Area to clarify',
+    why:clean(row?.reason,900),
+    nextAction:'',
+    potential:Math.max(1,Math.min(10,Math.round(Number(row?.deducted||1)/3))),
+    fallback:true,
+  }));
+  return {strengths,capabilityGaps};
+}
+
 export function fastMatchOffer(candidate,config,offer){
   const candidateText=evidenceText(candidate), jobText=offerText(offer);
   const cvTools=aliasHits(candidateText,TOOL_ALIASES), jobTools=aliasHits(jobText,TOOL_ALIASES);
@@ -128,16 +155,20 @@ export function normalizeDeepMatch(result,fastMatch){
   const cv=clamp(Math.max(current,Math.min(current+18,Number(result?.cv_potential_score)||current)),current,Math.min(100,current+18));
   const capability=clamp(Math.max(cv,Math.min(current+35,Number(result?.capability_potential_score)||cv)),cv,Math.min(100,current+35));
   const list=(value,limit)=>Array.isArray(value)?value.filter(x=>x&&typeof x==='object').slice(0,limit):[];
-  const strings=(value,limit)=>Array.isArray(value)?value.map(x=>String(x||'').trim()).filter(Boolean).slice(0,limit):[];
+  const strings=(value,limit)=>safeStructuredStrings(value,limit);
+  const rows=anchored?.rows || [];
+  const fallback=breakdownFallback(rows);
+  const strengths=list(result?.strengths,6).map(x=>({title:clean(x.title,220),evidence:clean(x.evidence,1000),impact:clamp(x.impact,1,10)})).filter(x=>x.title);
+  const capabilityGaps=list(result?.capability_gaps,7).map(x=>({title:clean(x.title,220),why:clean(x.why,1000),nextAction:clean(x.next_action,1000),potential:clamp(x.potential,1,10)})).filter(x=>x.title);
   return {
-    currentScore:current,scoringMethod:anchored?MATCH_METHOD:null,scoreBreakdown:anchored?.rows || [],scoreComponents:rubric ? {...rubric} : null,scoringVersion:rubric?"role-fit-2":"legacy-fast",
+    currentScore:current,scoringMethod:anchored?MATCH_METHOD:null,scoreBreakdown:rows,scoreComponents:rubric ? {...rubric} : null,scoringVersion:rubric?"role-fit-2":"legacy-fast",
     roleSummary:clean(result?.role_summary,1800),
     responsibilities:strings(result?.responsibilities,6),
     requirements:list(result?.requirements,8).map(x=>({title:clean(x.title,220),kind:x.kind==='must'?'must':'nice',why:clean(x.why,900)})).filter(x=>x.title),
     tools:strings(result?.tools,12),
-    strengths:list(result?.strengths,6).map(x=>({title:clean(x.title,220),evidence:clean(x.evidence,1000),impact:clamp(x.impact,1,10)})).filter(x=>x.title),
+    strengths:strengths.length?strengths:fallback.strengths,
     presentationGaps:list(result?.presentation_gaps,6).map(x=>({title:clean(x.title,220),why:clean(x.why,1000),potential:clamp(x.potential,1,10)})).filter(x=>x.title),
-    capabilityGaps:list(result?.capability_gaps,7).map(x=>({title:clean(x.title,220),why:clean(x.why,1000),nextAction:clean(x.next_action,1000),potential:clamp(x.potential,1,10)})).filter(x=>x.title),
+    capabilityGaps:capabilityGaps.length?capabilityGaps:fallback.capabilityGaps,
     cvPotentialScore:cv,capabilityPotentialScore:capability,
     cvPotentialReason:clean(result?.cv_potential_reason,1800),
     confidence:['low','medium','high'].includes(String(result?.confidence))?String(result.confidence):'medium',

@@ -1,5 +1,13 @@
 # JobPilot Android — implementation handoff
 
+## 2026-09-12 Onward V1 0.6.4 / Web 0.8.4 — complete sparse match surfaces + zero-uplift parity
+
+`Collective.work / Consultant FinOps - CDI (H/F)` exposed a partial structured-output path: anchored score rows were complete (65/100), but `strengths`, `capabilityGaps`, `presentationGaps`, `requirements` and `tools` were empty, so both clients rendered only the summary/score. New normalization falls back only to the existing anchored `scoreBreakdown` reasons/evidence, and both Web/Android also derive client-side fallback rows for already persisted sparse jobs. No new AI call is required and no missing capability is invented. Structural fragments such as `requirements [` are filtered from list fields.
+
+CV outcome presentation is also normalized: when a real prepared/draft/accepted role CV exists but the reviewed score remains unchanged, the detail surface now still renders the same baseline → role-CV score pair instead of collapsing to a single current score. For this FinOps example it is `65 → 65`, followed by a clear explanation that wording cannot remove real experience/skill gaps; the existing concrete `remainingGaps` remain visible.
+
+Android is **0.6.4/code32**, Web **0.8.4**. Targeted Node regression is **24/24 PASS**; Web typecheck/build PASS; Android assembleDebug PASS. Samsung **SM-S928U1 / R5CXB0BSTVD** was upgraded in place with `adb install -r`, preserving data; package readback is 0.6.4/code32. APK `.career-ops-web/onward-064/Onward-V1-0.6.4-code32.apk`, 19,671,019 bytes, SHA-256 `C1CE9CA44D15F85CAE7DBF1442B62ADAAC0FDD5DE9CB8CFD4E0621E8E6F5C2B0`; same APK is in phone Download. Public V1 rollout remains subject to the V1-only deploy receipt; production/Yifeng must remain untouched.
+
 ## 2026-09-12 Onward V1 0.6.3 / Web 0.8.3 — role-CV source layout + horizontal AI buttons
 
 Youness 的 `Consultant FinOps - CDI (H/F)` 岗位版 CV 失败来自后端 PDF renderer，不是模型调用：服务器两次 `cv` task 都在已有 cached generation 后报 `Le CV occupe 2 pages pour une limite de 1`。真实源 PDF 是 1 页 960×540pt 横向双栏；旧解析丢失列/页几何后按 A4 单栏重排才变成 2 页。V1 renderer 现在保留 source `column` / `columnFractions` / `pageWidth` / `pageHeight`、email/phone，并补识别 `PROFESSIONAL EXPERIENCE`；同版式首次超页才做一次 compact retry。用 Youness 真实 source + 已缓存 generation 做了无模型实测，输出 **1 页、ATS 100、无 issue**，邮箱与手机号均保留。

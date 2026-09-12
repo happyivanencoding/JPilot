@@ -26,6 +26,11 @@ export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
   const tab = Math.min(2, Math.max(0, Number(route.jobTab) || 0));
   const cv = job.cv || {}, cvDraft = job.cvDraft || null;
   const hasCv=roleCvIsReady(job),detailScore=job.v1Match?.displayScore ?? job.v1Match?.currentScore ?? job.score;
+  const deep=job.v1Match?.deepMatch || {},scoreRows=rows(deep.scoreBreakdown);
+  const criterionTitle=(key:string,gap=false)=>key==='role'?(gap?tr("职业方向需确认","Domaine à confirmer","Role domain to clarify"):tr("职业方向直接匹配","Domaine directement aligné","Direct role fit")):key==='duties'?tr("职责覆盖","Couverture des responsabilités","Responsibility coverage"):key==='tools_languages'?tr("工具与语言","Outils et langues","Tools and languages"):key==='level'?tr("经验范围","Niveau d’expérience","Experience level"):tr("匹配依据","Élément de correspondance","Match evidence");
+  const explicitStrengths=rows(deep.strengths),explicitGaps=rows(deep.capabilityGaps);
+  const matchStrengths=explicitStrengths.length?explicitStrengths:scoreRows.filter(r=>Number(r.rating)>=3).slice(0,3).map(r=>({title:criterionTitle(String(r.key)),evidence:[r.reason,r.candidateEvidence].filter(Boolean).join(" · ")}));
+  const matchGaps=explicitGaps.length?explicitGaps:scoreRows.filter(r=>Number(r.rating)<=2&&Number(r.deducted)>0).slice(0,4).map(r=>({title:criterionTitle(String(r.key),true),why:r.reason||r.jobEvidence||"",nextAction:""}));
   return <Sheet title={job.company} testId={offer?"offer-detail":`job-detail-${job.id}`}>
     <div className="onward-job-hero">
       <OnwardArcMotif className="job"/><CompanyMark company={String(job.company||"")}/>
@@ -37,8 +42,8 @@ export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
       {tab===0&&job.localization?.pending&&<Loading/>}
       {tab===0&&!job.localization?.pending&&job.v1Match&&<>
         <section className="onward-match-summary"><div><h3>{tr("你的匹配","Votre correspondance","Your match")}</h3><p>{job.v1Match.deepMatch?.roleSummary||tr("基于你当前简历中的真实经历。","À partir des éléments réels de votre CV.","Based on evidence already present in your CV.")}</p></div><CvOutcome value={job} detail/></section>
-        {!!rows(job.v1Match.deepMatch?.strengths).length&&<section className="onward-detail-section"><h3>{tr("为什么这个岗位适合你","Pourquoi ce poste vous va","Why this role fits")}</h3>{rows(job.v1Match.deepMatch.strengths).slice(0,5).map((item,i)=><SemanticRow key={i} title={String(item.title)} detail={String(item.evidence||"")}/>)}</section>}
-        {!!rows(job.v1Match.deepMatch?.capabilityGaps).length&&<section className="onward-detail-section"><h3>{tr("需要补强","À renforcer","To strengthen")}</h3>{rows(job.v1Match.deepMatch.capabilityGaps).slice(0,5).map((item,i)=><SemanticRow key={i} kind="gap" title={String(item.title)} detail={String(item.nextAction||item.why||"")}/>)}</section>}
+        {!!matchStrengths.length&&<section className="onward-detail-section"><h3>{tr("为什么这个岗位适合你","Pourquoi ce poste vous va","Why this role fits")}</h3>{matchStrengths.slice(0,5).map((item,i)=><SemanticRow key={i} title={String(item.title)} detail={String(item.evidence||"")}/>)}</section>}
+        {!!matchGaps.length&&<section className="onward-detail-section"><h3>{tr("需要补强","À renforcer","To strengthen")}</h3>{matchGaps.slice(0,5).map((item,i)=><SemanticRow key={i} kind="gap" title={String(item.title)} detail={String(item.nextAction||item.why||"")}/>)}</section>}
         {!!rows(job.v1Match.deepMatch?.presentationGaps).length&&<section className="onward-detail-section"><h3>{tr("简历表达可以更好","À mieux présenter dans le CV","CV presentation to sharpen")}</h3>{rows(job.v1Match.deepMatch.presentationGaps).slice(0,4).map((item,i)=><SemanticRow key={i} kind="document" title={String(item.title)} detail={String(item.why||"")}/>)}</section>}
         <section className="onward-detail-section onward-actions"><h3>{tr("建议操作","Actions suggérées","Suggested actions")}</h3><button type="button" onClick={()=>navigate({...route,jobTab:"1"},true)}><SemanticRow kind="document" title={tr("为这个岗位创建 CV","Créer un CV ciblé pour ce poste","Create a targeted CV for this role")} chevron/></button><External url={job.url}><SemanticRow kind="company" title={tr("查看公司与原始职位","Découvrir l’entreprise et l’annonce","View the company and original posting")} chevron/></External></section>
       </>}

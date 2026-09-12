@@ -261,6 +261,14 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
     val deep = match.child("deepMatch")
     val current = match.optInt("currentScore", match.optInt("displayScore", -1))
     val display = match.optInt("displayScore", current)
+    val roleFitTitle=tr("职业方向直接匹配","Domaine directement aligné","Direct role fit")
+    val roleGapTitle=tr("职业方向需确认","Domaine à confirmer","Role domain to clarify")
+    val criterionTitles=mapOf("duties" to tr("职责覆盖","Couverture des responsabilités","Responsibility coverage"),"tools_languages" to tr("工具与语言","Outils et langues","Tools and languages"),"level" to tr("经验范围","Niveau d’expérience","Experience level"))
+    val genericCriterionTitle=tr("匹配依据","Élément de correspondance","Match evidence")
+    fun criterionTitle(key:String,gap:Boolean=false)=if(key=="role")if(gap)roleGapTitle else roleFitTitle else criterionTitles[key]?:genericCriterionTitle
+    val scoreRows=deep.objects("scoreBreakdown")
+    val matchStrengths=deep.objects("strengths").ifEmpty {scoreRows.filter {it.optInt("rating")>=3}.take(3).map {row->json("title" to criterionTitle(row.text("key")),"evidence" to listOf(row.text("reason"),row.text("candidateEvidence")).filter(String::isNotBlank).joinToString(" · "))}}
+    val matchGaps=deep.objects("capabilityGaps").ifEmpty {scoreRows.filter {it.optInt("rating")<=2&&it.optInt("deducted")>0}.take(4).map {row->json("title" to criterionTitle(row.text("key"),true),"why" to row.text("reason"))}}
     LaunchedEffect(tab,roleKey,state.cvPreview,state.previewLoading) {if(state.cvPreview==null&&!state.previewLoading)vm.analytics.navigate(listOf("job_match","job_cv","job_tracking")[tab],when(tab){1->"view_cv";2->"tracking";else->null})}
     var reply by rememberSaveable(roleKey) {mutableStateOf(job.child("followup").text("replyNote"))}
     var status by rememberSaveable(roleKey) { mutableStateOf(job.text("status")) }
@@ -311,16 +319,14 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
                                 OnwardCvOutcome(job,detail=true)
                             }
                         }
-                        val strengths=deep.objects("strengths")
-                        if(strengths.isNotEmpty()) item {
+                        if(matchStrengths.isNotEmpty()) item {
                             EditorialSection(tr("为什么这个岗位适合你","Pourquoi ce poste vous va","Why this role fits")) {
-                                strengths.take(5).forEach {item->SemanticRow(item.text("title"),item.text("evidence"))}
+                                matchStrengths.take(5).forEach {item->SemanticRow(item.text("title"),item.text("evidence"))}
                             }
                         }
-                        val gaps=deep.objects("capabilityGaps")
-                        if(gaps.isNotEmpty()) item {
+                        if(matchGaps.isNotEmpty()) item {
                             EditorialSection(tr("需要补强","À renforcer","To strengthen")) {
-                                gaps.take(5).forEach {item->SemanticRow(item.text("title"),item.text("nextAction").ifBlank {item.text("why")},kind="gap")}
+                                matchGaps.take(5).forEach {item->SemanticRow(item.text("title"),item.text("nextAction").ifBlank {item.text("why")},kind="gap")}
                             }
                         }
                         val presentation=deep.objects("presentationGaps")

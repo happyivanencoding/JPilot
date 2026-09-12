@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {normalizeRoleCvReview,roleCvReviewPrompt} from '../src/lib/v1-cv-review.mjs';
-import {projectV1JobScores,matchScoreView,v1CvAssessment,deepMatchPrompt} from '../src/lib/v1-match.mjs';
+import {normalizeDeepMatch,projectV1JobScores,matchScoreView,v1CvAssessment,deepMatchPrompt} from '../src/lib/v1-match.mjs';
 import {buildProviderInput,rankSearchResults} from '../src/lib/job-search/index.mjs';
 import {searchRequestFromConfig} from '../src/lib/job-search/mobile-context.mjs';
 import {detectedDocumentLanguage,publicError} from '../src/lib/language-contract.mjs';
@@ -73,4 +73,22 @@ test('page overflow is explained instead of collapsing to the generic failure co
  const raw='Le CV occupe 2 pages pour une limite de 1. Réduisez le contenu du brouillon.';
  assert.match(publicError(new Error(raw),'zh'),/超过当前一页版式/);
  assert.match(publicError(new Error(raw),'fr'),/dépasse la mise en page/);
+});
+test('partial deep-match JSON falls back to anchored score evidence instead of rendering empty sections',()=>{
+ const normalized=normalizeDeepMatch({
+  scoring_version:'role-fit-2',scoring_method:'anchored-4x4-v1',
+  ratings:{role:4,duties:2,tools_languages:2,level:2},
+  score_rationale:{
+   role:{reason:'Direct FinOps governance match.',job_evidence:'FinOps orienté gouvernance',cv_evidence:'Governance Specialist Cloud Cost Management',unknown:false},
+   duties:{reason:'Delegated squad budgets and recurring review rituals are unclear.',job_evidence:'budgets délégués',cv_evidence:'Built chargeback and showback frameworks',unknown:true},
+   tools_languages:{reason:'GCP and Excel/Sheets are unclear.',job_evidence:'GCP en priorité',cv_evidence:'AWS, Cloudability, SQL',unknown:true},
+   level:{reason:'30–50 squad distributed FinOps scope is unclear.',job_evidence:'30 à 50 squads',cv_evidence:'Nine years implementing governance platforms',unknown:true},
+  },
+  responsibilities:['Design cloud budgets.],','requirements ['],requirements:[],tools:[],strengths:[],presentation_gaps:[],capability_gaps:[],
+  cv_potential_score:65,capability_potential_score:65,
+ },{score:60});
+ assert.equal(normalized.currentScore,65);
+ assert.equal(normalized.strengths.length,1);assert.match(normalized.strengths[0].evidence,/FinOps governance/);
+ assert.equal(normalized.capabilityGaps.length,3);assert.ok(normalized.capabilityGaps.every(x=>x.why));
+ assert.deepEqual(normalized.responsibilities,['Design cloud budgets.']);
 });

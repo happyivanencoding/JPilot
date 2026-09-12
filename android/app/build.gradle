@@ -6,8 +6,8 @@ android {
         applicationId 'com.thegreatnovel.jobpilot.v1'
         minSdk 26
         targetSdk 36
-        versionCode 31
-        versionName '0.6.3'
+        versionCode 32
+        versionName '0.6.4'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         buildConfigField 'String', 'API_BASE_URL', '"https://jobs-v1.thegreatnovel.com"'
     }
