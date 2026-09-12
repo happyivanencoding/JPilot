@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import * as yaml from 'js-yaml';
-import {roleCvOutcome,reusablePreparedCv} from '../src/lib/onward-cv.mjs';
+import {roleCvOutcome} from '../src/lib/onward-cv.mjs';
 import {offerInSearchArea,normalizeSearchArea} from '../src/lib/search-area.mjs';
 import {applyJobUpdate} from '../src/lib/mobile-domain.mjs';
 import {operationKey} from '../src/lib/mobile-state.mjs';
@@ -13,19 +13,19 @@ import {rankSearchResults} from '../src/lib/job-search/index.mjs';
 
 const matchBasis={currentScore:50,cvPotentialScore:65};
 const prepared={versionId:'v1',language:'en',matchBasis,payload:{summary:'Relevant existing research',experience:[]},assessment:{scoringVersion:'role-fit-2-cv',baselineScore:50,draftScore:58,delta:8}};
-const task={kind:'deep_match',status:'completed',inputVersionId:'v1',input:{url:'https://example.test/role'},result:{preparedCv:prepared}};
-test('one assessed prepared payload and score survive draft and acceptance',()=>{
- assert.equal(reusablePreparedCv([task],'v1','https://example.test/role/','en',50),prepared);
- for(const [version,language,baseline] of [['v2','en',50],['v1','fr',50],['v1','en',51]]) assert.equal(reusablePreparedCv([task],version,task.input.url,language,baseline),null);
- const values=[{deepMatch:{...matchBasis,preparedCvScore:58}},{v1Match:matchBasis,cvDraft:{status:'pending',matchBasis,assessment:prepared.assessment}},{v1Match:matchBasis,cv:{file:'role.pdf',matchBasis,presentationScore:58}}];
+const task={kind:'deep_match',status:'completed',inputVersionId:'v1',input:{url:'https://example.test/role'},result:{deepMatch:matchBasis}};
+test('public CV uplift exists only for a real assessed draft or accepted document',()=>{
+ const values=[{v1Match:matchBasis,cvDraft:{status:'pending',matchBasis,assessment:prepared.assessment}},{v1Match:matchBasis,cv:{file:'role.pdf',matchBasis,presentationScore:58}}];
  for(const value of values) assert.deepEqual([roleCvOutcome(value).baseline,roleCvOutcome(value).score,roleCvOutcome(value).gain,roleCvOutcome(value).ready],[50,58,8,true]);
+ assert.deepEqual(roleCvOutcome({deepMatch:{...matchBasis,preparedCvScore:58}}),{baseline:50,score:50,gain:0,ready:false,kind:'none'});
  assert.equal(roleCvOutcome({deepMatch:{...matchBasis,cvPotentialScore:65}}).ready,false);
  assert.equal(roleCvOutcome({v1Match:matchBasis,cvDraft:{status:'pending',assessment:{baselineScore:70,draftScore:78,delta:8}}}).score,58);
  assert.equal(roleCvOutcome({v1Match:matchBasis,cvDraft:{status:'pending',assessment:null}}).ready,false);
 });
-test('prepared content identities separate application languages',()=>{
+test('deep-match identity ignores application CV language; CV generation owns that dimension',()=>{
  const input={experience:'v1',url:task.input.url};
- assert.notEqual(operationKey('deep_match',{...input,applicationLanguage:'en'},{id:'v1'},[]),operationKey('deep_match',{...input,applicationLanguage:'fr'},{id:'v1'},[]));
+ assert.equal(operationKey('deep_match',{...input,applicationLanguage:'en'},{id:'v1'},[]),operationKey('deep_match',{...input,applicationLanguage:'fr'},{id:'v1'},[]));
+ assert.notEqual(operationKey('cv',{jobId:'j1',applicationLanguage:'en'},{id:'v1'},[{id:'j1',url:task.input.url}]),operationKey('cv',{jobId:'j1',applicationLanguage:'fr'},{id:'v1'},[{id:'j1',url:task.input.url}]));
 });
 test('explicit search geography rejects outside and ambiguous locations at ranking time',()=>{
  const area=normalizeSearchArea({scope:'city',city:' Paris  '});

@@ -235,7 +235,7 @@ test('tailored CV remains a draft until explicit keep; reject never replaces the
  const before=JSON.stringify(readCandidatureStore(p).jobs[0].cv);
  const kept=await decideTailoredCvDraft(p,'draft-keep','accept');assert.equal(kept.job.cv.file,'output/draft.pdf');assert.equal(kept.job.cv.presentationScore,74);assert.equal(kept.job.status,'CV prêt');
  const rejectedBefore=JSON.stringify(readCandidatureStore(p).jobs.find(j=>j.id==='draft-reject').cv);
- await decideTailoredCvDraft(p,'draft-no','reject');const rejected=readCandidatureStore(p).jobs.find(j=>j.id==='draft-reject');assert.equal(JSON.stringify(rejected.cv),rejectedBefore);assert.equal(rejected.cvDraft.status,'rejected');
+ await decideTailoredCvDraft(p,'draft-no','reject','Keep the analytics project and make the summary more specific.');const rejected=readCandidatureStore(p).jobs.find(j=>j.id==='draft-reject');assert.equal(JSON.stringify(rejected.cv),rejectedBefore);assert.equal(rejected.cvDraft.status,'rejected');assert.match(rejected.cvDraft.rejectionReason,/analytics project/);
  assert.notEqual(before,JSON.stringify(kept.job.cv));
 });
 

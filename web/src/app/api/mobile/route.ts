@@ -88,26 +88,24 @@ export async function GET(req: Request) {
     const activeAnalysis=tasks.find((t:MobileTask)=>t.kind==="analysis"&&t.inputVersionId===version.id&&["queued","running","reconciling"].includes(t.status));
     const failedV1Analysis=tasks.find((t:MobileTask)=>t.kind==="analysis"&&t.inputVersionId===version.id&&["failed","interrupted"].includes(t.status)&&(String(t.input?.source||"").startsWith("v1-")||String(t.operationKey||"").includes("analysis-v")));
     const selectedSearchTask=tasks.find((t:MobileTask)=>t.id===journey.searchTaskId&&t.kind==="search"&&t.inputVersionId===version.id);
-    const isV1SearchTask=(t:MobileTask)=>t.kind==="search"&&t.inputVersionId===version.id&&(t.input?.experience==="v1"||String(t.operationKey||"").includes("search-v"));
-    const latestSearchTask=selectedSearchTask || tasks.find(isV1SearchTask);
-    const completedSearches=tasks.filter((t:MobileTask)=>isV1SearchTask(t)&&t.status==="completed"&&Array.isArray(t.result?.offers));
-    const latestSearch=selectedSearchTask?.status==="completed" ? selectedSearchTask : completedSearches[0];
+    const isAnyV1SearchTask=(t:MobileTask)=>t.kind==="search"&&(t.input?.experience==="v1"||String(t.operationKey||"").includes("search-v"));
+    const isCurrentV1SearchTask=(t:MobileTask)=>isAnyV1SearchTask(t)&&t.inputVersionId===version.id;
+    const latestSearchTask=selectedSearchTask || tasks.find(isCurrentV1SearchTask);
+    const completedCurrentSearches=tasks.filter((t:MobileTask)=>isCurrentV1SearchTask(t)&&t.status==="completed"&&Array.isArray(t.result?.offers));
+    const completedSearches=tasks.filter((t:MobileTask)=>isAnyV1SearchTask(t)&&t.status==="completed"&&Array.isArray(t.result?.offers));
+    const latestSearch=selectedSearchTask?.status==="completed" ? selectedSearchTask : completedCurrentSearches[0];
     const projectDiscovery=(task?:MobileTask)=>{
-      const result=discoveryProjection(task?.result || null,projectedJobs,currentVersionTasks(tasks,version.id));
+      const currentVersion=!!task && task.inputVersionId===version.id;
+      const result=discoveryProjection(task?.result || null,currentVersion?projectedJobs:[],currentVersion?currentVersionTasks(tasks,version.id):[]);
       const eligible=result.offers.filter((o:any)=>contractMatches(o,(config as any)?.target_roles?.contract_types || []).matches);
       return {...result,offers:(preview?eligible:topDiscoveryOffers(eligible)).slice(0,preview?4:DISCOVERY_OFFER_LIMIT),displayLimit:DISCOVERY_OFFER_LIMIT,availableCount:eligible.length};
     };
-    const currentDiscovery={...projectDiscovery(latestSearch),taskId:latestSearch?.id || null,query:String(latestSearch?.input?.query || "")};
-    const seenOfferUrls=new Set((currentDiscovery.offers || []).map((offer:any)=>String(offer.url || "")));
+    const currentDiscovery={...projectDiscovery(latestSearch),taskId:latestSearch?.id || null,query:String(latestSearch?.input?.query || ""),candidateVersionId:latestSearch?.inputVersionId || version.id,cvVersion:latestSearch?.cvVersion ?? version.cvVersion,staleForCurrentCv:false};
     const searchHistory=compactDirectionHistory(completedSearches.filter((t:MobileTask)=>t.id!==latestSearch?.id),analysis || {}).slice(0,24).flatMap((task:MobileTask)=>{
       const projected=projectDiscovery(task);
-      const offers=(projected.offers || []).filter((offer:any)=>{
-        const url=String(offer.url || "");
-        if(!url || seenOfferUrls.has(url)) return false;
-        seenOfferUrls.add(url);return true;
-      });
+      const offers=[...new Map((projected.offers || []).filter((offer:any)=>offer.url).map((offer:any)=>[String(offer.url),offer])).values()];
       if(!offers.length)return [];
-      return [{taskId:task.id,query:String(task.input?.query || ""),searchedAt:task.updatedAt || task.createdAt || "",offers}];
+      return [{taskId:task.id,query:String(task.input?.query || ""),searchedAt:task.updatedAt || task.createdAt || "",candidateVersionId:task.inputVersionId || null,cvVersion:task.cvVersion ?? null,staleForCurrentCv:task.inputVersionId!==version.id,offers}];
     });
     const snapshot={
       version: "0.6.0", profile: { id: profileId, name: getProfile(profileId).name }, profiles,
@@ -122,7 +120,7 @@ export async function GET(req: Request) {
         analysisState:activeAnalysis?.status || (v1AnalysisReady?"completed":failedV1Analysis?.status || "pending"),
         searchState:v1AnalysisReady ? (latestSearchTask?.status || "pending") : "pending",
         needsBootstrap:Boolean(cv.trim())&&!v1AnalysisReady&&!activeAnalysis&&!failedV1Analysis,
-        backgroundActive:tasks.some((t:MobileTask)=>t.input?.silent===true&&["queued","running","reconciling"].includes(t.status)),
+        backgroundActive:tasks.some((t:MobileTask)=>t.input?.silent===true&&["analysis","search","ingest"].includes(t.kind)&&["queued","running","reconciling"].includes(t.status)),
         deepMatchPrefetchLimit:DISCOVERY_OFFER_LIMIT,
       },
       discovery:{...currentDiscovery,history:searchHistory},
@@ -225,13 +223,13 @@ export async function POST(req: Request) {
     }
     if (body.action === "decideCvDraft") return Response.json(await decideCvDraft(profileId,String(body.draftId),String(body.decision)));
     if (body.action === "updateTailoredCvDraft") {
-      const draft=await updateTailoredCvDraft(profileId,String(body.draftId),body.payload);
+      const draft=await updateTailoredCvDraft(profileId,String(body.draftId),body.payload,body.userProvidedConfirmed===true);
       const store=readCandidatureStore(profileId);
       const job=store.jobs.find((item:any)=>item.cvDraft?.id===draft.id);
       const reviewTask=job?await startMobileTask(profileId,{kind:"cv_review",jobId:job.id,draftId:draft.id,revision:draft.revision,retry:true,silent:true,source:"v1-auto-after-draft-edit",uiLocale:locale}):null;
       return Response.json({ok:true,draft,reviewTaskId:reviewTask?.id || null,reviewState:reviewTask?.status || null});
     }
-    if (body.action === "decideTailoredCvDraft") return Response.json(await decideTailoredCvDraft(profileId,String(body.draftId),String(body.decision)));
+    if (body.action === "decideTailoredCvDraft") return Response.json(await decideTailoredCvDraft(profileId,String(body.draftId),String(body.decision),String(body.reason || "")));
     return Response.json({ error: publicError("Action inconnue.",locale) }, { status: 400 });
   } catch (e) {
     if((e as any)?.code==="direction-budget") return Response.json({error:(e as Error).message,code:"direction-budget"},{status:429});
