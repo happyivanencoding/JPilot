@@ -57,8 +57,7 @@ test('V1 tailored CV keeps the original identity/contact/layout family while rep
  assert.equal(tailored.match(/font:10pt\/1\.24 Georgia/g)?.length,source.match(/font:10pt\/1\.24 Georgia/g)?.length);
 });
 test('V1 tailored CV preserves a detected two-column topology and exposes a compact retry mode',()=>{
- const layout={name:'Youness Kinani',headline:'Enterprise Platform & IT',columnCount:2,pageCount:1,sections:[
-  {kind:'contact',column:0,blocks:[{kind:'text',text:'youness@example.com · Paris'}]},
+ const layout={name:'Youness Kinani',headline:'Enterprise Platform & IT',contact:['youness@example.com','(+33) 6 12 34 56 78'],columnCount:2,columnFractions:[.76,.24],pageCount:1,pageWidth:960,pageHeight:540,sections:[
   {kind:'skills',column:0,title:'TECHNICAL SKILLS',blocks:[{kind:'text',text:'FinOps, TBM, SQL, APIs'}]},
   {kind:'experience',column:1,title:'PROFESSIONAL EXPERIENCE',blocks:[{kind:'entry',text:'IBM — 2022–Present'},{kind:'bullet',text:'Cloud cost governance.'}]},
   {kind:'education',column:0,title:'EDUCATION',blocks:[{kind:'entry',text:'ENSIAS — 2016'}]},
@@ -67,7 +66,7 @@ test('V1 tailored CV preserves a detected two-column topology and exposes a comp
  const html=professionalTailoredHtml({content:'',layoutSource:layout,language:'en',tailoredPayload});
  const compact=professionalTailoredHtml({content:'',layoutSource:layout,language:'en',tailoredPayload,compact:true});
  assert.match(html,/class="cv-columns"/);assert.equal((html.match(/class="cv-column"/g)||[]).length,2);
- assert.match(html,/youness@example\.com/);assert.match(html,/Chargeback and showback governance/);assert.match(html,/TECHNICAL SKILLS/);
+ assert.match(html,/youness@example\.com/);assert.match(html,/\(\+33\) 6 12 34 56 78/);assert.match(html,/size:960pt 540pt/);assert.match(html,/Chargeback and showback governance/);assert.match(html,/TECHNICAL SKILLS/);
  assert.match(compact,/<body class="compact">/);
 });
 test('page overflow is explained instead of collapsing to the generic failure copy',()=>{

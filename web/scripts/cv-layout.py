@@ -9,7 +9,7 @@ HEADINGS = {
     "contact": r"contact|coordonnees|personal details",
     "profile": r"profil|profile|summary|objective|about me",
     "education": r"formation|education|academic|etudes",
-    "experience": r"experience|experiences|employment|work history",
+    "experience": r"professional experience|experience professionnelle|experience|experiences|employment|work history",
     "projects": r"projets?|projects?|engagement|volunteer|activities",
     "languages": r"langues|languages|language skills",
     "tools": r"outils|tools|software|technical skills",
@@ -36,7 +36,11 @@ def pdf_layout(filename):
     name = ''
     headline = ''
     footer = []
+    contact = []
     max_columns = 1
+    column_fractions = None
+    first_page_width = float(doc[0].rect.width) if len(doc) else 595.0
+    first_page_height = float(doc[0].rect.height) if len(doc) else 842.0
     for page_number, page in enumerate(doc):
         rows = []
         for block in page.get_text('dict')['blocks']:
@@ -48,6 +52,8 @@ def pdf_layout(filename):
                 x0, y0, x1, y1 = line['bbox']
                 rows.append(dict(text=text, x=x0, y=y0, right=x1, bottom=y1,
                                  size=max(s['size'] for s in spans), bold=any(s.get('flags', 0) & 16 for s in spans)))
+                if re.search(r'@|linkedin|(?:\+|00)\s*\d|\(\+\d', text, re.I) and text not in contact:
+                    contact.append(text)
         if not rows:
             continue
         body = [r for r in rows if r['y'] < page.rect.height * .94]
@@ -70,6 +76,11 @@ def pdf_layout(filename):
                 split=mid;break
         columns = [[r for r in body if r['x']<split], [r for r in body if r['x']>=split]] if split else [body]
         max_columns = max(max_columns, len(columns))
+        if len(columns) > 1:
+            widths = [max(r['right'] for r in column) - min(r['x'] for r in column) for column in columns if column]
+            total = sum(widths)
+            if len(widths) == len(columns) and total > 0:
+                column_fractions = [round(width / total, 4) for width in widths]
         for column_index, column in enumerate(columns):
             ordered=sorted(column,key=lambda r:(round(r['y']/3),r['x']))
             size=median([r['size'] for r in ordered]) if ordered else 10
@@ -93,7 +104,7 @@ def pdf_layout(filename):
                 else:
                     section['blocks'].append(dict(kind=block_kind,text=re.sub(r'^[-•▪*]\s*','',text) if is_bullet else text))
                     previous=dict(kind=block_kind,row=row)
-    return dict(name=name,headline=headline,sections=sections,footer=footer,columnCount=max_columns,pageCount=len(doc))
+    return dict(name=name,headline=headline,contact=contact,sections=sections,footer=footer,columnCount=max_columns,columnFractions=column_fractions,pageCount=len(doc),pageWidth=first_page_width,pageHeight=first_page_height)
 
 if __name__=='__main__':
     sys.stdout.reconfigure(encoding='utf-8')
