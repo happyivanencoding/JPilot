@@ -249,15 +249,15 @@ private fun aiProgressTask(state: PilotState, kind: String, jobId: String?): JSO
         Box(Modifier.fillMaxWidth().height(52.dp),contentAlignment=Alignment.Center) {
             if(visible)Canvas(Modifier.matchParentSize()) {
                 for(layer in 0..1) {
-                    val liquidTop=size.height*(1f-progress)
+                    val liquidRight=size.width*progress
                     val amplitude=if(completed||reducedMotion)0f else (1.7f+layer*.8f).dp.toPx()
                     val wave=Path().apply {
                         for(i in 0..32){
-                            val x=size.width*i/32f
-                            val y=liquidTop+sin(i/32f*6.28318f+now/(1600f+layer*480f)+layer*1.7f)*amplitude
+                            val y=size.height*i/32f
+                            val x=liquidRight+sin(i/32f*6.28318f+now/(1600f+layer*480f)+layer*1.7f)*amplitude
                             if(i==0)moveTo(x,y)else lineTo(x,y)
                         }
-                        lineTo(size.width,size.height);lineTo(0f,size.height);close()
+                        lineTo(0f,size.height);lineTo(0f,0f);close()
                     }
                     val liquid=if(failed)errorColor else if(layer==0)OnwardSage else OnwardLeaf
                     drawPath(wave,liquid.copy(alpha=if(layer==0).18f else .09f))

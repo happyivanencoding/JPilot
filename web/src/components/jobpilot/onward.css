@@ -162,22 +162,25 @@ hr{border-top-color:var(--jp-outline)}
 .jp-v1-swipe-card h2{font-family:var(--onward-serif);font-size:22px;line-height:27px;font-weight:500}
 .jp-v1-orbit{border-color:var(--jp-primary-container);border-top-color:var(--jp-primary)}
 
-/* Onward AI Liquid Progress: same bounded 96% task curve, now a bottom-rising calm liquid. */
+/* Onward AI progress: buttons fill left-to-right; full-screen onboarding keeps its vertical water. */
 .jp-ai-button{position:relative;overflow:hidden;isolation:isolate}
 .jp-ai-button[aria-busy=true]:disabled{opacity:1}
 .jp-ai-button.liquid,.jp-ai-button.liquid:disabled{background:color-mix(in srgb,var(--jp-primary) 94%,transparent);color:var(--jp-on-primary);border-color:transparent;opacity:1}
 .jp-ai-button.liquid.outline,.jp-ai-button.liquid.outline:disabled{background:color-mix(in srgb,var(--jp-primary) 94%,transparent);color:var(--jp-on-primary);border-color:transparent}
-.jp-ai-button-fill,.jp-ai-button.liquid .jp-ai-button-fill{position:absolute;z-index:0;left:0;right:0;bottom:0;top:auto;width:100%;height:var(--jp-ai-progress,0%);background:color-mix(in srgb,var(--jp-primary-container) 18%,transparent);pointer-events:none;transition:height .42s cubic-bezier(.18,.74,.28,1)}
-.jp-ai-button-fill:before{content:"";position:absolute;left:-8%;top:-8px;width:116%;height:14px;border-radius:48%;background:color-mix(in srgb,var(--onward-leaf) 14%,transparent);animation:jp-onward-liquid-wave 4.8s ease-in-out infinite alternate}
-.jp-ai-button.liquid .jp-ai-button-fill:after,.jp-liquid-status .jp-ai-button-fill:after{content:"";position:absolute;left:-4%;right:auto;top:-5px;width:108%;height:10px;border-radius:50%;background:color-mix(in srgb,var(--jp-primary-container) 18%,transparent);animation:jp-onward-liquid-wave 5.8s ease-in-out infinite alternate-reverse}
+.jp-ai-button.liquid .jp-ai-button-fill{position:absolute;z-index:0;left:0;right:auto;top:0;bottom:0;width:var(--jp-ai-progress,0%);height:100%;background:color-mix(in srgb,var(--jp-primary-container) 18%,transparent);pointer-events:none;transition:width .42s cubic-bezier(.18,.74,.28,1)}
+.jp-ai-button.liquid .jp-ai-button-fill:before{content:"";position:absolute;right:-7px;left:auto;top:-8%;width:14px;height:116%;border-radius:48%;background:color-mix(in srgb,var(--onward-leaf) 14%,transparent);animation:jp-onward-button-wave 4.8s ease-in-out infinite alternate}
+.jp-ai-button.liquid .jp-ai-button-fill:after{content:"";position:absolute;right:-4px;left:auto;top:-4%;width:9px;height:108%;border-radius:50%;background:color-mix(in srgb,var(--jp-primary-container) 18%,transparent);animation:jp-onward-button-wave 5.8s ease-in-out infinite alternate-reverse}
 .jp-ai-button-label{position:relative;z-index:1;color:inherit;font-weight:650}
 .jp-ai-percent{font-variant-numeric:tabular-nums;opacity:.82}
 .jp-liquid-status{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:center;min-height:52px;padding:8px 18px;overflow:hidden;border-radius:999px;background:var(--jp-primary);color:var(--jp-on-primary)}
-.jp-liquid-status .jp-ai-button-fill{display:block}
+.jp-liquid-status .jp-ai-button-fill{display:block;position:absolute;z-index:0;left:0;right:0;bottom:0;top:auto;width:100%;height:var(--jp-ai-progress,0%);background:color-mix(in srgb,var(--jp-primary-container) 18%,transparent);pointer-events:none;transition:height .42s cubic-bezier(.18,.74,.28,1)}
+.jp-liquid-status .jp-ai-button-fill:before{content:"";position:absolute;left:-8%;top:-8px;width:116%;height:14px;border-radius:48%;background:color-mix(in srgb,var(--onward-leaf) 14%,transparent);animation:jp-onward-liquid-wave 4.8s ease-in-out infinite alternate}
+.jp-liquid-status .jp-ai-button-fill:after{content:"";position:absolute;left:-4%;right:auto;top:-5px;width:108%;height:10px;border-radius:50%;background:color-mix(in srgb,var(--jp-primary-container) 18%,transparent);animation:jp-onward-liquid-wave 5.8s ease-in-out infinite alternate-reverse}
 .jp-liquid-status .jp-ai-button-label{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;line-height:18px}
 .jp-ai-button.failed,.jp-ai-button.failed:disabled{background:var(--jp-error-bg);color:var(--jp-error);border:1px solid color-mix(in srgb,var(--jp-error) 35%,transparent)}
 .jp-ai-button.failed .jp-ai-button-fill{background:color-mix(in srgb,var(--jp-error) 10%,transparent)}
 @keyframes jp-onward-liquid-wave{from{transform:translateX(-3px) scaleY(.82)}to{transform:translateX(4px) scaleY(1.08)}}
+@keyframes jp-onward-button-wave{from{transform:translateY(-4px) scaleX(.82)}to{transform:translateY(4px) scaleX(1.08)}}
 
 /* Supporting progress/status surfaces are quiet and meaningful. */
 .jp-progress{height:3px;border-radius:0;background:var(--jp-primary-container)}
@@ -290,8 +293,10 @@ hr{border-top-color:var(--jp-outline)}
 .onward-actions button:hover .onward-semantic-chevron,.onward-actions a:hover .onward-semantic-chevron{transform:translateX(3px)}
 
 /* Liquid remains the AI signature: two shallow phases, never glow or particles. */
-.jp-ai-button-fill:before{height:12px;top:-6px;border-radius:42% 58% 46% 54%/66% 62% 38% 34%;animation-duration:5.4s;opacity:.9}
-.jp-ai-button.liquid .jp-ai-button-fill:after,.jp-liquid-status .jp-ai-button-fill:after{height:9px;top:-4px;border-radius:55% 45% 58% 42%/62% 70% 30% 38%;animation-duration:6.6s;opacity:.72}
+.jp-liquid-status .jp-ai-button-fill:before{height:12px;top:-6px;border-radius:42% 58% 46% 54%/66% 62% 38% 34%;animation-duration:5.4s;opacity:.9}
+.jp-liquid-status .jp-ai-button-fill:after{height:9px;top:-4px;border-radius:55% 45% 58% 42%/62% 70% 30% 38%;animation-duration:6.6s;opacity:.72}
+.jp-ai-button.liquid .jp-ai-button-fill:before{width:12px;right:-6px;top:-8%;height:116%;border-radius:66% 34% 42% 58%/42% 58% 46% 54%;animation-duration:5.4s;opacity:.9}
+.jp-ai-button.liquid .jp-ai-button-fill:after{width:9px;right:-4px;top:-4%;height:108%;border-radius:62% 38% 55% 45%/55% 45% 58% 42%;animation-duration:6.6s;opacity:.72}
 @keyframes jp-onward-liquid-wave{from{transform:translateX(-5%) scaleY(.82)}to{transform:translateX(4%) scaleY(1.08)}}
 
 @media(max-width:600px){

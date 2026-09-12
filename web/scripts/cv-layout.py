@@ -36,6 +36,7 @@ def pdf_layout(filename):
     name = ''
     headline = ''
     footer = []
+    max_columns = 1
     for page_number, page in enumerate(doc):
         rows = []
         for block in page.get_text('dict')['blocks']:
@@ -68,7 +69,8 @@ def pdf_layout(filename):
             if sum(r['x'] < mid for r in body) >= 6 and sum(r['x'] >= mid for r in body) >= 6:
                 split=mid;break
         columns = [[r for r in body if r['x']<split], [r for r in body if r['x']>=split]] if split else [body]
-        for column in columns:
+        max_columns = max(max_columns, len(columns))
+        for column_index, column in enumerate(columns):
             ordered=sorted(column,key=lambda r:(round(r['y']/3),r['x']))
             size=median([r['size'] for r in ordered]) if ordered else 10
             section=None
@@ -78,9 +80,9 @@ def pdf_layout(filename):
                 # Only heading-shaped lines, not a sentence mentioning experience.
                 is_heading=kind and (len(row['text'])<45 or row['text'].isupper()) and (row['bold'] or row['text'].isupper() or row['size']>size+.5)
                 if is_heading:
-                    section=dict(kind=kind,title=row['text'],blocks=[]);sections.append(section);previous=None;continue
+                    section=dict(kind=kind,title=row['text'],blocks=[],column=column_index);sections.append(section);previous=None;continue
                 if section is None:
-                    section=dict(kind='contact' if len(row['text'])<85 and (re.search(r'@|linkedin|\d',row['text']) or row['x']<page.rect.width*.25) else 'profile',title='',blocks=[])
+                    section=dict(kind='contact' if len(row['text'])<85 and (re.search(r'@|linkedin|\d',row['text']) or row['x']<page.rect.width*.25) else 'profile',title='',blocks=[],column=column_index)
                     sections.append(section)
                 text=row['text']
                 is_bullet=bool(re.match(r'^[-•▪*]\s*',text))
@@ -91,7 +93,7 @@ def pdf_layout(filename):
                 else:
                     section['blocks'].append(dict(kind=block_kind,text=re.sub(r'^[-•▪*]\s*','',text) if is_bullet else text))
                     previous=dict(kind=block_kind,row=row)
-    return dict(name=name,headline=headline,sections=sections,footer=footer)
+    return dict(name=name,headline=headline,sections=sections,footer=footer,columnCount=max_columns,pageCount=len(doc))
 
 if __name__=='__main__':
     sys.stdout.reconfigure(encoding='utf-8')

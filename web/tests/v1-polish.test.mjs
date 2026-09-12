@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {directionDescriptor,planDirectionSearch,compactDirectionHistory,V1_SEARCH_REVISION} from '../src/lib/v1-directions.mjs';
 import {normalizeDeepMatch,matchScoreView,projectV1JobScores,friendlyGapTitle} from '../src/lib/v1-match.mjs';
 import {estimatedProgress,searchProgress} from '../src/lib/v1-progress.mjs';
@@ -31,6 +32,15 @@ test('search revision invalidates stale cached zero-result directions without de
  assert.equal(fresh.reason,'new');
  const current=task('current','Technical Lead FinOps Paris',{input:{query:'Technical Lead FinOps Paris',directionKey:'finops-lead-paris-technical',searchRevision:V1_SEARCH_REVISION}});
  assert.equal(planDirectionSearch([current],{query:'Technical Lead FinOps Paris',searchRevision:V1_SEARCH_REVISION},'cv-a',{},now).reuse.id,'current');
+});
+test('AI action buttons progress left-to-right while first-run full-screen water remains bottom-up',()=>{
+ const css=fs.readFileSync(new URL('../src/components/jobpilot/onward.css',import.meta.url),'utf8');
+ const androidButton=fs.readFileSync(new URL('../../android/app/src/main/java/com/thegreatnovel/jobpilot/PilotDesign.kt',import.meta.url),'utf8');
+ const androidWater=fs.readFileSync(new URL('../../android/app/src/main/java/com/thegreatnovel/jobpilot/CvAnalysisWater.kt',import.meta.url),'utf8');
+ assert.match(css,/\.jp-ai-button\.liquid \.jp-ai-button-fill\{[^}]*width:var\(--jp-ai-progress,0%\)[^}]*height:100%/);
+ assert.match(css,/\.jp-liquid-status \.jp-ai-button-fill\{[^}]*width:100%[^}]*height:var\(--jp-ai-progress,0%\)/);
+ assert.match(androidButton,/val liquidRight=size\.width\*progress/);
+ assert.match(androidWater,/val waterY = size\.height \* \(1 - level\)/);
 });
 test('final rubric understands fit independently of retrieval score without an artificial 60 floor',()=>{
  const source={scoring_version:'role-fit-2',score_components:{role:25,duties:21,tools_languages:12,level:14},current_score:72,cv_potential_score:80,capability_potential_score:90};

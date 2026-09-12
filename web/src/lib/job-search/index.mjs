@@ -106,8 +106,12 @@ export function buildProviderInput({ query, targetRoles = [], city = '', country
   const queries = [];
   if (hasExplicitIntent) {
     const localizedRole = /[\u3400-\u9fff]/u.test(explicit) && explicitAliases.length;
-    const explicitCandidates = localizedRole ? explicitAliases.slice(0,3) : [explicit,...explicitAliases].slice(0,2);
-    for (const candidate of explicitCandidates) if (candidate && !queries.some(q=>normalize(q)===normalize(candidate))) queries.push(candidate);
+    const explicitCandidates = localizedRole ? explicitAliases : [explicit,...explicitAliases];
+    const explicitLimit = localizedRole ? 3 : 2;
+    for (const candidate of explicitCandidates) {
+      if (candidate && !queries.some(q=>normalize(q)===normalize(candidate))) queries.push(candidate);
+      if (queries.length >= explicitLimit) break;
+    }
   }
   if (!hasExplicitIntent && fallbackMode === 'closest' && roles.some(role => /marketing|brand|crm|consumer insights|growth|e-commerce|product marketing/i.test(role))) {
     const only = contractTypes.length === 1 ? contractTypes[0] : '';

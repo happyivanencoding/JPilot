@@ -346,8 +346,16 @@ export async function renderTailoredCv(
   payload,
   { htmlPath, pdfPath, language, template, maxPages = 1, keywords = [], referenceContent="", layoutSource=null, tailoredPayload=null },
 ) {
-  const html = referenceContent ? professionalTailoredHtml({content:referenceContent,layoutSource,tailoredPayload:tailoredPayload || payload,language}) : tailoredHtml(payload, { language, template });
-  const result = await render(html);
+  let html = referenceContent ? professionalTailoredHtml({content:referenceContent,layoutSource,tailoredPayload:tailoredPayload || payload,language}) : tailoredHtml(payload, { language, template });
+  let result = await render(html);
+  if (referenceContent && result.pages > maxPages) {
+    const compactHtml = professionalTailoredHtml({content:referenceContent,layoutSource,tailoredPayload:tailoredPayload || payload,language,compact:true});
+    const compactResult = await render(compactHtml);
+    if (compactResult.pages <= result.pages && !compactResult.layout.horizontalOverflow) {
+      html = compactHtml;
+      result = compactResult;
+    }
+  }
   if (result.pages > maxPages)
     throw new Error(
       `Le CV occupe ${result.pages} pages pour une limite de ${maxPages}. Réduisez le contenu du brouillon.`,

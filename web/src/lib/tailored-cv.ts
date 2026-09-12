@@ -23,7 +23,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 420;
 
-const ROLE_CV_RENDERER = "original-layout-v1";
+const ROLE_CV_RENDERER = "original-layout-v2-columns";
 
 
 

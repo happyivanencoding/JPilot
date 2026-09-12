@@ -19,6 +19,13 @@ object ProductStrings {
     }
     fun error(context: Context, locale: String, raw: String): String {
         if(raw.startsWith("今天已探索") || raw.startsWith("You have explored") || raw.startsWith("Vous avez exploré"))return raw
+        if(Regex("CV occupe .*pages|pages pour une limite|occupies .*pages|page limit",RegexOption.IGNORE_CASE).containsMatchIn(raw)) {
+            return when(locale) {
+                "zh" -> "岗位版简历超过当前一页版式。原简历已保留，请重试或精简内容。"
+                "en" -> "The role-specific CV exceeds the one-page layout. Your original CV is preserved; retry or shorten the content."
+                else -> "Le CV ciblé dépasse la mise en page d’une page. Le CV original est conservé ; réessayez ou réduisez le contenu."
+            }
+        }
         val known = text(context, locale, raw)
         if (known != raw || (locale == "zh" && raw.any { it.code in 0x4E00..0x9FFF })) return known
         return when(locale) {

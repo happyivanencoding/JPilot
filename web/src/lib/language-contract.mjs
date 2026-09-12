@@ -53,6 +53,7 @@ export function evidenceConfig(text) {
 export function publicError(error, locale) {
   const raw=error instanceof Error?error.message:String(error || '');
   if(/CV vide|empty CV/i.test(raw)) return choose(locale,'简历内容不能为空。','Le CV ne peut pas être vide.','The CV cannot be empty.');
+  if(/CV occupe .*pages|pages pour une limite|occupies .*pages|page limit/i.test(raw)) return choose(locale,'岗位版简历超过当前一页版式。原简历已保留，请重试或精简内容。','Le CV ciblé dépasse la mise en page d’une page. Le CV original est conservé ; réessayez ou réduisez le contenu.','The role-specific CV exceeds the one-page layout. Your original CV is preserved; retry or shorten the content.');
   if(/changed|changé|version|brouillon.*décision/i.test(raw)) return choose(locale,'内容已发生变化，请刷新后再操作。原有简历未被覆盖。','Le contenu a changé. Actualisez avant de continuer ; le CV original est conservé.','Content changed. Refresh before continuing; the original CV is preserved.');
   if(/language|langue/i.test(raw)) return choose(locale,'简历语言不一致。原文已保留，请检查材料语言后重试。','La langue du CV ne correspond pas. Le texte original est conservé.','CV language mismatch. The original text is preserved.');
   if(/not found|introuvable|inconnu|unknown/i.test(raw)) return choose(locale,'找不到当前档案中的这项内容，请刷新重试。','Ce contenu est introuvable dans le profil sélectionné.','This content was not found in the selected profile.');
