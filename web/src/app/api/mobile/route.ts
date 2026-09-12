@@ -44,6 +44,7 @@ export async function GET(req: Request) {
     const localizationOptions={retry:url.searchParams.get("retryLocalization")==="1"};
     // Translate only job prose currently exposed by training/comparison.
     const displayJobIds=new Set((url.searchParams.get("displayJobIds") || "").split(",").filter(Boolean));
+    const displayJobSurface=url.searchParams.get("displayJobSurface")==="cv"?"cv":"match";
     // Presentation reads and language switches never prewarm or start business Agents.
     void reconcileMobileTasks(profileId).catch(()=>{});
     if (url.searchParams.has("taskId")) {
@@ -56,7 +57,7 @@ export async function GET(req: Request) {
       const job=readCandidatureStore(profileId).jobs.find(j=>j.id===url.searchParams.get("jobId"));
       if(!job)throw new Error("Candidature introuvable.");
       const projected=projectV1JobScores({...evaluationProjection(job,listMobileTasks(profileId)),stage:stageOf(job.status)},listMobileTasks(profileId),currentCandidateVersion(profileId).id);
-      return Response.json(await localizeDisplay(profileId,analysisLocale,projected,"job",{...localizationOptions,identity:job.id}),{headers:{"Cache-Control":"no-store"}});
+      return Response.json(await localizeDisplay(profileId,analysisLocale,projected,"job-match",{...localizationOptions,identity:job.id,preservePendingSource:true}),{headers:{"Cache-Control":"no-store"}});
     }
     if(url.searchParams.has("reportJobId")) {
       const job=readCandidatureStore(profileId).jobs.find(j=>j.id===url.searchParams.get("reportJobId"));
@@ -132,7 +133,11 @@ export async function GET(req: Request) {
     // Full job prose is translated lazily on opening a detail. Cached translations
     // are reused here, but unrequested historical reports never consume Agents.
     display.jobs=[];
-    for(const job of snapshot.jobs as Array<Record<string,any>>) display.jobs.push(await localizeDisplay(profileId,analysisLocale,job,"job",{...localizationOptions,schedule:displayJobIds.has(job.id),identity:job.id}));
+    for(const job of snapshot.jobs as Array<Record<string,any>>) {
+      const visible=displayJobIds.has(job.id);
+      const scope=visible&&displayJobSurface==="cv"?"job-cv":"job-match";
+      display.jobs.push(await localizeDisplay(profileId,analysisLocale,job,scope,{...localizationOptions,schedule:visible,identity:job.id,preservePendingSource:true}));
+    }
     return Response.json(display,{headers:{"Cache-Control":"no-store"}});
   } catch (e) { console.error("mobile read failed",e);return Response.json({ error: publicError(e,requestUiLocale(req)) }, { status: 400 }); }
 }

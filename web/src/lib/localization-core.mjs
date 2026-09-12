@@ -84,14 +84,16 @@ export function displaySlots(value,scope) {
     rows(f,'gaps',p,(r,q)=>fields(r,['title','reason'],q,detectedDocumentLanguage(r.reason)||hint));
   }
   function offer(o,p) {fields(o,['why'],p,detectedDocumentLanguage(o.why)||'fr');deepMatch(o.deepMatch,[...p,'deepMatch']);fastMatch(o.fastMatch,[...p,'fastMatch']);}
-  function job(j,p=[],detail=true) {
+  function jobMatch(j,p=[],detail=true) {
     const hint=j.outputLocale || (/[\p{Script=Han}]/u.test(j.summary||'')?'zh':detectedDocumentLanguage(j.summary)||'fr');
-    if(j.followup?.nextActionSource!=='user') put(j.followup,'nextAction',[...p,'followup'],hint);
     if(!detail)return;
-    if(j.v1Match){deepMatch(j.v1Match.deepMatch,[...p,'v1Match','deepMatch'],hint);fastMatch(j.v1Match.fastMatch,[...p,'v1Match','fastMatch']);}
+    if(j.v1Match){deepMatch(j.v1Match.deepMatch,[...p,'v1Match','deepMatch'],hint);fastMatch(j.v1Match.fastMatch,[...p,'v1Match','fastMatch']);return;}
     fields(j,['summary','angle','recommendation'],p,hint);strings(j,'strengths',p,hint);
     rows(j,'gaps',p,(r,q)=>fields(r,['title','why','positioning','severity'],q,hint));
     rows(j,'match',p,(r,q)=>fields(r,['requirement','evidence','action','fit'],q,hint));
+  }
+  function jobCv(j,p=[]) {
+    const hint=j.outputLocale || (/[\p{Script=Han}]/u.test(j.summary||'')?'zh':detectedDocumentLanguage(j.summary)||'fr');
     strings(j.cv,'changes',[...p,'cv'],j.cv?.notesLocale || hint);
     const cvDraft=j.cvDraft;
     if(cvDraft){
@@ -102,6 +104,11 @@ export function displaySlots(value,scope) {
       if(assessment){const a=[...q,'assessment'];put(assessment,'summary',a,draftHint);strings(assessment,'improvements',a,draftHint);strings(assessment,'remainingGaps',a,draftHint);}
       // cvDraft.payload is the actual application material. Never localize it with the UI.
     }
+  }
+  function job(j,p=[],detail=true) {
+    const hint=j.outputLocale || (/[\p{Script=Han}]/u.test(j.summary||'')?'zh':detectedDocumentLanguage(j.summary)||'fr');
+    if(j.followup?.nextActionSource!=='user') put(j.followup,'nextAction',[...p,'followup'],hint);
+    jobMatch(j,p,detail);if(!detail)return;jobCv(j,p);
     const interview=j.interview;
     if(interview){const q=[...p,'interview'];strings(interview,'process',q,hint);put(interview,'caseStudy',q,hint);rows(interview,'questions',q,(r,s)=>fields(r,['question','answer','proof'],s,hint));}
     if(j.mobilePlan){const q=[...p,'mobilePlan'];const ph=j.mobilePlan.outputLocale || (/[\p{Script=Han}]/u.test(j.mobilePlan.markdown||'')?'zh':hint);put(j.mobilePlan,'markdown',q,ph);strings(j.mobilePlan,'questions',q,ph);}
@@ -112,7 +119,9 @@ export function displaySlots(value,scope) {
     analysis(value.analysis,['analysis']);rows(value,'jobs',[],(j,p)=>job(j,p,false));discovery(value.discovery,['discovery']);
     put(value.dashboard,'responseRateDefinition',['dashboard'],'fr');
     rows(value.dashboard,'due',['dashboard'],(r,p)=>{if(r.nextActionSource!=='user')put(r,'nextAction',p,'fr');});
-  } else if(scope==='job') job(value);
+  } else if(scope==='job-match') jobMatch(value);
+  else if(scope==='job-cv') {jobMatch(value);jobCv(value);}
+  else if(scope==='job') job(value);
   else if(scope==='cards') rows(value,'jobs',[],(j,p)=>job(j,p,true));
   else if(scope==='analysis') analysis(value);
   else if(scope==='offer') offer(value,[]);

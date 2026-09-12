@@ -48,9 +48,8 @@ export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
       {job.v1Match&&<AnimatedMatchScore value={detailScore}/>}<div className="onward-job-hero-actions"><div className="jp-chips">{job.contract&&<Pill>{product(job.contract)}</Pill>}{job.workMode&&<Pill>{product(job.workMode)}</Pill>}</div><label className="onward-application-stage"><select data-testid="job-tracking-stage" aria-label={tr("投递状态","Statut de candidature","Application status")} value={applicationStage} onChange={e=>{const value=e.target.value;setApplicationStage(value);queueTracking(job,offer,{status:value},true);}}>{texts(data.statuses).map(s=><option key={s} value={s}>{product(s)}</option>)}</select></label></div>
     </div>
     <Tabs labels={[tr("匹配", "Match", "Fit"), "CV"]} selected={tab} prefix="job-tab" muted={hasCv?[]:[1]} onChange={i => navigate({ ...route, jobTab: String(i) }, true)} />
-    <div className="jp-sheet-content" data-testid="job-content" ref={content}><Localization value={job.localization} />
-      {tab===0&&job.localization?.pending&&<div className="jp-stack"><Loading/><Hint>{tr("正在翻译岗位分析…","Traduction de l’analyse du poste…","Translating role analysis…")}</Hint></div>}
-      {tab===0&&!job.localization?.pending&&job.v1Match&&<>
+    <div className="jp-sheet-content" data-testid="job-content" ref={content}>{job.localization?.failed&&<Localization value={job.localization} />}
+      {tab===0&&job.v1Match&&<>
         {!!rows(deep.requirements).length&&<section className="onward-detail-section"><h3>{tr("岗位要求","Exigences du poste","Role requirements")}</h3>{rows(deep.requirements).map((item,i)=><SemanticRow key={i} title={String(item.title)} detail={String(item.why||"")}/>)}</section>}
         {!!texts(deep.responsibilities).length&&<section className="onward-detail-section"><h3>{tr("主要职责","Responsabilités principales","Key responsibilities")}</h3>{texts(deep.responsibilities).map((item,i)=><SemanticRow key={i} kind="company" title={item}/>)}</section>}
         {!!matchStrengths.length&&<section className="onward-detail-section"><h3>{tr("为什么这个岗位适合你","Pourquoi ce poste vous va","Why this role fits")}</h3>{matchStrengths.slice(0,5).map((item,i)=><SemanticRow key={i} title={String(item.title)} detail={String(item.evidence||"")}/>)}</section>}
@@ -58,7 +57,7 @@ export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
         {!!rows(job.v1Match.deepMatch?.presentationGaps).length&&<section className="onward-detail-section"><h3>{tr("简历表达可以更好","À mieux présenter dans le CV","CV presentation to sharpen")}</h3>{rows(job.v1Match.deepMatch.presentationGaps).slice(0,4).map((item,i)=><SemanticRow key={i} kind="document" title={String(item.title)} detail={String(item.why||"")}/>)}</section>}
         <section className="onward-detail-section onward-actions"><h3>{tr("下一步","Prochaine étape","Next step")}</h3><button type="button" onClick={()=>navigate({...route,jobTab:"1"},true)}><SemanticRow kind="document" title={tr("查看分析并准备岗位版 CV","Voir l’analyse et préparer le CV ciblé","Review analysis and prepare the role CV")} chevron/></button><External url={job.url}><SemanticRow kind="company" title={tr("在原始职位页查看并投递","Voir l’annonce d’origine et candidater","View the original posting and apply")} chevron/></External></section>
       </>}
-      {tab === 0 && !job.localization?.pending && !job.v1Match && <>
+      {tab === 0 && !job.v1Match && <>
         <div className="jp-row wrap"><Pill>{product(job.status)}</Pill>{job.lastChecked && <Pill>{job.lastChecked.slice(0, 10)}</Pill>}</div>
         {job.recommendation && <h4 className="jp-accent">{product(job.recommendation)}</h4>}<Hint>{[job.location, product(job.workMode), product(job.contract)].filter(Boolean).join(" · ")}</Hint><External url={job.url}>{tr("打开原始职位页", "Ouvrir l’annonce officielle", "Open original job page")}</External>
         {job.summary && <Card><h3>{tr("判断依据", "Lecture du poste", "Assessment")}</h3><Markdown text={job.summary} />{job.angle && <><hr /><p>{job.angle}</p></>}</Card>}

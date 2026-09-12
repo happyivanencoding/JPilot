@@ -121,6 +121,23 @@ test('tailored CV improvement analysis follows UI language while the CV draft bo
 });
 
 
+test('saved job Match localization ignores later CV-only text',async()=>{
+  const job={id:'job-match-surface',v1Match:{deepMatch:{outputLocale:'fr',roleSummary:'Analyse du poste déjà prête.',responsibilities:['Piloter le suivi du projet.'],requirements:[{title:'Coordination',why:'Suivre les parties prenantes.'}],strengths:[{title:'Organisation',evidence:'Expérience documentée.'}],capabilityGaps:[],presentationGaps:[]}},cvDraft:{notesLocale:'en',assessment:{summary:'New CV-only explanation that was created later.',improvements:[],remainingGaps:[]}}};
+  const count=calls;
+  const view=await localizeDisplay('fixture-a','fr',job,'job-match',{schedule:false,identity:'job-match-surface',preservePendingSource:true});
+  assert.equal(view.localization.pending,false);assert.equal(calls,count);
+  assert.equal(view.v1Match.deepMatch.roleSummary,'Analyse du poste déjà prête.');
+  assert.equal(view.cvDraft.assessment.summary,'New CV-only explanation that was created later.');
+});
+
+test('pending job Match translation keeps saved analysis visible instead of replacing it with loading copy',async()=>{
+  const source='Coordinate cross-functional PMO activities and stakeholder reporting.';
+  const job={id:'job-match-visible',v1Match:{deepMatch:{outputLocale:'en',roleSummary:source,responsibilities:[],requirements:[],strengths:[],capabilityGaps:[],presentationGaps:[]}}};
+  const view=await localizeDisplay('fixture-a','fr',job,'job-match',{schedule:false,identity:'job-match-visible',preservePendingSource:true});
+  assert.equal(view.localization.pending,true);
+  assert.equal(view.v1Match.deepMatch.roleSummary,source);
+});
+
 test('a dirty French cache containing Chinese is invalidated and translated again',async()=>{
   const sourceText='这是一段应该被翻译成法语的简历改进分析。';
   assert.equal(translationLooksLikeTarget(sourceText,'fr'),false);

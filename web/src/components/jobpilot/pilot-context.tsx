@@ -47,6 +47,7 @@ function useController(profileId: string, preview: boolean) {
   const busyRef = useRef(false);
   const refreshRef = useRef<{ scope: string; promise: Promise<void> } | null>(null);
   const displayIdsRef = useRef("");
+  const displaySurfaceRef = useRef<"match"|"cv">("match");
   const v1BootstrapRef = useRef("");
   const tr = useCallback((zh: string, fr: string, en: string = fr) => locale === "zh" ? zh : locale === "en" ? en : fr, [locale]);
   const product = useCallback((value: unknown): string => {
@@ -109,7 +110,7 @@ function useController(profileId: string, preview: boolean) {
     const promise = (async () => {
       try {
         const suffix = new URLSearchParams();
-        if (displayIdsRef.current) suffix.set("displayJobIds", displayIdsRef.current);
+        if (displayIdsRef.current) { suffix.set("displayJobIds", displayIdsRef.current); suffix.set("displayJobSurface", displaySurfaceRef.current); }
         if (retry) suffix.set("retryLocalization", "1");
         const snapshot = await request(`/api/mobile?${suffix}`);
         const previous = rows(dataRef.current.tasks);
@@ -225,7 +226,8 @@ function useController(profileId: string, preview: boolean) {
     analytics.current?.tasks(visible);
   },[data.tasks,data.v1?.cvProgress,data.v1?.searchProgress,preview]);
   const displayIds = route.view === "compare" ? route.ids || "" : selectedJob && ["job", "report", "pdf"].includes(route.view || "") ? selectedJob.id : "";
-  useEffect(() => { if (displayIdsRef.current !== displayIds) { displayIdsRef.current = displayIds; if (ready && displayIds) void refresh(); } }, [displayIds, ready, refresh]);
+  const displaySurface: "match"|"cv" = Number(route.jobTab)===1 ? "cv" : "match";
+  useEffect(() => { if (displayIdsRef.current !== displayIds || displaySurfaceRef.current !== displaySurface) { displayIdsRef.current = displayIds; displaySurfaceRef.current = displaySurface; if (ready && displayIds) void refresh(); } }, [displayIds, displaySurface, ready, refresh]);
   useEffect(() => { setDetail(null); if (ready) void refreshDetail(); }, [route.view, route.task, route.report, ready, scope, refreshDetail]);
   useEffect(() => { if (!notice) return; const id = setTimeout(() => setNotice(null), 3500); return () => clearTimeout(id); }, [notice]);
 

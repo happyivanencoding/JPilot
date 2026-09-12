@@ -19,7 +19,7 @@ const validCached=(saved:any,source:string,locale:string)=>saved?.source===sourc
  * Source-addressed segments let different projections of the same result reuse
  * the translation. Each result version also gets an immutable manifest.
  */
-export async function localizeDisplay(profileId:string,target:unknown,value:any,scope:string,options:{schedule?:boolean;retry?:boolean;identity?:string}={}) {
+export async function localizeDisplay(profileId:string,target:unknown,value:any,scope:string,options:{schedule?:boolean;retry?:boolean;identity?:string;preservePendingSource?:boolean}={}) {
   if(value==null)return value;
   const locale=uiLocale(target),directory=path.join(historyDirectory(profileId),'localizations',locale);
   const cacheDir=path.join(directory,'segments'),operations=path.join(directory,'operations');
@@ -33,7 +33,7 @@ export async function localizeDisplay(profileId:string,target:unknown,value:any,
     const key=translationKey(slot.text);sourceKeys.push(key);
     const saved=readJson(path.join(cacheDir,key+'.json'));
     if(validCached(saved,slot.text,locale)) setDisplaySlot(result,slot.path,saved.translation);
-    else {missing.set(key,slot.text);setDisplaySlot(result,slot.path,pendingText(locale));}
+    else {missing.set(key,slot.text);if(!options.preservePendingSource)setDisplaySlot(result,slot.path,pendingText(locale));}
   }
   let active:any=readJson(path.join(directory,'active.json'));
   if(options.schedule!==false && missing.size) {

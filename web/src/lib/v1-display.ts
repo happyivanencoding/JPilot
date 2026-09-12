@@ -21,7 +21,7 @@ export async function prepareV1Display(profileId:string, locale:string, snapshot
     });
     const localizedOffers=[];let pending=false,localizationFailed=false;
     for(const offer of offers) {
-      const localized=await localizeDisplay(profileId,locale,offer,'offer',{retry,identity:`discovery:${offer.url || ''}`});
+      const localized=await localizeDisplay(profileId,locale,offer,'offer',{retry,identity:`discovery:${offer.url || ''}`,preservePendingSource:true});
       pending ||= !!localized.localization?.pending;
       localizationFailed ||= !!localized.localization?.failed;
       localizedOffers.push({...localized,enrichment:{deepMatchState:offer.deepMatchState || 'pending',localization:localized.localization}});
