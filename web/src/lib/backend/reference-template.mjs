@@ -50,16 +50,23 @@ function mergeTailoredLayout(layout,payload) {
  for(const [kind,section] of generated)if(!used.has(kind))sections.push({...section,column:0});
  return {...layout,sections};
 }
-function renderColumnSection(section,labels) {
+const regexEscape=value=>String(value).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+function emphasized(value,keywords=[]){
+ const source=String(value??''),terms=[...new Set((keywords||[]).map(clean).filter(x=>x.length>=3))].sort((a,b)=>b.length-a.length);
+ if(!source||!terms.length)return escape(source);
+ const pattern=new RegExp(`(${terms.map(regexEscape).join('|')})`,'gi');
+ return source.split(pattern).map((part,index)=>index%2?`<strong>${escape(part)}</strong>`:escape(part)).join('');
+}
+function renderColumnSection(section,labels,emphasis=[]) {
  const kind=section.kind in labels?section.kind:'other';
  const title=section.title||labels[kind]||labels.other;
  const compactKind=['skills','tools','languages','interests'].includes(kind);
- if(compactKind)return `<section><h2>${escape(title)}</h2><p>${(section.blocks||[]).map(b=>escape(b.text)).join(' · ')}</p></section>`;
+ if(compactKind)return `<section><h2>${escape(title)}</h2><p>${(section.blocks||[]).map(b=>emphasized(b.text,emphasis)).join(' · ')}</p></section>`;
  let body='',list=false;
  for(const block of section.blocks||[]){
-  if(block.kind==='bullet'){if(!list){body+='<ul>';list=true;}body+=`<li>${escape(block.text)}</li>`;continue;}
+  if(block.kind==='bullet'){if(!list){body+='<ul>';list=true;}body+=`<li>${emphasized(block.text,emphasis)}</li>`;continue;}
   if(list){body+='</ul>';list=false;}
-  body+=block.kind==='entry'?`<h3>${escape(block.text)}</h3>`:`<p${/\b(19|20)\d{2}\b/.test(block.text)&&block.text.length<90?' class="meta"':''}>${escape(block.text)}</p>`;
+  body+=block.kind==='entry'?`<h3>${emphasized(block.text,emphasis)}</h3>`:`<p${/\b(19|20)\d{2}\b/.test(block.text)&&block.text.length<90?' class="meta"':''}>${emphasized(block.text,emphasis)}</p>`;
  }
  if(list)body+='</ul>';
  return `<section><h2>${escape(title)}</h2>${body}</section>`;
@@ -78,7 +85,7 @@ function contactPieces(value) {
  const pieces=text.split(/\s*[·|]\s*/).map(clean).filter(Boolean);
  return pieces.length>1?pieces:[text];
 }
-function professionalHtml(layout,language,compact=false) {
+function professionalHtml(layout,language,compact=false,emphasis=[]) {
  const payload={language};
  const fr=payload.language==='fr';
  const labels=fr?{profile:'Profil',education:'Formation',experience:'Expérience professionnelle',projects:'Projets et engagements',skills:'Compétences',tools:'Outils',languages:'Langues',interests:'Centres d’intérêt',other:'Informations complémentaires'}:{profile:'Profile',education:'Education',experience:'Experience',projects:'Projects & activities',skills:'Skills',tools:'Tools',languages:'Languages',interests:'Interests',other:'Additional information'};
@@ -90,7 +97,7 @@ function professionalHtml(layout,language,compact=false) {
  }
  let content=`<header><h1>${escape(layout.name)}</h1>${contacts.length?`<p class="contact">${contacts.map(escape).join(' · ')}</p>`:''}${layout.headline?`<p class="headline">${escape(layout.headline)}</p>`:''}</header>`;
  // Source columns describe extraction order only; every generated CV is A4 single-column.
- content+=`<main>${sections.filter(s=>s.kind!=='contact').map(s=>renderColumnSection(s,labels)).join('')}</main>`;
+ content+=`<main>${sections.filter(s=>s.kind!=='contact').map(s=>renderColumnSection(s,labels,emphasis)).join('')}</main>`;
  if(layout.footer?.length)content+=`<footer>${layout.footer.map(escape).join(' · ')}</footer>`;
  return `<!doctype html><html lang="${fr?'fr':'en'}"><head><meta charset="utf-8"><title>${escape(layout.name)} — CV</title><style>
  @page{size:A4;margin:13mm 16mm}*{box-sizing:border-box}body{font:10pt/1.24 Arial,Helvetica,sans-serif;color:#111;margin:0;overflow-wrap:break-word}header{text-align:left;margin-bottom:10pt}h1{font-size:17pt;line-height:1.1;margin:0 0 6pt}.contact{font-size:8.5pt;line-height:1.35;margin:0}.headline{font-size:10pt;margin:5pt 0 0}h2{font:700 10.5pt/1.1 Arial,Helvetica,sans-serif;text-transform:uppercase;letter-spacing:.15pt;border-bottom:.6pt solid #222;margin:11pt 0 4pt;padding-bottom:2pt;break-after:avoid}h3{font-size:10pt;margin:5pt 0 2pt;break-after:avoid}p{margin:2pt 0;orphans:2;widows:2}.meta{font-size:9pt;font-style:italic;margin:1pt 0 3pt}ul{padding-left:13pt;margin:3pt 0 5pt}li{margin:2pt 0;break-inside:avoid}footer{font-size:7pt;line-height:1.2;margin-top:10pt}strong{font-weight:700}body.compact{font-size:9pt;line-height:1.16}body.compact h1{font-size:16pt}body.compact h2{font-size:10pt;margin:7pt 0 3pt}body.compact h3{font-size:9pt;margin:3pt 0 1pt}body.compact p{margin:1pt 0}body.compact ul{margin:1pt 0 3pt}body.compact li{margin:1pt 0}
@@ -101,5 +108,8 @@ export function professionalReferenceHtml(payload) {
 }
 export function professionalTailoredHtml(payload) {
  const original=payload.layoutSource || textCvLayout(payload.content);
- return professionalHtml(mergeTailoredLayout(original,payload.tailoredPayload || {}),payload.language,!!payload.compact);
+ const merged=mergeTailoredLayout(original,payload.tailoredPayload || {}),candidate=payload.candidate||{};
+ const contacts=[candidate.location,candidate.phone,candidate.email,candidate.linkedin?.display||candidate.linkedin?.url].map(clean).filter(Boolean);
+ const layout={...merged,...(clean(candidate.name)?{name:clean(candidate.name)}:{}),...(contacts.length?{contact:contacts,sections:(merged.sections||[]).filter(s=>s.kind!=='contact')}: {})};
+ return professionalHtml(layout,payload.language,!!payload.compact,payload.emphasisKeywords||[]);
 }

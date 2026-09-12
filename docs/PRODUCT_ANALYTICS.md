@@ -57,6 +57,12 @@ Mobile Web V1 不再把这个关键 milestone 只押在浏览器 unload/keepaliv
 
 前端点击、预计进度、`cv_review` 完成都不能冒充“成功生成 CV”。
 
+### CV Decision / rejection feedback coverage
+
+岗位版 CV 的接受/拒绝不再只依赖通用 click telemetry。业务层在成功持久化 Keep / Reject 后写入专用服务端事件 `cv_decision`，字段只包含 `decision=accept|reject` 与 `rejectionReasonProvided=true|false`；实际拒绝理由正文永远不进入 Analytics。draft UUID 同时作为幂等 event ID，因此重复提交不会重复计数。
+
+报表新增 `cvDecisions`：`total`, `accepted`, `rejected`, `rejectedWithReason`, `rejectionReasonRate`，Overview 同时暴露 `cvAccepted` / `cvRejected`。这样首轮 tester 可以区分“生成了 CV”与“用户最终愿意保留”，并量化拒绝时是否留下可用于下一版生成的原因。
+
 ## 核心 Funnel
 
 报表单独输出：

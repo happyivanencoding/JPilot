@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {generateKeyPairSync, sign} from 'node:crypto';
-import {issueGate, readGate, consumeGate, revokeGate, recordAuthAttempt, verifyGoogleCredential, V1_GATE_TTL_MS} from '../../src/lib/v1-auth.mjs';
+import {issueGate, readGate, consumeGate, revokeGate, recordAuthAttempt, verifyGoogleCredential, V1_GATE_TTL_MS, adminTimeCode} from '../../src/lib/v1-auth.mjs';
 const now = 1800000000000;
 const pair = generateKeyPairSync('rsa', {modulusLength: 2048});
 const jwk = {...pair.publicKey.export({format: 'jwk'}), kid: 'fixture', alg: 'RS256', use: 'sig'};
@@ -29,6 +29,15 @@ test('gates distinguish modes, persist, expire and can be consumed only once', t
   assert.equal(admin.mode, 'admin'); assert.equal(revokeGate(root, admin.token), true); assert.equal(readGate(root, admin.token), null);
   assert.equal(readGate(root, '../escape'), null);
   assert.throws(() => issueGate(root, 'wrong', {googleCode: 'ONWARDV1', adminCode: 'ANSHUN'}), {code: 'INVALID_GATE_CODE'});
+});
+
+test('configured first-tester cohort and rolling Paris-hour admin code are accepted', t => {
+  const root=fixture(t),codes=Array.from({length:15},(_,i)=>`ONWARD${String(i+1).padStart(3,'0')}`),testerCodes=codes.join(','),adminCode='ANSHUN';
+  assert.equal(codes.length,15);assert.equal(new Set(codes).size,15);assert.ok(codes.every(code=>/^ONWARD\d{3}$/.test(code)));
+  for(const code of codes){const gate=issueGate(root,code,{now,googleCode:'ONWARDV1',adminCode,testerCodes});assert.equal(gate.mode,'google');revokeGate(root,gate.token);}
+  const current=adminTimeCode(now,adminCode), previous=adminTimeCode(now-3600_000,adminCode);
+  assert.match(current,/^ONWARDADMIN-\d{8}-\d{2}-[A-F0-9]{6}$/);
+  for(const code of [current,previous]){const gate=issueGate(root,code,{now,googleCode:'ONWARDV1',adminCode});assert.equal(gate.mode,'admin');revokeGate(root,gate.token);}
 });
 
 test('rate limit is persisted, isolated by key and resets after its window', async t => {

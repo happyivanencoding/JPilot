@@ -341,15 +341,15 @@ export function auditCvDocument({ text, headings, layout }, keywords = []) {
   };
 }
 
-/** @param {any} payload @param {{htmlPath:string,pdfPath:string,language:string,template:string,maxPages?:number,keywords?:string[],referenceContent?:string,layoutSource?:any,tailoredPayload?:any}} options */
+/** @param {any} payload @param {{htmlPath:string,pdfPath:string,language:string,template:string,maxPages?:number,keywords?:string[],referenceContent?:string,layoutSource?:any,tailoredPayload?:any,emphasisKeywords?:string[]}} options */
 export async function renderTailoredCv(
   payload,
-  { htmlPath, pdfPath, language, template, maxPages = 1, keywords = [], referenceContent="", layoutSource=null, tailoredPayload=null },
+  { htmlPath, pdfPath, language, template, maxPages = 1, keywords = [], referenceContent="", layoutSource=null, tailoredPayload=null, emphasisKeywords=[] },
 ) {
-  let html = referenceContent ? professionalTailoredHtml({content:referenceContent,layoutSource,tailoredPayload:tailoredPayload || payload,language}) : tailoredHtml(payload, { language, template });
+  let html = referenceContent ? professionalTailoredHtml({content:referenceContent,layoutSource,tailoredPayload:tailoredPayload || payload,language,emphasisKeywords,candidate:payload.candidate}) : tailoredHtml(payload, { language, template });
   let result = await render(html);
   if (referenceContent && result.pages > maxPages) {
-    const compactHtml = professionalTailoredHtml({content:referenceContent,layoutSource,tailoredPayload:tailoredPayload || payload,language,compact:true});
+    const compactHtml = professionalTailoredHtml({content:referenceContent,layoutSource,tailoredPayload:tailoredPayload || payload,language,compact:true,emphasisKeywords,candidate:payload.candidate});
     const compactResult = await render(compactHtml);
     if (compactResult.pages <= result.pages && !compactResult.layout.horizontalOverflow) {
       html = compactHtml;

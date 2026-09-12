@@ -17,12 +17,14 @@ import { currentCandidateVersion, historyDirectory, originalCvLayoutSource, orig
 import { withProfileLock, loadCandidateVersion, operationKey, readJson, writeJson } from "@/lib/mobile-state.mjs";
 import { FLOW_DEFAULTS } from "@/lib/ai-metrics.mjs";
 import {applicationLanguage,requestUiLocale,explanationDirective,contradictsDocumentLanguage,choose} from "@/lib/language-contract.mjs";
+import {jdEmphasisKeywords} from "@/lib/cv-jd-emphasis.mjs";
+import {recordCvDecision} from "@/lib/product-analytics.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 420;
 
-const ROLE_CV_RENDERER = "single-column-v4-a4";
+const ROLE_CV_RENDERER = "single-column-v5-jd-emphasis-language-clean";
 
 
 
@@ -92,6 +94,7 @@ export type TailoredDraft = {
   id:string; status:"pending"|"accepted"|"rejected"; baseVersionId:string; language:string; notesLocale:string; revision:number;
   createdAt:string; updatedAt:string; payload:TailoredPayload; file:string; htmlFile:string; pages:number; atsScore:number; atsPass:boolean;
   rendererVersion?:string;
+  renderCandidate?:{name:string;location:string}; emphasisKeywords?:string[];
   onePageTargetMet?:boolean; warnings?:string[]; rejectionReason?:string;
   userProvidedEdit?:{confirmedAt:string;revision:number};
   userProvidedGuidance?:TailoredCvGuidance;
@@ -274,17 +277,35 @@ function candidateRenderContext(profileId:string, version:Record<string,any>, ma
     linkedin:{url:linkedinUrl,display:linkedinUrl.replace(/^https?:\/\/(?:www\.)?/i,"").replace(/\/$/,"")},location:typeof candidateConfig.location === "string" ? candidateConfig.location : "",photo:"",
   }};
 }
+const HAN=/[\u3400-\u9fff]/u;
+async function normalizeCvLanguage(profileId:string,version:Record<string,any>,payload:TailoredPayload,material:string,hooks?:{onRun?:(run:any)=>void;onMetrics?:(metrics:any)=>void}) {
+  const base=candidateRenderContext(profileId,version,material).candidate;
+  const candidate={name:String(base.name||""),location:String(base.location||"")};
+  const body=JSON.stringify({...payload,change_notes:undefined});
+  const needs=HAN.test(candidate.name)||HAN.test(candidate.location)||HAN.test(body)||contradictsDocumentLanguage(body,material,version.sources.cv.text);
+  if(!needs)return {payload,candidate,metrics:{}};
+  const target=material==='fr'?'French':'English';
+  const prompt=`Normalize this CV for a ${target}-language application. Return ONLY JSON with exactly {"candidate":{"name":"...","location":"..."},"payload":{...}}. Preserve the payload structure, array order, dates, numbers, employers, schools, URLs, tools, skills and factual strength exactly. Translate only human-readable prose into ${target}; transliterate a Chinese personal name into Latin characters rather than leaving Han characters; translate a Chinese place name to its standard ${target} form. Never add, remove or strengthen facts. Copy payload.change_notes exactly unchanged because it is UI commentary, not CV content. No Han characters may remain in candidate.name, candidate.location or any CV-rendered payload field. INPUT=${JSON.stringify({candidate,payload})}`;
+  let output="",metrics:any={};
+  await runModelTransport({cwd:workspaceRoot(),prompt,model:FLOW_DEFAULTS.cv.model as any,reasoning:"none" as any,timeoutMs:120_000,onRun:run=>hooks?.onRun?.(run),onMetrics:m=>{metrics=m;hooks?.onMetrics?.(m);},onText:t=>{output+=t;},onFinalText:t=>{output=t;}});
+  const parsed=extractJsonObject(output).obj as any;
+  const next=sanitizePayload(parsed?.payload,payload),nextCandidate={name:String(parsed?.candidate?.name||candidate.name).slice(0,300),location:String(parsed?.candidate?.location||candidate.location).slice(0,300)};
+  const nextBody=JSON.stringify({...next,change_notes:undefined});
+  if(HAN.test(nextCandidate.name)||HAN.test(nextCandidate.location)||HAN.test(nextBody)||contradictsDocumentLanguage(nextBody,material,version.sources.cv.text))throw new Error("CV language normalization failed; no mixed-language PDF was produced.");
+  return {payload:next,candidate:nextCandidate,metrics};
+}
 
-async function renderDraftFiles(profileId:string,job:Job,version:Record<string,any>,payload:TailoredPayload,material:string,draftId:string) {
-  const root=workspaceRoot(),{cvOptions,candidate}=candidateRenderContext(profileId,version,material);
+async function renderDraftFiles(profileId:string,job:Job,version:Record<string,any>,payload:TailoredPayload,material:string,draftId:string,renderCandidate?:{name:string;location:string},emphasisKeywords?:string[]) {
+  const root=workspaceRoot(),{cvOptions,candidate:baseCandidate}=candidateRenderContext(profileId,version,material),candidate={...baseCandidate,...(renderCandidate||{})};
   const renderPayload={lang:cvOptions.language,page_format:"a4",candidate,sections:{summary:"Professional Summary",competencies:"Core Competencies",experience:"Professional Experience",projects:"Selected Projects",education:"Education",certifications:"Certifications",awards:"Awards & Honors",interests:"Interests",skills:"Skills"},summary:payload.summary,competencies:[],experience:payload.experience||[],projects:payload.projects||[],education:payload.education||[],certifications:[],awards:[],interests:[],skills:payload.skills||[]};
   const outputDir=path.join(root,"output");
   const stem=`cv-draft-${slug(candidate.name,"candidate")}-${slug(job.company,"company")}-${draftId.slice(0,8)}`;
   const htmlPath=path.join(outputDir,stem+".html"),pdfPath=path.join(outputDir,stem+".pdf");
   const preserveOriginal=process.env.JOBPILOT_V1_PREVIEW==="1";
   const layoutSource=preserveOriginal?await originalCvLayoutSource(profileId,version):null;
+  const emphasis=emphasisKeywords||jdEmphasisKeywords(job,payload);
   const rendered=await renderTailoredCv(renderPayload,{htmlPath,pdfPath,language:material,template:cvOptions.template,maxPages:cvOptions.preferredPages,keywords:cleanArray(job.cv?.keywords),
-    ...(preserveOriginal?{referenceContent:version.sources.cv.text,layoutSource,tailoredPayload:payload}:{})});
+    ...(preserveOriginal?{referenceContent:version.sources.cv.text,layoutSource,tailoredPayload:payload,emphasisKeywords:emphasis}:{})});
   return {file:path.relative(root,pdfPath).replaceAll("\\","/"),htmlFile:path.relative(root,htmlPath).replaceAll("\\","/"),rendererVersion:preserveOriginal?ROLE_CV_RENDERER:"standard-tailored-v1",...rendered};
 }
 
@@ -337,8 +358,10 @@ async function ensureCurrentTailoredRender(profileId:string,store:Store,job:Job,
   const existing=draft.file ? path.resolve(root,draft.file) : "";
   if(draft.rendererVersion===ROLE_CV_RENDERER && existing && fs.existsSync(existing))return draft;
   const version=loadCandidateVersion(historyDirectory(profileId),draft.baseVersionId);
-  const files=await renderDraftFiles(profileId,job,version,draft.payload,draft.language,draft.id);
-  Object.assign(draft,{...files,updatedAt:new Date().toISOString()});
+  const normalized=await normalizeCvLanguage(profileId,version,draft.payload,draft.language);
+  const emphasis=jdEmphasisKeywords(job,normalized.payload);
+  const files=await renderDraftFiles(profileId,job,version,normalized.payload,draft.language,draft.id,normalized.candidate,emphasis);
+  Object.assign(draft,{...files,payload:normalized.payload,renderCandidate:normalized.candidate,emphasisKeywords:emphasis,updatedAt:new Date().toISOString()});
   writeStore(profileId,store);
   return draft;
 }
@@ -347,10 +370,11 @@ export async function updateTailoredCvDraft(profileId:string,draftId:string,payl
   const store=readStore(profileId),{job,draft}=findDraft(store,draftId);if(draft.status!=="pending")throw new Error("Ce brouillon a déjà été traité.");
   if(!userProvidedConfirmed)throw new Error("Confirmez que les modifications ajoutées par l’utilisateur sont factuelles avant de régénérer le CV.");
   const version=loadCandidateVersion(historyDirectory(profileId),draft.baseVersionId),next=sanitizePayload(payload,draft.payload);const revision=draft.revision+1;
-  const files=await renderDraftFiles(profileId,job,version,next,draft.language,draft.id);
+  const normalized=await normalizeCvLanguage(profileId,version,next,draft.language),emphasis=jdEmphasisKeywords(job,normalized.payload);
+  const files=await renderDraftFiles(profileId,job,version,normalized.payload,draft.language,draft.id,normalized.candidate,emphasis);
   if(!Number.isFinite(Number(draft.baselinePresentationScore)) && Number.isFinite(Number(draft.assessment?.baselineScore))) draft.baselinePresentationScore=Number(draft.assessment?.baselineScore);
   const updatedAt=new Date().toISOString();
-  Object.assign(draft,{...files,payload:next,revision,updatedAt,assessment:null,userProvidedEdit:{confirmedAt:updatedAt,revision}});writeStore(profileId,store);return draft;
+  Object.assign(draft,{...files,payload:normalized.payload,renderCandidate:normalized.candidate,emphasisKeywords:emphasis,revision,updatedAt,assessment:null,userProvidedEdit:{confirmedAt:updatedAt,revision}});writeStore(profileId,store);return draft;
 }
 
 export async function reviewTailoredCvDraft(profileId:string,draftId:string,locale:string,hooks?:{onRun?:(run:any)=>void;onMetrics?:(metrics:any)=>void}) {
@@ -390,7 +414,9 @@ export async function decideTailoredCvDraft(profileId:string,draftId:string,deci
     if(job.status==="À candidater")job.status="CV prêt";
     const cvTask=job.prepTasks?.find(task=>/adapter le cv|cv anglais|version ciblée du cv|cv quant/i.test(task.label));if(cvTask)cvTask.done=true;
   }
-  writeStore(profileId,store);return {ok:true,job,draft};
+  writeStore(profileId,store);
+  await recordCvDecision(workspaceRoot(),profileId,draft.id,decision,decision==="reject"&&Boolean(rejectionReason));
+  return {ok:true,job,draft};
 }
 
 export async function downloadTailoredCv(req: Request) {
@@ -485,6 +511,7 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
         controller.close();
       };
       try {
+        const perceivedStartedAt=Date.now();
         emit({ t: "progress", label: "Lecture du profil et du poste" });
         const prompt = buildTailoredCvPrompt(profileId, job!, inputVersion,locale,material);
         const cached=readJson(generationFile);
@@ -513,12 +540,17 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
         }
         if(cached?.operationKey!==generationKey || !cached.output) writeJson(generationFile,{operationKey:generationKey,profileId,jobId:job.id,inputVersionId:inputVersion.id,output,metrics:generationMetrics,createdAt:new Date().toISOString()});
 
-        const payload=sanitizePayload(parsed);
-        const documentText=JSON.stringify({...payload,change_notes:undefined});
-        if(contradictsDocumentLanguage(documentText,material,inputVersion.sources.cv.text)) return fail("CV language mismatch; the previous PDF is preserved.");
+        const initialPayload=sanitizePayload(parsed);
+        emit({t:"progress",label:"Vérification de la langue et traduction finale"});
+        let languageMetrics:Record<string,any>={};
+        const normalized=await normalizeCvLanguage(profileId,inputVersion,initialPayload,material,{
+          onRun:run=>emit({t:"execution",transport:run.transport,sessionId:run.sessionId,runId:run.runId,remoteSessionId:run.remoteSessionId}),
+          onMetrics:m=>{languageMetrics=m;},
+        });
+        const payload=normalized.payload,renderCandidate=normalized.candidate,emphasis=jdEmphasisKeywords(job!,payload);
         const draftId=randomUUID(),revision=1;
-        emit({t:"progress",label:"Mise en page du brouillon et contrôle ATS"});
-        const rendered=await renderDraftFiles(profileId,job!,inputVersion,payload,material,draftId);
+        emit({t:"progress",label:"Mise en page du brouillon · mots-clés du poste mis en valeur"});
+        const rendered=await renderDraftFiles(profileId,job!,inputVersion,payload,material,draftId,renderCandidate,emphasis);
         emit({t:"progress",label:"Comparaison avec le CV actuel pour ce poste"});
         let assessmentMetrics:Record<string,any>={};
         const comparison=await compareCvPresentation(profileId,job!,inputVersion,payload,locale,revision,{
@@ -526,13 +558,15 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
           onMetrics:m=>{assessmentMetrics=m;},
         });
         const changes=cleanArray(payload.change_notes),now=new Date().toISOString();
-        const draft:TailoredDraft={matchBasis:job!.v1Match?structuredClone(job!.v1Match as Record<string,any>):undefined,id:draftId,status:"pending",baseVersionId:inputVersion.id,language:material,notesLocale:locale,revision,createdAt:now,updatedAt:now,payload,...rendered,changes:changes.length?changes:job!.cv?.changes??[],baselinePresentationScore:comparison.assessment.baselineScore,assessment:comparison.assessment,...((job as any).cvGuidance?{userProvidedGuidance:structuredClone((job as any).cvGuidance)}:{})};
+        const draft:TailoredDraft={matchBasis:job!.v1Match?structuredClone(job!.v1Match as Record<string,any>):undefined,id:draftId,status:"pending",baseVersionId:inputVersion.id,language:material,notesLocale:locale,revision,createdAt:now,updatedAt:now,payload,renderCandidate,emphasisKeywords:emphasis,...rendered,changes:changes.length?changes:job!.cv?.changes??[],baselinePresentationScore:comparison.assessment.baselineScore,assessment:comparison.assessment,...((job as any).cvGuidance?{userProvidedGuidance:structuredClone((job as any).cvGuidance)}:{})};
         const latestStore=readStore(profileId),latestJob=latestStore.jobs.find(item=>item.id===body.id);
         if(!latestJob)return fail("La candidature a été supprimée pendant la génération ; le PDF de brouillon est conservé dans output.");
         (latestJob as any).cvDraft=draft;writeStore(profileId,latestStore);
-        const sum=(key:string)=>[generationMetrics?.[key],assessmentMetrics?.[key]].reduce((total,value)=>total+(Number.isFinite(Number(value))?Number(value):0),0);
+        const sum=(key:string)=>[generationMetrics?.[key],languageMetrics?.[key],assessmentMetrics?.[key]].reduce((total,value)=>total+(Number.isFinite(Number(value))?Number(value):0),0);
         const estimated=sum("estimatedCostUsd");
-        emit({t:"metrics",metrics:{...assessmentMetrics,model:assessmentMetrics.model||generationMetrics.model||FLOW_DEFAULTS.cv.model,reasoning:assessmentMetrics.reasoning||generationMetrics.reasoning||FLOW_DEFAULTS.cv.reasoning,inputTokens:sum("inputTokens"),outputTokens:sum("outputTokens"),cachedInputTokens:sum("cachedInputTokens"),totalTokens:sum("totalTokens"),estimatedCostUsd:estimated||null,actualCostUsd:null,costKind:"api-equivalent-estimate",generationMetrics,assessmentMetrics}});
+        emit({t:"metrics",metrics:{...assessmentMetrics,model:assessmentMetrics.model||languageMetrics.model||generationMetrics.model||FLOW_DEFAULTS.cv.model,reasoning:assessmentMetrics.reasoning||languageMetrics.reasoning||generationMetrics.reasoning||FLOW_DEFAULTS.cv.reasoning,inputTokens:sum("inputTokens"),outputTokens:sum("outputTokens"),cachedInputTokens:sum("cachedInputTokens"),totalTokens:sum("totalTokens"),estimatedCostUsd:estimated||null,actualCostUsd:null,costKind:"api-equivalent-estimate",generationMetrics,languageMetrics,assessmentMetrics}});
+        emit({t:"progress",label:"Finalisation du CV ciblé"});
+        const remaining=8000-(Date.now()-perceivedStartedAt);if(remaining>0)await new Promise(resolve=>setTimeout(resolve,remaining));
         emit({t:"done",jobId:latestJob.id,draftId,cvDraft:draft,atsScore:draft.atsScore,keywordCoverage:draft.keywordCoverage,assessment:draft.assessment});
         controller.close();
       } catch (error) {

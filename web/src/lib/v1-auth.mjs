@@ -1,10 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import {createHash, createPublicKey, randomBytes, timingSafeEqual, verify} from 'node:crypto';
+import {createHash, createHmac, createPublicKey, randomBytes, timingSafeEqual, verify} from 'node:crypto';
 import {withProfileLock} from './mobile-state.mjs';
 
 export const V1_GATE_COOKIE = 'jobpilot-v1-gate';
 export const V1_GATE_TTL_MS = 10 * 60_000;
+export function adminTimeCode(now=Date.now(),seed=process.env.JOBPILOT_V1_ADMIN_CODE||''){
+  if(!seed)return '';
+  const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'}).formatToParts(new Date(now)).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));
+  const slot=`${parts.year}${parts.month}${parts.day}-${parts.hour}`,suffix=createHmac('sha256',seed).update(slot).digest('hex').slice(0,6).toUpperCase();
+  return `ONWARDADMIN-${slot}-${suffix}`;
+}
 const googleKeys = {keys: [], until: 0};
 const digest = value => createHash('sha256').update(value).digest('hex');
 const directory = root => path.join(root, '.career-ops-web', 'v1-auth-gates');
@@ -14,12 +20,16 @@ const sameCode = (a, b) => timingSafeEqual(Buffer.from(digest(a), 'hex'), Buffer
 
 export function issueGate(root, code, options = {}) {
   const value = typeof code === 'string' ? code.trim() : '';
+  const now = options.now ?? Date.now();
   const googleCode = options.googleCode ?? process.env.JOBPILOT_V1_TEST_CODE ?? 'ONWARDV1';
   const adminCode = options.adminCode ?? process.env.JOBPILOT_V1_ADMIN_CODE ?? 'ANSHUN';
+  const configuredTesterCodes=String(options.testerCodes ?? process.env.JOBPILOT_V1_TEST_CODES ?? '').split(',').map(code=>code.trim()).filter(Boolean);
+  const testerCodes=[googleCode,...configuredTesterCodes];
+  const adminCodes=[adminCode,adminTimeCode(now,adminCode),adminTimeCode(now-3600_000,adminCode)];
   if (!googleCode || !adminCode || googleCode === adminCode) throw failure('Test access is not configured.', 'GATE_CONFIG', 503);
-  const mode = value && value.length <= 256 && sameCode(value, googleCode) ? 'google' : value && value.length <= 256 && sameCode(value, adminCode) ? 'admin' : null;
+  const valid=value && value.length<=256;
+  const mode=valid && testerCodes.some(candidate=>sameCode(value,candidate)) ? 'google' : valid && adminCodes.some(candidate=>sameCode(value,candidate)) ? 'admin' : null;
   if (!mode) throw failure('Invalid test code.', 'INVALID_GATE_CODE');
-  const now = options.now ?? Date.now();
   const token = randomBytes(32).toString('base64url');
   const gate = {mode, nonce: randomBytes(32).toString('base64url'), createdAt: now, expiresAt: now + V1_GATE_TTL_MS};
   fs.mkdirSync(directory(root), {recursive: true, mode: 0o700});

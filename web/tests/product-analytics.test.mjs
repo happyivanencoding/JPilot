@@ -6,7 +6,7 @@ import path from 'node:path';
 import {randomUUID,createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {authenticatedAnalyticsProfile,validateAnalyticsEvents,recordAnalytics,readProfileAnalytics,readAllAnalytics,analyticsReport,FUNNEL_STEPS,analyticsRetentionCutoff,pruneAnalytics,recordServerAiTask} from '../src/lib/product-analytics.mjs';
+import {authenticatedAnalyticsProfile,validateAnalyticsEvents,recordAnalytics,readProfileAnalytics,readAllAnalytics,analyticsReport,FUNNEL_STEPS,analyticsRetentionCutoff,pruneAnalytics,recordServerAiTask,recordCvDecision} from '../src/lib/product-analytics.mjs';
 const now=Date.now();
 const sessionId=randomUUID();
 const event=(extra={})=>({id:randomUUID(),sessionId,event:'page_enter',page:'home',...extra});
@@ -123,6 +123,17 @@ test('real CV generation terminal creates a separate completed or failed product
   assert.equal(events.filter(e=>e.event==='cv_completed').length,1);
   assert.equal(events.filter(e=>e.event==='cv_failed').length,1);
   assert.equal(analyticsReport([{userId:'alice',events}],now).serverAiTasks.cv.tasks,2);
+});
+test('CV keep/reject decisions are semantic server events and rejection-reason coverage is measurable',async t=>{
+  const root=fixture(t),accepted=randomUUID(),rejected=randomUUID(),rejectedWithout=randomUUID();
+  assert.deepEqual(await recordCvDecision(root,'alice',accepted,'accept',false,now),{recorded:true});
+  assert.deepEqual(await recordCvDecision(root,'alice',rejected,'reject',true,now),{recorded:true});
+  assert.deepEqual(await recordCvDecision(root,'alice',rejectedWithout,'reject',false,now),{recorded:true});
+  assert.deepEqual(await recordCvDecision(root,'alice',rejectedWithout,'reject',false,now),{recorded:false},'decision idempotency uses the draft id');
+  const store=readProfileAnalytics(root,'alice',now),report=analyticsReport([store],now);
+  assert.deepEqual(report.cvDecisions,{total:3,accepted:1,rejected:2,rejectedWithReason:1,rejectionReasonRate:.5});
+  assert.equal(report.overview.cvAccepted,1);assert.equal(report.overview.cvRejected,2);
+  assert.doesNotMatch(JSON.stringify(store),/why I rejected|reason text/i,'analytics stores only whether a reason was provided');
 });
 test('six-month retention preserves more than the old event cap and physically expires events',async t=>{
   const root=fixture(t);

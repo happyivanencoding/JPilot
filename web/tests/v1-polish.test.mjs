@@ -6,7 +6,8 @@ import {broadCareerDirections} from '../src/lib/career-directions.mjs';
 import {parseOrientation} from '../src/lib/v1-journey.mjs';
 import {normalizeDeepMatch,matchScoreView,projectV1JobScores,friendlyGapTitle} from '../src/lib/v1-match.mjs';
 import {estimatedProgress,searchProgress} from '../src/lib/v1-progress.mjs';
-import {professionalReferenceHtml,textCvLayout} from '../src/lib/backend/reference-template.mjs';
+import {professionalReferenceHtml,professionalTailoredHtml,textCvLayout} from '../src/lib/backend/reference-template.mjs';
+import {jdEmphasisKeywords} from '../src/lib/cv-jd-emphasis.mjs';
 const now=Date.parse('2026-09-11T10:00:00Z');
 const task=(id,query,extra={})=>({id,kind:'search',createdAt:'2026-09-11T09:00:00Z',status:'completed',inputVersionId:'cv-a',input:{query},result:{offers:[]},...extra});
 test('bilingual equivalents merge, unrelated specialisms and another CV do not',()=>{
@@ -91,8 +92,32 @@ test('job detail uses inline tracking instead of a third tab and exposes grounde
  assert.match(sheets,/data-testid="toggle-job-tracking"/);assert.match(sheets,/data-testid="inline-job-tracking"/);
  assert.match(sheets,/labels=\{\[tr\("匹配", "Match", "Fit"\), "CV"\]\}/);
  assert.doesNotMatch(sheets,/labels=\{\[tr\("匹配", "Match", "Fit"\), "CV", tr\("跟踪"/);
- assert.match(sheets,/data-testid="pre-generation-cv-guidance"/);assert.match(sheets,/data-testid="cv-guidance-facts"/);assert.match(sheets,/data-testid="cv-guidance-preferences"/);
- assert.match(sheets,/userProvidedConfirmed:!facts\|\|guidanceConfirmed/);assert.match(sheets,/标记为 user-provided/);
+ assert.match(sheets,/<details className="onward-cv-guidance" data-testid="pre-generation-cv-guidance"/);assert.match(sheets,/data-testid="cv-guidance-facts"/);assert.match(sheets,/data-testid="cv-guidance-preferences"/);
+ assert.match(sheets,/userProvidedConfirmed:!facts\|\|guidanceConfirmed/);assert.match(sheets,/这些补充只影响这个岗位版本/);
+ assert.doesNotMatch(sheets,/来源：\$\{job\.source/);
+});
+test('first-run guidance is actionable, search diagnostics are hidden, and visible water never claims 100%',()=>{
+ const onboarding=fs.readFileSync(new URL('../src/components/jobpilot/onboarding.tsx',import.meta.url),'utf8');
+ const catalog=fs.readFileSync(new URL('../src/components/jobpilot/catalog.tsx',import.meta.url),'utf8');
+ const water=fs.readFileSync(new URL('../src/components/jobpilot/cv-water.tsx',import.meta.url),'utf8');
+ assert.match(onboarding,/À partir de votre CV, Onward voit déjà ces atouts/);assert.match(onboarding,/jp-v1-direction-title/);assert.match(onboarding,/DirectionMedallion/);assert.match(onboarding,/ArrowRight/);
+ assert.doesNotMatch(catalog,/\{data\.v1\?\.searchNotice\}/);assert.doesNotMatch(catalog,/搜索暂未完成/);assert.doesNotMatch(catalog,/换一个方向，或稍后再试/);
+ assert.match(water,/Math\.min\(96,/);assert.match(onboarding,/aria-valuemax=\{96\}/);
+ assert.match(onboarding,/data-testid="privacy-brief"/);assert.doesNotMatch(onboarding,/CvPrivacyDialog/);
+});
+test('JD emphasis skill bolds only grounded terms already present in the generated CV',()=>{
+ const payload={summary:'Data analyst using Excel and Power BI for reporting.',experience:[{company:'Library',role:'Assistant',bullets:['Built Excel tracking reports.']}],skills:[{category:'Tools',items:['Excel','Power BI']}]};
+ const job={v1Match:{deepMatch:{tools:['Excel','SQL','Power BI'],requirements:[{title:'Data analysis'}],responsibilities:['Build reporting dashboards']}},cv:{keywords:['Excel','Power BI']}};
+ const keywords=jdEmphasisKeywords(job,payload);
+ assert.ok(keywords.some(value=>/Excel/i.test(value)));assert.ok(keywords.some(value=>/Power BI/i.test(value)));assert.ok(!keywords.some(value=>/^SQL$/i.test(value)),'missing JD terms must not be inserted');
+ const layout=textCvLayout('Candidate Name\nPROFILE\nData analyst using Excel and Power BI for reporting.\nEXPERIENCE\n### Library — 2026\nAssistant\n- Built Excel tracking reports.\nSKILLS\nExcel · Power BI');
+ const html=professionalTailoredHtml({content:'x',layoutSource:layout,tailoredPayload:payload,language:'en',emphasisKeywords:keywords});
+ assert.match(html,/<strong>Excel<\/strong>/i);assert.match(html,/<strong>Power BI<\/strong>/i);assert.doesNotMatch(html,/<strong>SQL<\/strong>/i);
+});
+test('tailored renderer replaces a foreign-language source header with the normalized application identity',()=>{
+ const layout=textCvLayout('李若晴\n巴黎 · +33 6 00 00 00 00 · ruoqing.li@example.com\nPROFILE\nAnalyst.\nEXPERIENCE\n### Library — 2026\nAssistant');
+ const html=professionalTailoredHtml({content:'x',layoutSource:layout,tailoredPayload:{summary:'Analyst.',experience:[{company:'Library',role:'Assistant',bullets:['Excel reporting.']}]},language:'en',candidate:{name:'Ruoqing Li',location:'Paris',phone:'+33 6 00 00 00 00',email:'ruoqing.li@example.com',linkedin:{display:''}}});
+ assert.match(html,/Ruoqing Li/);assert.match(html,/Paris/);assert.doesNotMatch(html,/[\u3400-\u9fff]/u);assert.equal((html.match(/ruoqing\.li@example\.com/g)||[]).length,1);
 });
 test('final rubric understands fit independently of retrieval score without an artificial 60 floor',()=>{
  const source={scoring_version:'role-fit-2',score_components:{role:25,duties:21,tools_languages:12,level:14},current_score:72,cv_potential_score:80,capability_potential_score:90};

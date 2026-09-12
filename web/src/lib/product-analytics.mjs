@@ -105,6 +105,13 @@ export async function recordServerProductEvent(root,profileId,type,id,timestamp=
     return {recorded:result.accepted>0};
   } catch { return {recorded:false}; }
 }
+export async function recordCvDecision(root,profileId,draftId,decision,rejectionReasonProvided=false,timestamp=Date.now()) {
+  try {
+    if(!UUID.test(draftId)||!['accept','reject'].includes(decision))return {recorded:false};
+    const result=await persistAnalytics(root,profileId,[{id:draftId.toLowerCase(),event:'cv_decision',source:'server',decision,rejectionReasonProvided:Boolean(rejectionReasonProvided),timestamp,receivedAt:Date.now()}],timestamp);
+    return {recorded:result.accepted>0};
+  }catch{return {recorded:false};}
+}
 // Called only at the live backend task terminal persistence boundary. Never backfills history.
 export async function recordServerAiTask(root,task,finishedAt=Date.now()) {
   try {
@@ -211,13 +218,15 @@ export function analyticsReport(stores,now=Date.now()) {
     ttv('login_to_first_job_opened',users,u=>u.loginAt,u=>u.jobOpenedAt),
     ttv('first_job_opened_to_analysis_read',users,u=>u.jobOpenedAt,u=>u.analysisReadAt),
   ];
-  const overview={testUsers:users.length,loggedInUsers,cvReady:coreFunnel[0].users,jobsSeen:coreFunnel[1].users,jobOpened:coreFunnel[2].users,analysisRead:coreFunnel[3].users,cvGenerateStarted:coreFunnel[4].users,cvGenerateCompleted:coreFunnel[5].users,cvFailed:users.filter(u=>u.serverEvents.some(e=>e.event==='cv_failed')).length,d1Returned:returned.length,d1Eligible:eligible.length,d1RetentionRate:rate(returned.length,eligible.length)};
+  const decisions=serverEvents.filter(e=>e.event==='cv_decision'),accepted=decisions.filter(e=>e.decision==='accept'),rejected=decisions.filter(e=>e.decision==='reject'),rejectedWithReason=rejected.filter(e=>e.rejectionReasonProvided===true);
+  const cvDecisions={total:decisions.length,accepted:accepted.length,rejected:rejected.length,rejectedWithReason:rejectedWithReason.length,rejectionReasonRate:rate(rejectedWithReason.length,rejected.length)};
+  const overview={testUsers:users.length,loggedInUsers,cvReady:coreFunnel[0].users,jobsSeen:coreFunnel[1].users,jobOpened:coreFunnel[2].users,analysisRead:coreFunnel[3].users,cvGenerateStarted:coreFunnel[4].users,cvGenerateCompleted:coreFunnel[5].users,cvFailed:users.filter(u=>u.serverEvents.some(e=>e.event==='cv_failed')).length,cvAccepted:accepted.length,cvRejected:rejected.length,d1Returned:returned.length,d1Eligible:eligible.length,d1RetentionRate:rate(returned.length,eligible.length)};
   return {generatedAt:now,timeZone:'Europe/Paris',retentionMonths:RETENTION_MONTHS,retentionCutoffAt:analyticsRetentionCutoff(now),retentionTimeZone:'UTC',retentionDays:(now-analyticsRetentionCutoff(now))/86400000,measurement:'client_observed_visible_wait_segments',pageTaxonomy:CANONICAL_PAGES,
     coreFunnelDefinition:'CV Ready → Jobs Seen → Job Opened → Analysis Read → CV Generate Started → CV Generate Completed. Each later stage must occur after the prior stage for the same pseudonymous user.',
     analysisReadDefinition:'A pseudonymous user/job context qualifies after >=8 seconds of accumulated foreground job_match time or >=50% scroll. New clients send only an opaque hashed job context; legacy contextless data is grouped per session.',
     d1Definition:'Day 0 is the Europe/Paris calendar day of first cv_ready. D1 return requires page_enter or page_heartbeat on the next Paris day. D0 users enter the denominator only after that entire D1 calendar day has ended.',
     funnelDefinition:'Legacy ordered funnel retained for compatibility; missing prior steps are not inferred.',exitDefinition:'Last observed page/step; page_exit is best-effort and backgrounding is not proof of permanent abandonment.',
-    users:users.length,sessions:users.reduce((n,u)=>n+u.sessions.length,0),events:all.length,discardedEvents:users.reduce((n,u)=>n+u.discarded,0),overview,coreFunnel,d1Retention:{eligibleD0Users:eligible.length,d1ReturnedUsers:returned.length,rate:rate(returned.length,eligible.length)},timeToValue,funnel,serverAiTasks,aiWaits,aiPerformance,
+    users:users.length,sessions:users.reduce((n,u)=>n+u.sessions.length,0),events:all.length,discardedEvents:users.reduce((n,u)=>n+u.discarded,0),overview,cvDecisions,coreFunnel,d1Retention:{eligibleD0Users:eligible.length,d1ReturnedUsers:returned.length,rate:rate(returned.length,eligible.length)},timeToValue,funnel,serverAiTasks,aiWaits,aiPerformance,
     pages:pageIds.map(page=>({page,enters:all.filter(e=>e.page===page&&e.event==='page_enter').length,visibleDurationMs:all.filter(e=>e.page===page&&['page_exit','page_heartbeat'].includes(e.event)).reduce((n,e)=>n+e.durationMs,0),maxScrollDepth:all.filter(e=>e.page===page&&['scroll','page_heartbeat'].includes(e.event)).reduce((max,e)=>Math.max(max,e.scrollDepth||0),0)})),
     clicks:Object.entries(all.filter(e=>e.event==='click').reduce((counts,e)=>({...counts,[e.action]:(counts[e.action]||0)+1}),{})).map(([action,count])=>({action,count})),
     journeys:users.map(user=>({userId:user.userId,firstSeenAt:user.events[0]?.timestamp??user.serverEvents[0]?.timestamp??null,lastSeenAt:[...user.events,...user.serverEvents].reduce((m,e)=>Math.max(m,e.timestamp||0),0)||null,discarded:user.discarded,completedOrderedSteps:user.reached,coreFunnelCompleted:user.coreReached,
