@@ -1,5 +1,13 @@
 # JobPilot Android — implementation handoff
 
+## 2026-09-12 Onward V1 0.6.3 / Web 0.8.3 — role-CV source layout + horizontal AI buttons
+
+Youness 的 `Consultant FinOps - CDI (H/F)` 岗位版 CV 失败来自后端 PDF renderer，不是模型调用：服务器两次 `cv` task 都在已有 cached generation 后报 `Le CV occupe 2 pages pour une limite de 1`。真实源 PDF 是 1 页 960×540pt 横向双栏；旧解析丢失列/页几何后按 A4 单栏重排才变成 2 页。V1 renderer 现在保留 source `column` / `columnFractions` / `pageWidth` / `pageHeight`、email/phone，并补识别 `PROFESSIONAL EXPERIENCE`；同版式首次超页才做一次 compact retry。用 Youness 真实 source + 已缓存 generation 做了无模型实测，输出 **1 页、ATS 100、无 issue**，邮箱与手机号均保留。
+
+AI loading 同步调整：首次 onboarding 的全屏 `CvAnalysisWater` 仍从底部上升；普通 `AiProgressButton`（搜索、岗位 CV、准备/Coach 等）Web/Android 都从**左向右**填充。Android `AiProgressButton` Canvas 改为 `liquidRight = width * progress`；全屏 `CvAnalysisWater` 的 `waterY = height * (1-level)` 未改。进度曲线、96% active ceiling、真实 terminal state 语义均未改。
+
+Android 已升 **0.6.3/code31** 并 `adb install -r` 到 Samsung **SM-S928U1 / R5CXB0BSTVD**，未清数据；设备读回 0.6.3/code31，launcher 已启动。APK `.career-ops-web/onward-063/Onward-V1-0.6.3-code31.apk`，19,671,019 bytes，SHA-256 `2823FBBE86ED0AD6A1591BDC1897EB1C083FA2C6AD1329358DAC00FF6127DF79`，同包已复制手机 Download。定向 47/47、Web type/build、Android assembleDebug、diff check 均 PASS。Web 0.8.3 源码已 push，但**本轮公网 V1 deploy 尚未完成**：Runtime connector 不可用，AgentDock 的 V1 root deploy 写调用被工具安全层在执行前拦截；线上只读 status 仍是 `80c4003...` healthy。恢复 deploy 后必须部署 feature 分支当前 HEAD，再用 Youness 同岗位 retry 验收。
+
 ## 2026-09-12 Onward V1 0.6.2 / Web 0.8.2 — experienced CDI discovery hotfix
 
 Youness 的真实 V1 档案暴露出第二个搜索层问题：`FinOps Technical Lead` 与 `Enterprise Platform Architect` 两个方向并不是 provider 没有职位。部署前两次真实 task 都由 JSearch 各返回 10 条 raw offer，但最终为 0。原因是三层过滤叠加：CDI 的 `confirmed_only` 把 provider 未明确标合同类型的相关职位全部删除；V1 在没有资历偏好时默认写成 `junior`，把 Enterprise Platform Architect 错当成资历过高；FinOps / Enterprise Platform Architect 还没有完整进入双语 role vocabulary，导致英法标题相关性判断过窄。
