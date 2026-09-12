@@ -36,6 +36,11 @@ test('short English CV-assessment gaps are not mistaken for French display text'
   assert.equal(alreadyLocalized(frenchGap,'fr','fr'),true);
   assert.equal(translationLooksLikeTarget(frenchGap,'fr'),true);
 });
+test('short all-Chinese output is rejected for French and English display caches',()=>{
+  assert.equal(translationLooksLikeTarget('供应链计划','fr'),false);
+  assert.equal(translationLooksLikeTarget('数据驱动管理','fr'),false);
+  assert.equal(translationLooksLikeTarget('物流协调','en'),false);
+});
 test('Chinese analysis explicitly requires English CV fragments and preserves original evidence',()=>{
   const prompt=cvAnalysisPrompt({candidate:candidate(),language:'zh'});
   assert.match(prompt,/USER-FACING EXPLANATION LANGUAGE: Simplified Chinese/);

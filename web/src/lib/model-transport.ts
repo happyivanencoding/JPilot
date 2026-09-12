@@ -3,12 +3,12 @@ import { randomUUID } from "node:crypto";
 import { apiEquivalent } from "@/lib/ai-metrics.mjs";
 
 export type JobPilotModel = "gpt-6-astra" | "gpt-5.6-sol" | "gpt-5.6-terra" | "gpt-5.6-luna" | "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.3-codex-spark";
-export type JobPilotReasoning = "low" | "medium" | "high" | "xhigh" | "max";
+export type JobPilotReasoning = "none" | "low" | "medium" | "high" | "xhigh" | "max";
 export type JobPilotModelRun = {
   sessionId: string;
   runId: string;
   remoteSessionId?: string;
-  transport: "openai-direct" | "deepseek-direct" | "agentdock-acp";
+  transport: "openai-direct" | "agentdock-acp";
   cancel: () => Promise<void>;
 };
 
@@ -45,20 +45,6 @@ function openAiKey() {
   }
 }
 
-function deepSeekKey() {
-  const direct = process.env.DEEPSEEK_API_KEY?.trim();
-  if (direct) return direct;
-  const file = process.env.JOBPILOT_DEEPSEEK_KEY_FILE?.trim();
-  if (!file) throw new Error("JobPilot translation uses DeepSeek but JOBPILOT_DEEPSEEK_KEY_FILE/DEEPSEEK_API_KEY is not configured.");
-  try {
-    const key = fs.readFileSync(file, "utf8").trim();
-    if (!key) throw new Error("empty key file");
-    return key;
-  } catch {
-    throw new Error("JobPilot could not read the configured DeepSeek API key file.");
-  }
-}
-
 export function modelTransportInfo() {
   const transport = selectedTransport();
   return { transport, direct: transport === "direct-openai" };
@@ -74,7 +60,7 @@ export async function prewarmModelTransport(cwd: string): Promise<void> {
 }
 
 export async function prewarmTranslationTransport(): Promise<void> {
-  deepSeekKey();
+  openAiKey();
 }
 
 async function runOpenAiDirect(args: RunArgs) {
@@ -144,72 +130,6 @@ async function runOpenAiDirect(args: RunArgs) {
   }
 }
 
-async function runDeepSeekDirect(args: Omit<RunArgs, "model" | "reasoning">) {
-  const requestedAt = Date.now();
-  const model = process.env.JOBPILOT_TRANSLATION_MODEL?.trim() || "deepseek-v4-flash";
-  const controller = new AbortController();
-  const timeoutMs = args.timeoutMs || 120_000;
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  const run: JobPilotModelRun = {
-    sessionId: "",
-    runId: "",
-    remoteSessionId: undefined,
-    transport: "deepseek-direct",
-    cancel: async () => controller.abort(),
-  };
-  const baseMetrics: Record<string, any> = {
-    model, reasoning: "none", transport: "deepseek-direct", transportOnly: true,
-    queueMs: 0, setupMs: 0, agentMs: null, wallMs: null,
-    inputTokens: null, outputTokens: null, cachedInputTokens: null, reasoningTokens: 0, totalTokens: null,
-    actualCostUsd: null, estimatedCostUsd: null, costKind: "provider-specific-not-estimated", tokenSource: "deepseek-chat-completions",
-  };
-  args.onRun?.(run);
-  args.onMetrics?.({ ...baseMetrics });
-  if (args.isCancelled?.()) throw new Error("Operation cancelled before translation request.");
-  try {
-    const response = await fetch(process.env.JOBPILOT_DEEPSEEK_CHAT_URL?.trim() || "https://api.deepseek.com/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${deepSeekKey()}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: `${SYSTEM_PREFIX}\n\n${args.prompt}` }],
-        thinking: { type: "disabled" },
-        response_format: { type: "json_object" },
-        max_tokens: 8000,
-      }),
-      signal: controller.signal,
-      cache: "no-store",
-    });
-    const raw = await response.text();
-    let body: any;
-    try { body = JSON.parse(raw); } catch { body = { raw: raw.slice(0, 1200) }; }
-    if (!response.ok) throw new Error(`DeepSeek direct HTTP ${response.status}: ${body?.error?.message || "request failed"}`);
-    const output = String(body?.choices?.[0]?.message?.content || "");
-    if (!output.trim()) throw new Error("DeepSeek direct returned an empty translation response.");
-    const usage = body?.usage || {};
-    const metrics = {
-      ...baseMetrics,
-      inputTokens: Number.isFinite(usage.prompt_tokens) ? usage.prompt_tokens : null,
-      outputTokens: Number.isFinite(usage.completion_tokens) ? usage.completion_tokens : null,
-      cachedInputTokens: Number.isFinite(usage.prompt_cache_hit_tokens) ? usage.prompt_cache_hit_tokens : null,
-      reasoningTokens: Number.isFinite(usage.completion_tokens_details?.reasoning_tokens) ? usage.completion_tokens_details.reasoning_tokens : 0,
-      totalTokens: Number.isFinite(usage.total_tokens) ? usage.total_tokens : null,
-      agentMs: Date.now() - requestedAt,
-      wallMs: Date.now() - requestedAt,
-      requestId: response.headers.get("x-request-id") || `local-${randomUUID()}`,
-    };
-    args.onText(output);
-    args.onFinalText?.(output);
-    args.onMetrics?.(metrics);
-    return { status: "completed", textEmitted: true };
-  } catch (error) {
-    if (controller.signal.aborted && !(args.isCancelled?.())) throw new Error(`DeepSeek direct timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 export async function runModelTransport(args: RunArgs): Promise<{ status: string; textEmitted: boolean }> {
   if (selectedTransport() === "direct-openai") return runOpenAiDirect(args);
   const { openAgentDockCodex, runAgentDockCodex } = await import("@/lib/agentdock-acp");
@@ -230,7 +150,8 @@ export async function runModelTransport(args: RunArgs): Promise<{ status: string
   });
 }
 
-/** Display/history translation only. Business evaluation and CV generation never use DeepSeek through this path. */
+/** Display/history translation only. Keep it on the cheapest/fastest OpenAI tier
+ * with reasoning disabled; business evaluation/CV generation keep their own routing. */
 export async function runTranslationTransport(args: Omit<RunArgs, "model" | "reasoning">): Promise<{ status: string; textEmitted: boolean }> {
-  return runDeepSeekDirect(args);
+  return runOpenAiDirect({ ...args, model: "gpt-5.6-luna", reasoning: "none" });
 }

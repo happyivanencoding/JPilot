@@ -14,7 +14,7 @@ fs.mkdirSync(path.join(root,'data'));
 fs.writeFileSync(path.join(root,'data/profiles.json'),JSON.stringify({version:1,defaultProfileId:'fixture-a',profiles:['fixture-a','fixture-b'].map(id=>({id,name:id,shortName:id,cvMarkdown:`data/${id}/cv.md`,config:`data/${id}/profile.yml`,notes:`data/${id}/notes.md`,candidatures:`data/${id}/candidatures.json`}))}));
 let calls=0,broken=false;
 globalThis.__testLocalize=async options=>{
-  calls++;options.onRun?.({runId:`fixture-${calls}`,sessionId:'',transport:'deepseek-direct'});
+  calls++;options.onRun?.({runId:`fixture-${calls}`,sessionId:'',transport:'openai-direct'});
   await new Promise(r=>setTimeout(r,20));
   const rows=JSON.parse(options.prompt.slice(options.prompt.lastIndexOf('\n')+1));
   const french=options.prompt.includes('into French');
@@ -119,6 +119,19 @@ test('a dirty French cache containing Chinese is invalidated and translated agai
   const count=calls;let view=await localizeDisplay('fixture-a','fr',job,'job',{identity:'dirty-fr-job'});assert.equal(view.localization.pending,true);
   for(let n=0;n<200 && view.localization.pending && !view.localization.failed;n++){await new Promise(r=>setTimeout(r,10));view=await localizeDisplay('fixture-a','fr',job,'job',{schedule:false,identity:'dirty-fr-job'});}
   assert.equal(view.localization.pending,false);assert.equal(view.localization.failed,false);assert.ok(calls>count);assert.notEqual(view.cvDraft.assessment.summary,sourceText);assert.equal(translationLooksLikeTarget(view.cvDraft.assessment.summary,'fr'),true);
+});
+
+test('French V1 orientation stays French even when an older persisted result declared outputLocale=en',async()=>{
+  const analysis={outputLocale:'en',markdown:'Votre expérience terrain et vos analyses supply chain ouvrent plusieurs pistes opérationnelles à Paris.',
+    strengths:[{title:'Analyse des flux et des ruptures',evidence:'Chez Schneider Electric, vous avez analysé les ruptures d’une famille de composants.'},{title:'Pilotage par les données',evidence:'Vous avez créé un tableau Power BI utilisé en revue d’équipe.'}],
+    growthAreas:[{title:'Approfondir les outils data',nextAction:'Réalisez un projet SQL simple sur les stocks et les retards.'}],
+    careerDirections:[{title:'Planification supply chain',why:'Vos compétences en prévisions et stocks sont directement utiles.',evidence:['Analyse des ruptures','Suivi fournisseurs'],searchQuery:'Supply Planner Paris'}]};
+  const count=calls;
+  const view=await localizeDisplay('fixture-a','fr',analysis,'analysis',{schedule:false,identity:'legacy-french-orientation'});
+  assert.equal(view.localization.pending,false);
+  assert.equal(calls,count);
+  assert.equal(view.strengths[1].title,'Pilotage par les données');
+  assert.equal(view.careerDirections[0].title,'Planification supply chain');
 });
 
 test('V1 career and deep-match explanations follow UI language without translating search/tool tokens',async()=>{

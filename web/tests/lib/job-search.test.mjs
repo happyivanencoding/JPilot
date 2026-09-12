@@ -106,6 +106,22 @@ test('Youness FinOps and enterprise-platform directions expand across market voc
   assert.equal(bilingualRoleQueries('Enterprise Platform Architect')[1],'architecte plateforme entreprise');
 });
 
+test('supply-chain directions expand across French market vocabulary instead of filtering every France Travail hit', () => {
+  assert.deepEqual(bilingualRoleQueries('Supply Planner Paris').slice(0,3),['supply planner','demand planner','planificateur supply chain']);
+  assert.equal(bilingualRoleQueries('Approvisionneur junior Paris')[0],'approvisionneur junior');
+  assert.equal(bilingualRoleQueries('Coordinateur logistique junior Paris')[0],'coordinateur logistique junior');
+  assert.equal(bilingualRoleQueries('Ingénieur amélioration continue junior Paris')[0],'ingenieur amelioration continue junior');
+  const request={query:'Supply Planner Paris',targetRoles:[],city:'Paris',country:'France',contractTypes:['CDI'],strictContract:true,fallbackPolicy:'closest'};
+  const result=rankSearchResults(request,[
+    {url:'https://example.invalid/supply-plan',company:'Industrial A',title:'Planificateur Supply Chain',location:'Paris, France',contractType:'CDI',description:'Planification des flux, prévisions et stocks.'},
+    {url:'https://example.invalid/demand-plan',company:'Industrial B',title:'Demand Planner',location:'Paris, France',contractType:'unknown',description:'Prévisions de demande et S&OP.'},
+    {url:'https://example.invalid/noise',company:'Noise',title:'Assistant marketing',location:'Paris, France',contractType:'CDI',description:'Campagnes marketing.'},
+  ],[],{now:NOW});
+  assert.deepEqual(result.offers.map(offer=>offer.title),['Planificateur Supply Chain','Demand Planner']);
+  assert.ok(result.offers.every(offer=>offer.relevanceTier==='strong'||offer.relevanceTier==='adjacent'));
+  assert.equal(result.metrics.relevanceRemoved,1);
+});
+
 test('CDI search keeps highly relevant offers whose provider omitted contract metadata, but marks them to confirm', () => {
   const request={query:'Architecte plateforme entreprise Paris',targetRoles:[],city:'Paris',country:'France',contractTypes:['CDI'],strictContract:true,fallbackPolicy:'closest'};
   const result=rankSearchResults(request,[

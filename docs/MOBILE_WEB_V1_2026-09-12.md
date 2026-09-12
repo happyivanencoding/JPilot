@@ -1,5 +1,17 @@
 # Onward V1 — Mobile Web Only handoff (2026-09-12)
 
+## Web 0.9.1 — onboarding localization / search hotfix
+
+The first real French Mobile Web walkthrough after 0.9.0 exposed three reachable defects that did not appear in the earlier synthetic browser path. The synthetic Hugo Pelletier supply-chain CV (`C:\dev\jobpilot-cv-testset-20260911\CV_Test_04_Hugo_Pelletier.pdf`) was replayed through the public VPS with a French UI. The orientation model itself finished normally in about 7.6s and returned French prose, but the persisted orientation had the legacy `outputLocale=en` marker. Display localization therefore treated already-French content as English. The configured DeepSeek translation call then returned Chinese for a number of segments even though the target was French; the old validator also let short all-Chinese labels such as a direction title through as valid French. The UI consequently mixed French and Chinese.
+
+0.9.1 fixes this at the presentation boundary rather than hard-coding translations. Orientation source language is inferred from the complete structured result (summary, strengths, growth actions and directions), stale `outputLocale` metadata no longer wins over the actual text, and all-Chinese output is rejected for French/English display even when the string is short. Display/history translation is now **OpenAI direct `gpt-5.6-luna` with `reasoning=none`**; the DeepSeek translation path is no longer used by V1. Existing valid display cache entries remain reusable, while wrong-language cache entries are invalidated by target-language validation. The active Web source no longer contains a DeepSeek translation transport or DeepSeek credential dependency. The V1 privacy notice is version **2026-09-12.1** and now accurately identifies OpenAI as the analysis/translation AI interface.
+
+The same public walkthrough also proved that the recurring “Pas encore d’offre adaptée à cette piste” was not simply a thin market. `Supply Planner Paris` received **8 raw France Travail offers**, while JSearch returned HTTP 429; all eight France Travail rows were then removed by the old English-centric relevance layer. Supply planning, procurement/approvisionnement, logistics and continuous-improvement families now have conservative French/English market aliases used for recall/relevance, and the V1 search revision is **`v12-market-vocabulary`**, so the previous zero-result cache cannot be silently reused. These are search semantics, not UI translations; they remain distinct from display localization.
+
+The full-screen CV/search water also had a visible horizontal seam where the rectangular liquid fill began under the SVG wave. The fill now starts a few pixels below the wave and the SVG uses the same translucent liquid fill, removing the separate hard boundary without changing the bottom-up progress behavior.
+
+Targeted regressions cover the wrong-locale legacy orientation, short Chinese translation rejection, OpenAI translation transport/model/reasoning, the four supply-chain market families and distinct search identities, and the wave/fill boundary. Web typecheck and production build are release gates for this hotfix. Public deployment and final mobile-browser evidence are recorded separately after rollout.
+
 ## Product decision
 
 For the first commercial-validation cohort, Onward V1 has one official tester client: **Mobile Web**. Testers receive one canonical link or QR code and use the product directly in iPhone Safari or Android Chrome. APK/TestFlight/Expo/native installation is not part of the V1 test.

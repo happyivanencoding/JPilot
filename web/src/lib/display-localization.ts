@@ -11,7 +11,7 @@ import {displaySlots,translationKey,alreadyLocalized,translationLooksLikeTarget,
 type Entry={key:string;text:string;id:string;packed:ReturnType<typeof protectTranslation>};
 const host=globalThis as typeof globalThis & {jobPilotLocalizations?:Map<string,Promise<void>>};
 const running=host.jobPilotLocalizations ??= new Map<string,Promise<void>>();
-const TRANSLATION_ENGINE_ID='deepseek-v4-flash-nonthinking-v2-language-validated';
+const TRANSLATION_ENGINE_ID='gpt-5.6-luna-none-v1-language-validated';
 const validCached=(saved:any,source:string,locale:string)=>saved?.source===source && saved?.locale===locale && typeof saved.translation==='string' && translationLooksLikeTarget(saved.translation,locale);
 
 /** Translation operations use the existing cross-process profile lock, but NOT
@@ -57,7 +57,7 @@ export async function localizeDisplay(profileId:string,target:unknown,value:any,
       const previous=readJson(path.join(operations,key+'.json'));
       if(previous && ['failed','interrupted'].includes(previous.status) && !options.retry) {active=previous;return;}
       const now=new Date().toISOString();
-      active={key,kind:'localize',profileId,locale,scope,identity:options.identity || scope,status:'queued',ownerPid:process.pid,createdAt:now,updatedAt:now,segmentKeys:entries.map(e=>e.key),model:'deepseek-v4-flash',reasoning:'none',transport:'deepseek-direct',attempt:(previous?.attempt || 0)+1};
+      active={key,kind:'localize',profileId,locale,scope,identity:options.identity || scope,status:'queued',ownerPid:process.pid,createdAt:now,updatedAt:now,segmentKeys:entries.map(e=>e.key),model:'gpt-5.6-luna',reasoning:'none',transport:'openai-direct',attempt:(previous?.attempt || 0)+1};
       writeJson(path.join(operations,key+'.json'),active);writeJson(path.join(directory,'active.json'),active);
       const operation={...active};
       const work=executeLocalization(directory,operation,entries);

@@ -7,6 +7,7 @@ import {searchProgress} from "@/lib/v1-progress.mjs";
 import {cvProgress} from "@/lib/v1-cv-progress.mjs";
 import {localizeDisplay} from '@/lib/display-localization';
 import {completedOfferBatch} from '@/lib/v1-journey.mjs';
+import {orientationOutputLocale} from '@/lib/v1-journey.mjs';
 
 /** Release complete product sections, never placeholder translations or a score
  * computed from an older CV. Raw persisted model outputs stay untouched. */
@@ -27,11 +28,12 @@ export async function prepareV1Display(profileId:string, locale:string, snapshot
   };
   const current=await localizeBatch(snapshot.discovery);
   const rawDirections=broadCareerDirections(snapshot.analysis?.careerDirections || [],uiLocale,snapshot.config?.target_roles?.primary || []);
+  const sourceOrientationLocale=orientationOutputLocale(snapshot.analysis || {});
   const allGroups=[snapshot.discovery,...(snapshot.discovery.history || [])];
-  const descriptors=rawDirections.map((d:any)=>({...d,...directionDescriptor(d.searchQuery,snapshot.analysis,uiLocale),title:d.title,outputLocale:d.broad?uiLocale:snapshot.analysis?.outputLocale || 'en'}));
+  const descriptors=rawDirections.map((d:any)=>({...d,...directionDescriptor(d.searchQuery,snapshot.analysis,uiLocale),title:d.title,outputLocale:d.broad?uiLocale:sourceOrientationLocale}));
   const titles=await localizeDisplay(profileId,uiLocale,{items:[...descriptors,...allGroups.map((g:any)=>{
     const descriptor=directionDescriptor(g.query,snapshot.analysis || {},uiLocale);
-    return {...descriptor,outputLocale:descriptor.known?uiLocale:(snapshot.analysis?.careerDirections?.find((d:any)=>d.searchQuery===g.query)?'en':undefined)};
+    return {...descriptor,outputLocale:descriptor.known?uiLocale:(snapshot.analysis?.careerDirections?.find((d:any)=>d.searchQuery===g.query)?sourceOrientationLocale:undefined)};
   })]},'directions',{retry});
   const labelsReady=!titles.localization?.pending;
   analysisReady=analysisReady&&labelsReady;

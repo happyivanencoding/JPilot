@@ -1,7 +1,8 @@
 .jp-cv-water{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
-.jp-cv-water-level{position:absolute;inset:0;background:color-mix(in srgb,var(--jp-primary) 22%,transparent);transition:transform .16s linear;will-change:transform}
-.jp-cv-wave{position:absolute;top:-27px;left:0;width:200%;height:28px;fill:var(--jp-primary);animation:jp-cv-wave 4.8s linear infinite;opacity:.15}
-.jp-cv-wave.back{top:-32px;height:34px;opacity:.10;animation-direction:reverse;animation-duration:6.7s}
+.jp-cv-water-level{position:absolute;inset:0;background:transparent;transition:transform .16s linear;will-change:transform}
+.jp-cv-water-level:after{content:"";position:absolute;top:3px;right:0;bottom:0;left:0;background:color-mix(in srgb,var(--jp-primary) 22%,transparent)}
+.jp-cv-wave{position:absolute;top:-27px;left:0;width:200%;height:32px;fill:color-mix(in srgb,var(--jp-primary) 22%,transparent);animation:jp-cv-wave 4.8s linear infinite;opacity:1}
+.jp-cv-wave.back{top:-32px;height:38px;fill:color-mix(in srgb,var(--jp-primary) 10%,transparent);opacity:1;animation-direction:reverse;animation-duration:6.7s}
 .jp-cv-water.paused .jp-cv-wave{animation-play-state:paused}
 .jp-cv-water.complete .jp-cv-water-level{transition:transform .38s cubic-bezier(.2,.7,.2,1)}
 .jp-cv-water.complete .jp-cv-wave{opacity:0;transition:opacity .38s}

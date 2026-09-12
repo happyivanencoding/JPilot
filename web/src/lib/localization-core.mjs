@@ -22,7 +22,8 @@ export function translationLooksLikeTarget(text,locale) {
   const target=uiLocale(locale),han=(value.match(/[\p{Script=Han}]/gu)||[]).length,latin=(value.match(/[\p{Script=Latin}]/gu)||[]).length;
   // A Chinese proper name may legitimately remain inside French/English prose. A
   // whole Chinese explanation may not be cached as a French/English translation.
-  if(target!=='zh' && han>=8 && (latin===0 || han>latin*.18))return false;
+  if(target!=='zh' && han>0 && latin===0)return false;
+  if(target!=='zh' && han>=4 && han>latin*.18)return false;
   if(target==='zh' && han<2) {
     const detected=detectedDocumentLanguage(value);if(detected && detected!=='zh')return false;
   }
@@ -40,7 +41,13 @@ export function displaySlots(value,scope) {
   const strings=(obj,key,path,hint)=>{if(Array.isArray(obj?.[key]))obj[key].forEach((v,i)=>{if(typeof v==='string')put(obj[key],i,[...path,key],hint);});};
   const rows=(obj,key,path,fn)=>{if(Array.isArray(obj?.[key])) obj[key].forEach((row,i)=>fn(row,[...path,key,i]));};
   function analysis(a,p=[]) {
-    if(!a)return;const hint=a.outputLocale || (/[\p{Script=Han}]/u.test(a.markdown||'')?'zh':detectedDocumentLanguage(a.markdown)||'fr');
+    if(!a)return;
+    const languageSample=[a.markdown,
+      ...(Array.isArray(a.strengths)?a.strengths:[]).flatMap(r=>[r?.title,r?.evidence]),
+      ...(Array.isArray(a.growthAreas)?a.growthAreas:[]).flatMap(r=>[r?.title,r?.nextAction]),
+      ...(Array.isArray(a.careerDirections)?a.careerDirections:[]).flatMap(r=>[r?.title,r?.why,...(Array.isArray(r?.evidence)?r.evidence:[])]),
+    ].filter(Boolean).join('\n');
+    const hint=/[\p{Script=Han}]/u.test(languageSample)?'zh':detectedDocumentLanguage(languageSample)||a.outputLocale||'fr';
     fields(a,['markdown','changeSummary','expressionMarkdown','actionMarkdown'],p,hint);
     rows(a,'strengths',p,(r,q)=>fields(r,['title','evidence'],q,hint));
     rows(a,'growthAreas',p,(r,q)=>fields(r,['title','nextAction'],q,hint));

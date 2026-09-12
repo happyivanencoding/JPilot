@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   const started = Date.now();
   try {
     await Promise.all([prewarmModelTransport(workspaceRoot()), prewarmTranslationTransport()]);
-    return Response.json({ ready: true, wallMs: Date.now() - started, ...modelTransportInfo(), translationTransport: "deepseek-direct" });
+    return Response.json({ ready: true, wallMs: Date.now() - started, ...modelTransportInfo(), translationTransport: "openai-direct", translationModel: "gpt-5.6-luna", translationReasoning: "none" });
   } catch (error) {
     return Response.json({ ready: false, wallMs: Date.now() - started, error: error instanceof Error ? error.message : String(error) }, { status: 503 });
   }

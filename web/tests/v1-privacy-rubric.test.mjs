@@ -53,7 +53,7 @@ test('CV consent is explicit, versioned, profile-scoped, and withdrawal is pendi
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 test('notice displays actual configured endpoint domains without disclosing credential/path/query',()=>{
- assert.deepEqual(privacyRecipients({JOBPILOT_OPENAI_CHAT_URL:'https://api.example.com/private?key=no',JOBPILOT_DEEPSEEK_CHAT_URL:'https://translate.example.org/api'}),{analysis:'api.example.com',translation:'translate.example.org'});
+ assert.deepEqual(privacyRecipients({JOBPILOT_OPENAI_CHAT_URL:'https://api.example.com/private?key=no'}),{analysis:'api.example.com',translation:'api.example.com'});
 });
 
 test('rejecting a draft releases its frozen baseline so a new CV can receive a fresh assessment',()=>{

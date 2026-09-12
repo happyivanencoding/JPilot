@@ -33,5 +33,6 @@ export async function recordCvChoice(directory,{action,version,acknowledged,loca
 }
 export function privacyRecipients(env=process.env) {
  const host=value=>{try{return new URL(value).hostname;}catch{return 'unconfigured';}};
- return {analysis:host(env.JOBPILOT_OPENAI_CHAT_URL || 'https://api.openai.com/v1/chat/completions'),translation:host(env.JOBPILOT_DEEPSEEK_CHAT_URL || 'https://api.deepseek.com/chat/completions')};
+ const openai=host(env.JOBPILOT_OPENAI_CHAT_URL || 'https://api.openai.com/v1/chat/completions');
+ return {analysis:openai,translation:openai};
 }

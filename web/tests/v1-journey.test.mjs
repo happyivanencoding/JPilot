@@ -88,7 +88,7 @@ test('upload commits facts automatically then analyses only that profile, withou
   assert.equal(version.sources.notes.text,'');
 });
 const base=()=>({profile:{id:a.profileId,name:'Yuki Tanaka'},analysis,cvState:{versionId:version.id},v1:{analysisState:'completed',backgroundActive:false},discovery:{offers:[],history:[]}});
-test('directions and advantages are withheld until DeepSeek translation is complete',async()=>{
+test('directions and advantages are withheld until display translation is complete',async()=>{
   const initial=await prepareV1Display(a.profileId,'zh',base(),[],{});
   assert.equal(initial.analysis,null);assert.deepEqual(initial.v1.careerDirections,[]);assert.equal(initial.v1.analysisReady,false);
   const done=await waitFor(async()=>{const x=await prepareV1Display(a.profileId,'zh',base(),[],{});return x.v1.analysisReady&&x;});

@@ -18,6 +18,10 @@ const families=[
  ['accounting',/accountan|comptab|会计/,'accountant','comptable'],
  ['audit',/\baudit|审计/,'audit','audit'],
  ['procurement',/procurement|purchasing|acheteur|\bachats|采购/,'procurement','acheteur'],
+ ['supply-planning',/supply planner|demand planner|supply chain planner|planificateur.{0,16}(?:supply|chaine|flux)|planification.{0,16}(?:supply|chaine)|previsionniste.{0,16}(?:demande|supply)|供应链.*计划|计划.*供应链/,'supply planner','planificateur supply chain'],
+ ['procurement-supply',/procurement|purchasing|\bachats?\b|acheteur|approvisionneur|approvisionnement|采购|供应/,'procurement specialist','approvisionneur'],
+ ['logistics',/logistic|logistiqu|coordinateur.{0,12}logistique|logistics coordinator|transport planner|物流/,'logistics coordinator','coordinateur logistique'],
+ ['continuous-improvement',/continuous improvement|amelioration continue|lean engineer|lean management|excellence operationnelle|performance industrielle|持续改进/,'continuous improvement engineer','ingenieur amelioration continue'],
  ['communications',/communications?|relations publiques|公关|传播/,'communications','charge communication'],
  ['project-coordination',/project coordin|coordina.*projet|项目协调/,'project coordinator','coordinateur projet'],
 ];
@@ -27,7 +31,15 @@ export function bilingualRoleQueries(query){
  const text=norm(query),qualifiers=(text.match(/\b(?:java|python|typescript|react|angular|c#|c\+\+|\.net|sql|cloud|azure|aws|finance|banking|sante|health|senior|junior|stage|alternance|cdi|cdd)\b/g)||[]).filter((v,i,a)=>a.indexOf(v)===i).slice(0,3).join(' ');
  const titles=family[0]==='quantitative'
   ? ['quantitative analyst','quantitative researcher','analyste quantitatif','quant analyst','recherche quantitative']
-  : [family[2],family[3]];
+  : family[0]==='supply-planning'
+    ? ['supply planner','demand planner','planificateur supply chain','planificateur de flux']
+    : family[0]==='procurement-supply'
+      ? ['approvisionneur','acheteur junior','procurement specialist','assistant achats']
+      : family[0]==='logistics'
+        ? ['coordinateur logistique','logistics coordinator','assistant logistique','coordinateur transport']
+        : family[0]==='continuous-improvement'
+          ? ['ingenieur amelioration continue','continuous improvement engineer','ingenieur lean','excellence operationnelle']
+          : [family[2],family[3]];
  return [...new Set(titles.map(title=>`${title} ${qualifiers}`.trim()))];
 }
 export function bilingualRoleRelevance(query,title){

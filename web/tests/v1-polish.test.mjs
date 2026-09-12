@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {directionDescriptor,planDirectionSearch,compactDirectionHistory,V1_SEARCH_REVISION} from '../src/lib/v1-directions.mjs';
+import {broadCareerDirections} from '../src/lib/career-directions.mjs';
+import {parseOrientation} from '../src/lib/v1-journey.mjs';
 import {normalizeDeepMatch,matchScoreView,projectV1JobScores,friendlyGapTitle} from '../src/lib/v1-match.mjs';
 import {estimatedProgress,searchProgress} from '../src/lib/v1-progress.mjs';
 import {professionalReferenceHtml,textCvLayout} from '../src/lib/backend/reference-template.mjs';
@@ -35,12 +37,32 @@ test('search revision invalidates stale cached zero-result directions without de
 });
 test('AI action buttons progress left-to-right while first-run full-screen water remains bottom-up',()=>{
  const css=fs.readFileSync(new URL('../src/components/jobpilot/onward.css',import.meta.url),'utf8');
+ const waterCss=fs.readFileSync(new URL('../src/components/jobpilot/cv-water.css',import.meta.url),'utf8');
  const androidButton=fs.readFileSync(new URL('../../android/app/src/main/java/com/thegreatnovel/jobpilot/PilotDesign.kt',import.meta.url),'utf8');
  const androidWater=fs.readFileSync(new URL('../../android/app/src/main/java/com/thegreatnovel/jobpilot/CvAnalysisWater.kt',import.meta.url),'utf8');
  assert.match(css,/\.jp-ai-button\.liquid \.jp-ai-button-fill\{[^}]*width:var\(--jp-ai-progress,0%\)[^}]*height:100%/);
  assert.match(css,/\.jp-liquid-status \.jp-ai-button-fill\{[^}]*width:100%[^}]*height:var\(--jp-ai-progress,0%\)/);
  assert.match(androidButton,/val liquidRight=size\.width\*progress/);
  assert.match(androidWater,/val waterY = size\.height \* \(1 - level\)/);
+ assert.match(waterCss,/\.jp-cv-water-level\{[^}]*background:transparent/);
+ assert.match(waterCss,/\.jp-cv-water-level:after\{[^}]*top:3px/);
+});
+test('French orientation output is detected as French and common supply-chain directions stay market-readable',()=>{
+ const parsed=parseOrientation({
+  candidateName:'Hugo Pelletier',markdown:'Votre expérience terrain et vos analyses supply chain ouvrent plusieurs pistes opérationnelles à Paris.',
+  strengths:[{title:'Pilotage par les données',evidence:'Tableau Power BI utilisé en revue.'}],growthAreas:[{title:'SQL',nextAction:'Faire un projet simple.'}],
+  careerDirections:[
+   {title:'Planification supply chain',searchQuery:'Supply Planner Paris'},
+   {title:'Achats et approvisionnement',searchQuery:'Approvisionneur junior Paris'},
+   {title:'Coordination logistique',searchQuery:'Coordinateur logistique junior Paris'},
+   {title:'Amélioration continue industrielle',searchQuery:'Ingénieur amélioration continue junior Paris'},
+  ],
+ },'Hugo Pelletier\nM2 Supply Chain');
+ assert.equal(parsed.outputLocale,'fr');
+ const broad=broadCareerDirections(parsed.careerDirections,'fr',[]);
+ assert.deepEqual(broad.map(row=>row.title),['Planification supply chain','Achats et approvisionnement','Coordination logistique','Amélioration continue industrielle']);
+ assert.deepEqual(broad.map(row=>row.searchQuery),['planificateur supply chain','approvisionneur','coordinateur logistique','ingenieur amelioration continue']);
+ assert.equal(new Set(broad.map(row=>directionDescriptor(row.searchQuery).key)).size,4,'distinct career directions must not collapse onto one cached search');
 });
 test('role-CV detail keeps the same before-after score surface even when uplift is zero',()=>{
  const web=fs.readFileSync(new URL('../src/components/jobpilot/cv-outcome.tsx',import.meta.url),'utf8');

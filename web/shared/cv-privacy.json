@@ -1,5 +1,5 @@
 {
-  "version": "2026-09-11.3",
+  "version": "2026-09-12.1",
   "title": {
     "zh": "测试阶段简历信息使用说明",
     "fr": "Notice relative aux CV — phase de test",
@@ -42,9 +42,9 @@
         "en": "Storage and third-party processing"
       },
       "body": {
-        "zh": "资料保存在本测试版的 VPS 档案中。为生成分析、匹配和简历，相关文字会发送到已配置的第三方 AI 接口；分析翻译使用 DeepSeek 接口。搜索服务接收岗位关键词和筛选条件，而非整份简历。下方列出本环境实际连接的 AI 服务域名。服务商的保存、训练政策及跨境处理安排不由本说明替代，我们不作“所有资料都不离开服务器”或“第三方绝不留存”的承诺。测试管理员仅在支持、排错和处理数据请求所需范围内访问资料。",
-        "fr": "Les données sont conservées dans le dossier VPS propre à ce test. Les textes nécessaires sont transmis aux interfaces IA configurées pour l’analyse, le rapprochement et la rédaction ; les traductions utilisent DeepSeek. Les services de recherche reçoivent des mots-clés et filtres, pas le CV complet. Les domaines IA effectivement utilisés figurent ci-dessous. Leurs règles de conservation, d’entraînement et de transfert international ne sont pas remplacées par cette notice : nous ne promettons pas un traitement uniquement sur notre serveur ni une absence de conservation par les tiers. Les administrateurs accèdent aux données dans la mesure nécessaire au support, au diagnostic et aux demandes relatives aux données.",
-        "en": "Data is stored in the VPS profile for this test. Relevant text is sent to the configured third-party AI interfaces for analysis, matching and CV writing; translations use DeepSeek. Search services receive job keywords and filters, not the complete CV. The actual AI endpoint domains are shown below. This notice does not replace their retention, training or international-transfer terms: we do not promise server-only processing or zero third-party retention. Administrators access data as needed for support, diagnosis and data requests."
+        "zh": "资料保存在本测试版的 VPS 档案中。为生成分析、匹配和简历，相关文字会发送到已配置的第三方 AI 接口；分析与界面翻译均使用 OpenAI 接口。搜索服务接收岗位关键词和筛选条件，而非整份简历。下方列出本环境实际连接的 AI 服务域名。服务商的保存、训练政策及跨境处理安排不由本说明替代，我们不作“所有资料都不离开服务器”或“第三方绝不留存”的承诺。测试管理员仅在支持、排错和处理数据请求所需范围内访问资料。",
+        "fr": "Les données sont conservées dans le dossier VPS propre à ce test. Les textes nécessaires sont transmis aux interfaces IA configurées pour l’analyse, le rapprochement et la rédaction ; les analyses et traductions d’interface utilisent OpenAI. Les services de recherche reçoivent des mots-clés et filtres, pas le CV complet. Les domaines IA effectivement utilisés figurent ci-dessous. Leurs règles de conservation, d’entraînement et de transfert international ne sont pas remplacées par cette notice : nous ne promettons pas un traitement uniquement sur notre serveur ni une absence de conservation par les tiers. Les administrateurs accèdent aux données dans la mesure nécessaire au support, au diagnostic et aux demandes relatives aux données.",
+        "en": "Data is stored in the VPS profile for this test. Relevant text is sent to the configured third-party AI interfaces for analysis, matching and CV writing; analysis and interface translations use OpenAI. Search services receive job keywords and filters, not the complete CV. The actual AI endpoint domains are shown below. This notice does not replace their retention, training or international-transfer terms: we do not promise server-only processing or zero third-party retention. Administrators access data as needed for support, diagnosis and data requests."
       }
     },
     {

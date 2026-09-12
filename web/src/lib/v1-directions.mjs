@@ -2,14 +2,16 @@
 // common bilingual job titles, and specialisms are never discarded when merging.
 export const V1_NEW_SEARCHES_PER_DAY=6;
 export const V1_SEARCH_CACHE_MS=24*60*60*1000;
-export const V1_SEARCH_REVISION='v11-contract-seniority';
+export const V1_SEARCH_REVISION='v12-market-vocabulary';
 const norm=value=>String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[’']/g,' ').replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 const families=[
  ['export-sales',/\bexport\b|出口/,['Export sales support','Support commercial export','出口销售支持'],'assistant commercial export junior'],
  ['business-development',/business develop|developpement commercial|business developer|拓展|业务发展/,['Business development','Développement commercial','业务发展'],'business developer junior'],
  ['market-research',/market research|market intelligence|etude.*marche|recherche.*marche|市场调研|市场研究/,['Market research','Études de marché','市场调研'],'charge etudes de marche junior'],
- ['supply-chain',/supply chain|approvision|demand plann|供应链/,['Supply chain','Supply chain','供应链'],'supply chain junior'],
+ ['supply-planning',/supply planner|demand plann|planif.*supply|supply chain plan|planificateur.*(?:supply|chaine|flux)|供应链.*计划|计划.*供应链/,['Supply planning','Planification supply chain','供应链计划'],'planificateur supply chain'],
+ ['procurement-supply',/approvision|procurement|purchas|\bachats?\b|acheteur|采购|供应/,['Procurement & supply','Achats et approvisionnement','采购与供应'],'approvisionneur'],
  ['logistics',/logistic|logistiqu|物流/,['Logistics','Logistique','物流'],'assistant logistique junior'],
+ ['continuous-improvement',/continuous improvement|amelioration continue|lean|excellence operation|performance industrielle|持续改进/,['Continuous improvement','Amélioration continue industrielle','工业持续改进'],'ingenieur amelioration continue'],
  ['project-coordination',/project coordin|coordina.*projet|项目协调|运营与项目/,['Project coordination','Coordination de projets','项目协调'],'coordinateur projet junior'],
  ['operations',/\boperations?\b|运营/,['Operations','Opérations','运营'],'assistant operations junior'],
  ['data-analysis',/data analyst|analys.*donnee|数据分析/,['Data analysis','Analyse de données','数据分析'],'data analyst junior'],
