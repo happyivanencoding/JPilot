@@ -360,6 +360,10 @@ export async function renderTailoredCv(
     throw new Error(
       "Le CV déborde horizontalement. Corrigez le contenu du brouillon.",
     );
+  if (["en", "fr"].includes(language) && /[\p{Script=Han}]/u.test(result.text))
+    throw new Error(
+      "CV language mismatch: Han-script text remains in a French/English application document.",
+    );
   const ats = auditCvDocument(result, keywords);
   atomicWrite(htmlPath, html);
   fs.mkdirSync(path.dirname(pdfPath), { recursive: true });

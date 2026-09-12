@@ -205,3 +205,43 @@ test('a provider outage empty search can retry instead of reusing a false-zero c
  const partial=task('partial','analyste crédit',{result:{offers:[],searchMetrics:{providers:[{id:'jsearch',status:'error'},{id:'france-travail',status:'ok'}]}}});
  assert.equal(planDirectionSearch([partial],{query:'analyste crédit'},'cv-a',{},now).reason,'new');
 });
+
+
+test('mobile V1 keeps feedback globally accessible while retiring task center and profile-only feedback controls',()=>{
+ const app=fs.readFileSync(new URL('../src/components/jobpilot/jobpilot-app.tsx',import.meta.url),'utf8');
+ const profile=fs.readFileSync(new URL('../src/components/jobpilot/profile-prepare.tsx',import.meta.url),'utf8');
+ const survey=fs.readFileSync(new URL('../src/components/jobpilot/feedback-survey.tsx',import.meta.url),'utf8');
+ const preview=fs.readFileSync(new URL('../src/components/jobpilot/pdf-preview.tsx',import.meta.url),'utf8');
+ const css=fs.readFileSync(new URL('../src/components/jobpilot/onward.css',import.meta.url),'utf8');
+ const baseCss=fs.readFileSync(new URL('../src/components/jobpilot/jobpilot.css',import.meta.url),'utf8');
+ assert.match(app,/data-testid="open-feedback"/);
+ assert.match(app,/MessageSquareText/);
+ assert.doesNotMatch(app,/data-testid="open-tasks"/);
+ assert.doesNotMatch(app,/route\.view === "tasks"/);
+ const sheets=fs.readFileSync(new URL('../src/components/jobpilot/sheets.tsx',import.meta.url),'utf8');
+ assert.doesNotMatch(sheets,/export function TasksSheet/);
+ assert.doesNotMatch(profile,/profile-section-feedback/);
+ assert.doesNotMatch(profile,/测试阶段：你的 CV 只用于当前档案/);
+ assert.doesNotMatch(profile,/setEditing\(/);
+ assert.doesNotMatch(profile,/目标岗位（逗号分隔）/);
+ assert.match(profile,/onward-master-cv-actions/);
+ assert.match(css,/\.onward-master-cv-actions \.jp-button\{font-size:12\.5px/);
+ assert.match(css,/\.onward-search-area-settings \[data-testid="search-area"\] \.jp-field\{width:min\(100%,300px\);max-width:300px\}/);
+ assert.match(baseCss,/\.jp-scroll\{[^}]*overflow-y:auto;overflow-x:hidden/);
+ assert.doesNotMatch(preview,/accept-tailored-draft-preview/);
+ assert.doesNotMatch(preview,/不要这个版本/);
+ assert.doesNotMatch(survey,/如果明天继续找工作/);
+ assert.doesNotMatch(survey,/产品建议|问题投诉/);
+ assert.match(survey,/data-testid="feedback-freeform"/);
+ assert.match(survey,/rows=\{11\}/);
+});
+
+test('role CV renderer rechecks saved drafts and blocks residual Han script in French or English PDFs',()=>{
+ const tailored=fs.readFileSync(new URL('../src/lib/tailored-cv.ts',import.meta.url),'utf8');
+ const renderer=fs.readFileSync(new URL('../src/lib/backend/cv-document.mjs',import.meta.url),'utf8');
+ assert.match(tailored,/single-column-v6-strict-document-language/);
+ assert.match(tailored,/experience locations, employer names, school names, degree\/program names or project names/);
+ assert.match(tailored,/No Han characters may remain in candidate\.name, candidate\.location or any CV-rendered payload field/);
+ assert.match(renderer,/\["en", "fr"\]\.includes\(language\).*Script=Han/);
+ assert.match(renderer,/CV language mismatch: Han-script text remains/);
+});

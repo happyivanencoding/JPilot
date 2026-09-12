@@ -3,19 +3,13 @@ import {CvOutcome} from "./cv-outcome";
 import {roleDetailForOffer,roleCvIsReady,visibleRoleRequirements} from "./role-detail.mjs";
 import {v1CvAssessment} from "@/lib/v1-match.mjs";
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleAlert, LockKeyhole } from "lucide-react";
+import { ChevronDown, ChevronUp, LockKeyhole } from "lucide-react";
 import { rows, texts, usePilot, type Json } from "./pilot-context";
-import { ACTIVE, centerTasks, destinationFor } from "./model.mjs";
-import { AiProgressButton, Button, Card, Check, Chip, Empty, EstimatedProgress, External, Hint, Input, LiquidTaskProgress, Loading, Localization, Markdown, Pill, Score, Select, Sheet, Tabs, TextArea, Title, taskName } from "./ui";
+import { ACTIVE, destinationFor } from "./model.mjs";
+import { AiProgressButton, Button, Card, Check, Chip, Empty, External, Hint, Input, LiquidTaskProgress, Loading, Localization, Markdown, Pill, Score, Select, Sheet, Tabs, TextArea, Title, taskName } from "./ui";
 import { PracticeCard, PrepChecklist } from "./profile-prepare";
 import { Match100, SearchMetrics } from "./catalog";
 import {AnimatedMatchScore,CompanyMark,MetaRow,OnwardArcMotif,SemanticRow} from "./onward-visual";
-
-export function TasksSheet() {
-  const { data, tr, openTask } = usePilot();
-  const tasks = centerTasks(rows(data.tasks)) as Json[];
-  return <Sheet title={tr("后台任务", "Vos traitements", "Background tasks")} testId="tasks-sheet"><div className="jp-sheet-content"><Hint>{tr("已完成的结果，直接回到对应页面。", "Vos résultats, au bon endroit.", "Your results, where they belong.")}</Hint><Localization value={data.localization} />{!tasks.length && <Hint>{tr("当前没有任务。", "Aucun traitement pour ce profil.", "No tasks for this profile.")}</Hint>}{tasks.map(task => <button type="button" className="jp-task-row" key={task.id} data-testid={`task-${task.id}`} onClick={() => openTask(task.id)}><div className="jp-row">{task.status === "completed" ? <CheckCircle2 size={20} className="jp-accent" /> : ACTIVE.has(task.status) ? null : <CircleAlert size={20} />}<h3 className="jp-grow">{task.title || taskName(task.kind, tr)}</h3><ChevronRight size={18} /></div><Hint>{task.phase}</Hint>{ACTIVE.has(task.status) && <EstimatedProgress createdAt={task.createdAt} estimate={task.estimate} />}</button>)}</div></Sheet>;
-}
 
 export function OfferSheet({offer}:{offer:Json}) {
   const {data}=usePilot();

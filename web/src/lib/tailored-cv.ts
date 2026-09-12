@@ -24,7 +24,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 420;
 
-const ROLE_CV_RENDERER = "single-column-v5-jd-emphasis-language-clean";
+const ROLE_CV_RENDERER = "single-column-v6-strict-document-language";
 
 
 
@@ -285,7 +285,7 @@ async function normalizeCvLanguage(profileId:string,version:Record<string,any>,p
   const needs=HAN.test(candidate.name)||HAN.test(candidate.location)||HAN.test(body)||contradictsDocumentLanguage(body,material,version.sources.cv.text);
   if(!needs)return {payload,candidate,metrics:{}};
   const target=material==='fr'?'French':'English';
-  const prompt=`Normalize this CV for a ${target}-language application. Return ONLY JSON with exactly {"candidate":{"name":"...","location":"..."},"payload":{...}}. Preserve the payload structure, array order, dates, numbers, employers, schools, URLs, tools, skills and factual strength exactly. Translate only human-readable prose into ${target}; transliterate a Chinese personal name into Latin characters rather than leaving Han characters; translate a Chinese place name to its standard ${target} form. Never add, remove or strengthen facts. Copy payload.change_notes exactly unchanged because it is UI commentary, not CV content. No Han characters may remain in candidate.name, candidate.location or any CV-rendered payload field. INPUT=${JSON.stringify({candidate,payload})}`;
+  const prompt=`Normalize this CV for a ${target}-language application. Return ONLY JSON with exactly {"candidate":{"name":"...","location":"..."},"payload":{...}}. Preserve the payload structure, array order, dates, numbers, entity identity, URLs, tools, skills and factual strength exactly. Translate human-readable prose into ${target}. For ANY Han-script content that will be rendered in the CV — including candidate name, candidate location, experience locations, employer names, school names, degree/program names or project names — use the established ${target}-language name when one exists, otherwise transliterate it into Latin characters without changing which person, place or institution it denotes. Never add, remove or strengthen facts. Copy payload.change_notes exactly unchanged because it is UI commentary, not CV content. No Han characters may remain in candidate.name, candidate.location or any CV-rendered payload field. INPUT=${JSON.stringify({candidate,payload})}`;
   let output="",metrics:any={};
   await runModelTransport({cwd:workspaceRoot(),prompt,model:FLOW_DEFAULTS.cv.model as any,reasoning:"none" as any,timeoutMs:120_000,onRun:run=>hooks?.onRun?.(run),onMetrics:m=>{metrics=m;hooks?.onMetrics?.(m);},onText:t=>{output+=t;},onFinalText:t=>{output=t;}});
   const parsed=extractJsonObject(output).obj as any;

@@ -1,16 +1,17 @@
 "use client";
 import {OnwardBrand} from "./onward-brand";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, MessageSquareText, X } from "lucide-react";
 import { PendingActions as ClipboardClock, Home as House, Search, PersonOutline as UserRound } from "./native-icons";
 import { PilotProvider, rows, usePilot } from "./pilot-context";
-import { ACTIVE, desktopScale, TABS } from "./model.mjs";
+import { desktopScale, TABS } from "./model.mjs";
 import { HomePage, OffersPage } from "./catalog";
 import { CvEditor, ProfilePage } from "./profile-prepare";
-import { AnalysisSheet, CompareSheet, JobSheet, OfferSheet, ResultSheet, TasksSheet } from "./sheets";
+import { AnalysisSheet, CompareSheet, JobSheet, OfferSheet, ResultSheet } from "./sheets";
 import { PdfPreview } from "./pdf-preview";
 import { OnboardingOverlay, V1FirstRunOverlay, type GuideTab } from "./onboarding";
 import { Button, Empty, EstimatedProgress, Hint, IconButton, Loading, Localization, Sheet, Spinner } from "./ui";
+import { FeedbackSurvey } from "./feedback-survey";
 
 function TaskLaunchOverlay() {
   const {taskLaunch,setTaskLaunch,tr,data}=usePilot();
@@ -21,7 +22,7 @@ function TaskLaunchOverlay() {
   if(!taskLaunch)return null;
   const launchTasks=rows(data.tasks).filter(task=>taskLaunch.ids.includes(String(task.id)));
   const launchStatus=launchTasks.length>0&&launchTasks.every(task=>task.status==="completed")?"completed":undefined;
-  return <div className={`jp-task-launch-backdrop${flying?" flying":""}`} data-testid="background-task-launch"><div className="jp-task-launch-card"><div className="jp-task-launch-icon"><ClipboardClock size={44}/></div><h2>{tr("正在后台处理","Traitement en arrière-plan","Processing in the background")}</h2><strong>{taskLaunch.title}</strong><EstimatedProgress createdAt={taskLaunch.createdAt} estimate={taskLaunch.estimate} large status={launchStatus} /><Hint>{taskLaunch.ids.length>1?tr(`${taskLaunch.ids.length} 个任务已经加入右上角任务列表。你可以继续使用其他页面。`,`${taskLaunch.ids.length} tâches ont été ajoutées en haut à droite. Vous pouvez continuer à naviguer.`,`${taskLaunch.ids.length} tasks were added to the top-right task center. You can keep browsing.`):tr("任务已经加入右上角任务列表。你可以继续使用其他页面。","La tâche a été ajoutée en haut à droite. Vous pouvez continuer à naviguer.","The task was added to the top-right task center. You can keep browsing.")}</Hint><Button data-testid="confirm-background-task" disabled={flying} onClick={()=>setFlying(true)}>{tr("知道了","Compris","Got it")}</Button></div></div>;
+  return <div className={`jp-task-launch-backdrop${flying?" flying":""}`} data-testid="background-task-launch"><div className="jp-task-launch-card"><div className="jp-task-launch-icon"><ClipboardClock size={44}/></div><h2>{tr("正在后台处理","Traitement en arrière-plan","Processing in the background")}</h2><strong>{taskLaunch.title}</strong><EstimatedProgress createdAt={taskLaunch.createdAt} estimate={taskLaunch.estimate} large status={launchStatus} /><Hint>{tr("你可以继续使用其他页面；处理完成后，结果会直接回到对应页面。","Vous pouvez continuer à naviguer ; le résultat reviendra directement sur la page concernée une fois prêt.","You can keep using other pages; when processing finishes, the result will appear directly where it belongs.")}</Hint><Button data-testid="confirm-background-task" disabled={flying} onClick={()=>setFlying(true)}>{tr("知道了","Compris","Got it")}</Button></div></div>;
 }
 
 function Phone() {
@@ -30,7 +31,7 @@ function Phone() {
   const [scale, setScale] = useState(1), [keyboard, setKeyboard] = useState(false), [refreshing, setRefreshing] = useState(false);
   const [onboarding, setOnboarding] = useState<{ mode: "welcome" | "tab"; tab?: GuideTab } | null>(null);
   const [onboardingReady, setOnboardingReady] = useState(false);
-  const [firstRun,setFirstRun]=useState(false),[firstRunReady,setFirstRunReady]=useState(false);
+  const [firstRun,setFirstRun]=useState(false),[firstRunReady,setFirstRunReady]=useState(false),[feedbackOpen,setFeedbackOpen]=useState(false);
   const touch = useRef<number | null>(null);
   const maxHeight = useRef(0);
   useEffect(() => {
@@ -50,7 +51,6 @@ function Phone() {
   }, []);
   const labels = [tr("首页", "Accueil", "Home"), tr("机会", "Offres", "Offers"), tr("我的", "Moi", "My")];
   const icons = [House, Search, UserRound];
-  const active = rows(data.tasks).filter(t => ACTIVE.has(t.status)).length;
   const canShowData = Boolean(data.profile?.id);
   const needsCv = Boolean(data.access?.needsCv), canSwitchProfiles = data.access?.canSwitchProfiles ?? rows(data.profiles).length > 1;
   useEffect(()=>{
@@ -96,8 +96,7 @@ function Phone() {
     {expired ? <div className="jp-login"><OnwardBrand large/><h2>{tr("你的下一步，值得认真准备。", "Votre prochain pas mérite le meilleur.", "Your next step deserves your best.")}</h2><Hint>{tr("请重新登录以访问你的档案。", "Reconnectez-vous pour accéder à votre profil.", "Sign in again to access your profile.")}</Hint><a href="/api/mobile-auth/login">{tr("登录", "Se connecter", "Sign in")}</a></div> : <>
       <div className="jp-underlay" inert={hasOverlay}>
         <header className="jp-top"><div className="jp-top-row"><button type="button" className="jp-brand" onClick={() => navigate({ tab: "home" })} aria-label="Onward"><OnwardBrand/></button>
-          {canSwitchProfiles && <label className="jp-profile-switch"><select aria-label={tr("切换档案", "Changer de profil", "Switch profile")} data-testid="profile-switch" value={p.profileId} disabled={busy || !canShowData} onChange={e => void p.switchProfile(e.target.value)}>{rows(data.profiles).length ? rows(data.profiles).map(profile => <option key={profile.id} value={profile.id}>{String(profile.shortName || profile.name).split(" · ")[0]}</option>) : <option value={p.profileId}>…</option>}</select><ChevronDown size={18} /></label>}
-          {route.tab==="profile"&&<IconButton label={tr("处理记录", "Traitements", "Activity")} data-testid="open-tasks" onClick={() => navigate({ tab:"profile",view: "tasks" })}><ClipboardClock size={25} />{active > 0 && <span className="jp-badge">{active}</span>}{busy && <span className="jp-busy-ring"><Spinner /></span>}</IconButton>}
+          <div className="jp-top-actions">{canSwitchProfiles && <label className="jp-profile-switch"><select aria-label={tr("切换档案", "Changer de profil", "Switch profile")} data-testid="profile-switch" value={p.profileId} disabled={busy || !canShowData} onChange={e => void p.switchProfile(e.target.value)}>{rows(data.profiles).length ? rows(data.profiles).map(profile => <option key={profile.id} value={profile.id}>{String(profile.shortName || profile.name).split(" · ")[0]}</option>) : <option value={p.profileId}>…</option>}</select><ChevronDown size={18} /></label>}<IconButton label={tr("反馈与问卷", "Feedback et questionnaire", "Feedback & survey")} data-testid="open-feedback" onClick={()=>setFeedbackOpen(true)}><MessageSquareText size={23}/></IconButton></div>
         </div></header>
         {error && !hasOverlay && <div className="jp-error" role="alert"><p>{error}</p><IconButton label={tr("关闭提示", "Fermer le message", "Dismiss message")} onClick={() => p.setError(null)}><X size={18} /></IconButton></div>}
         {!p.preview && <Localization value={data.localization} />}
@@ -108,7 +107,6 @@ function Phone() {
         {!needsCv && <nav className="jp-nav" aria-label={tr("主导航", "Navigation principale", "Main navigation")}>{TABS.map((tab, index) => { const Icon = icons[index]; return <button type="button" key={tab} aria-current={route.tab === tab ? "page" : undefined} data-testid={`nav-${tab}`} onClick={() => goToTab(tab as GuideTab)}><span><Icon size={22} strokeWidth={route.tab === tab ? 2.5 : 2} /></span>{labels[index]}</button>; })}</nav>}
       </div>
       {notice && !hasOverlay && <div className="jp-toast" role="status"><span>{p.product(notice.text)}</span>{notice.taskId && <button type="button" onClick={() => { const id = notice.taskId; p.setNotice(null); if (id) void p.openTask(id); }}>{tr("查看", "Voir", "View")}</button>}</div>}
-      {route.view === "tasks" && <TasksSheet />}
       {route.view === "offer" && (selectedOffer ? <OfferSheet key={selectedOffer.url} offer={selectedOffer} /> : <Sheet title={tr("岗位详情", "Détails du poste", "Role details")}><div className="jp-sheet-content"><Hint>{tr("这条岗位不在当前这批搜索结果里，可以重新搜索该方向。","Cette offre n’est plus dans la sélection actuelle ; relancez la recherche.","This role is no longer in the current result set; search the direction again.")}</Hint><Button onClick={()=>navigate({tab:"offers"})}>{tr("返回机会","Retour aux offres","Back to opportunities")}</Button></div></Sheet>)}
       {route.view === "job" && (selectedJob ? <JobSheet key={selectedJob.id} job={selectedJob} /> : <Sheet title={tr("岗位详情", "Détails du poste", "Job details")}>{loading ? <Loading /> : <div className="jp-sheet-content"><Hint>{tr("当前档案中没有这个岗位，或旧书签已失效。", "Ce poste n’est pas présent dans ce profil, ou ce favori est périmé.", "This role is not in the current profile, or this bookmark is outdated.")}</Hint><Button onClick={() => navigate({ tab: "profile" })}>{tr("返回我的", "Retour à Moi", "Back to My")}</Button></div>}</Sheet>)}
       {route.view === "analysis" && (loading && !data.analysis?.markdown ? <Sheet><Loading /></Sheet> : <AnalysisSheet key={data.analysis?.taskId || "empty"} />)}
@@ -116,6 +114,7 @@ function Phone() {
       {(route.view === "task" || route.view === "report") && <ResultSheet />}
       {route.view === "edit-cv" && <CvEditor />}
       {route.view === "pdf" && <PdfPreview key={`${route.job || ""}:${route.draft || ""}`} />}
+      {feedbackOpen && <Sheet title={tr("反馈与问卷","Feedback et questionnaire","Feedback & survey")} testId="feedback-sheet" onClose={()=>setFeedbackOpen(false)}><div className="jp-sheet-content"><FeedbackSurvey/></div></Sheet>}
       <TaskLaunchOverlay />
       {onboarding && <OnboardingOverlay mode={onboarding.mode} tab={onboarding.tab} onClose={dismissOnboarding} onSkip={skipAllOnboarding} />}
       {firstRun && <V1FirstRunOverlay onDone={finishFirstRun} />}
