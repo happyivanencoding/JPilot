@@ -4,6 +4,8 @@ import path from "node:path";
 import { chromium } from "playwright-core";
 import { atomicWrite } from "./files.mjs";
 
+const NON_LATIN_APPLICATION_SCRIPT=/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Cyrillic}\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Thai}\p{Script=Devanagari}]/u;
+
 const escape = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -360,9 +362,9 @@ export async function renderTailoredCv(
     throw new Error(
       "Le CV déborde horizontalement. Corrigez le contenu du brouillon.",
     );
-  if (["en", "fr"].includes(language) && /[\p{Script=Han}]/u.test(result.text))
+  if (["en", "fr"].includes(language) && NON_LATIN_APPLICATION_SCRIPT.test(result.text))
     throw new Error(
-      "CV language mismatch: Han-script text remains in a French/English application document.",
+      "CV language mismatch: untranslated source-language text remains in a French/English application document.",
     );
   const ats = auditCvDocument(result, keywords);
   atomicWrite(htmlPath, html);

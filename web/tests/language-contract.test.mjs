@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {uiLocale,requestUiLocale,applicationLanguage,documentLanguage,contradictsDocumentLanguage} from '../src/lib/language-contract.mjs';
+import {uiLocale,requestUiLocale,applicationLanguage,documentLanguage,contradictsDocumentLanguage,publicError} from '../src/lib/language-contract.mjs';
 import {candidateVersion,operationKey} from '../src/lib/mobile-state.mjs';
 import {cvAnalysisPrompt} from '../src/lib/cv-analysis-prompt.mjs';
 import {preservePresentationLanguage,cvBlocks} from '../src/lib/cv-global-plan.mjs';
@@ -40,6 +40,10 @@ test('short all-Chinese output is rejected for French and English display caches
   assert.equal(translationLooksLikeTarget('供应链计划','fr'),false);
   assert.equal(translationLooksLikeTarget('数据驱动管理','fr'),false);
   assert.equal(translationLooksLikeTarget('物流协调','en'),false);
+});
+test('role-CV language failures tell the user to retry conversion, not to change the uploaded CV language',()=>{
+  const message=publicError(new Error('CV language mismatch: untranslated source-language text remains'),'zh');
+  assert.match(message,/目标语言转换未完成/);assert.match(message,/请重试/);assert.doesNotMatch(message,/检查材料语言/);
 });
 test('CV privacy server errors have user-facing French and Chinese projections',()=>{
   const dictionary=JSON.parse(fs.readFileSync(new URL('../shared/jobpilot-i18n.json',import.meta.url),'utf8'));

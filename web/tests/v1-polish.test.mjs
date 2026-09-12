@@ -143,12 +143,15 @@ test('role CV review has only preview keep reject controls and no pre-generation
 });
 test('first-run guidance is actionable, search diagnostics are hidden, and visible water never claims 100%',()=>{
  const onboarding=fs.readFileSync(new URL('../src/components/jobpilot/onboarding.tsx',import.meta.url),'utf8');
+ const profile=fs.readFileSync(new URL('../src/components/jobpilot/profile-prepare.tsx',import.meta.url),'utf8');
  const catalog=fs.readFileSync(new URL('../src/components/jobpilot/catalog.tsx',import.meta.url),'utf8');
  const water=fs.readFileSync(new URL('../src/components/jobpilot/cv-water.tsx',import.meta.url),'utf8');
  assert.match(onboarding,/À partir de votre CV, Onward voit déjà ces atouts/);assert.match(onboarding,/jp-v1-direction-title/);assert.match(onboarding,/DirectionMedallion/);assert.match(onboarding,/ArrowRight/);
  assert.doesNotMatch(catalog,/\{data\.v1\?\.searchNotice\}/);assert.doesNotMatch(catalog,/搜索暂未完成/);assert.doesNotMatch(catalog,/换一个方向，或稍后再试/);
  assert.match(water,/Math\.min\(96,/);assert.match(onboarding,/aria-valuemax=\{96\}/);
  assert.match(onboarding,/data-testid="privacy-brief"/);assert.doesNotMatch(onboarding,/CvPrivacyDialog/);
+ assert.match(onboarding,/求职简历/);assert.match(onboarding,/上传其他语言的简历时，岗位版简历会翻译成这里选择的语言/);assert.doesNotMatch(onboarding,/setSourceLanguage|sourceLanguage/);
+ assert.match(profile,/\[\["fr","Français"\],\["en","English"\]\]/);assert.match(profile,/material-language-\$\{code\}/);assert.match(profile,/不限制岗位搜索/);
 });
 test('JD emphasis skill bolds only grounded terms already present in the generated CV',()=>{
  const payload={summary:'Data analyst using Excel and Power BI for reporting.',experience:[{company:'Library',role:'Assistant',bullets:['Built Excel tracking reports.']}],skills:[{category:'Tools',items:['Excel','Power BI']}]};
@@ -236,12 +239,12 @@ test('mobile V1 keeps feedback globally accessible while retiring task center an
  assert.match(survey,/rows=\{11\}/);
 });
 
-test('role CV renderer rechecks saved drafts and blocks residual Han script in French or English PDFs',()=>{
+test('role CV renderer rechecks saved drafts and blocks untranslated source script in French or English PDFs',()=>{
  const tailored=fs.readFileSync(new URL('../src/lib/tailored-cv.ts',import.meta.url),'utf8');
  const renderer=fs.readFileSync(new URL('../src/lib/backend/cv-document.mjs',import.meta.url),'utf8');
- assert.match(tailored,/single-column-v6-strict-document-language/);
- assert.match(tailored,/experience locations, employer names, school names, degree\/program names or project names/);
- assert.match(tailored,/No Han characters may remain in candidate\.name, candidate\.location or any CV-rendered payload field/);
- assert.match(renderer,/\["en", "fr"\]\.includes\(language\).*Script=Han/);
- assert.match(renderer,/CV language mismatch: Han-script text remains/);
+ assert.match(tailored,/single-column-v7-application-language-authority/);
+ assert.match(tailored,/Translate ALL human-readable text that will be visible in the final CV/);
+ assert.match(tailored,/uploaded source CV is French, English, Chinese, Spanish, German, Arabic, Russian, Japanese or another language/);
+ assert.match(renderer,/NON_LATIN_APPLICATION_SCRIPT/);
+ assert.match(renderer,/CV language mismatch: untranslated source-language text remains/);
 });

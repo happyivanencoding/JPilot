@@ -317,10 +317,10 @@ function useController(profileId: string, preview: boolean) {
     if(task.status!=="completed") notify(tr("正在准备岗位版简历，可继续浏览。",`Préparation de votre version ciblée ; vous pouvez continuer à naviguer.`,`Preparing your targeted CV; you can keep browsing.`),task.id);
     return result;
   }), [execute, request, profileId, locale, refresh, navigate, notify, tr]);
-  const upload = useCallback(async (file: File, sourceLanguage="auto", analysisLanguage:Locale=locale, contractTypes?:string[],searchArea?:Json) => execute(async () => {
+  const upload = useCallback(async (file: File, applicationLanguage:"fr"|"en"=(locale==="fr"?"fr":"en"), analysisLanguage:Locale=locale, contractTypes?:string[],searchArea?:Json) => execute(async () => {
     if (!/\.(pdf|docx|txt|md)$/i.test(file.name) || !file.size || file.size > 12 * 1024 * 1024) throw new Error(tr("请选择 PDF、DOCX、TXT 或 MD，最大 12 MB。", "PDF, DOCX, TXT ou MD · 12 Mo maximum.", "Choose PDF, DOCX, TXT or MD, up to 12 MB."));
     const form = new FormData(); form.set("file", file);
-    form.set("sourceLanguage",sourceLanguage); form.set("analysisLanguage",analysisLanguage);
+    form.set("applicationLanguage",applicationLanguage); form.set("analysisLanguage",analysisLanguage);
     const analyticsSessionId=analytics.current?.sessionId;
     if(analyticsSessionId){form.set("analyticsSessionId",analyticsSessionId);form.set("analyticsEventId",crypto.randomUUID());}
     if(contractTypes) form.set("contractTypes",JSON.stringify(contractTypes));

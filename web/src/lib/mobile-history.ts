@@ -191,15 +191,18 @@ export async function renderCvPreview(profileId: string, draftId?: string, versi
   return { pdf, ...readJson(meta), draft, versionId:version.id, cvVersion:version.cvVersion };
 }
 
-export async function saveImportedCv(profileId:string, content:string, expectedVersionId:string, sourceLanguage:string, analysisLanguage:string, contractTypes?:string[], searchArea?:Record<string,unknown>) {
+export async function saveImportedCv(profileId:string, content:string, expectedVersionId:string, applicationLanguage:string, analysisLanguage:string, contractTypes?:string[], searchArea?:Record<string,unknown>) {
   return withProfileLock(historyDirectory(profileId),()=>{
     const before=currentCandidateVersion(profileId);
     if(before.id!==expectedVersionId) throw new Error("Le CV a changé. Réessayez avec votre nouveau fichier.");
     const config=(yaml.load(fs.readFileSync(profileFile(profileId,"config"),"utf8")) || {}) as any;
     const detected=detectedDocumentLanguage(content);
-    const explicit=["en","fr"].includes(sourceLanguage)?sourceLanguage:null;
-    const material=explicit || detected || (["en","fr"].includes(config.cv?.language)?config.cv.language:"en");
-    config.cv={...config.cv,language:material,source_language:detected || explicit || material};
+    const requested=["en","fr"].includes(applicationLanguage)?applicationLanguage:null;
+    const existing=["en","fr"].includes(config.cv?.language)?config.cv.language:null;
+    const material=requested || existing || (detected && ["en","fr"].includes(detected)?detected:"en");
+    // The uploaded document's language is provenance. It never overrides the
+    // independently selected language for newly generated application CVs.
+    config.cv={...config.cv,language:material,source_language:detected || "auto"};
     config.display={...config.display,analysis_language:analysisLanguage};
     if(searchArea)config.target_roles={...config.target_roles,search_area:normalizeSearchArea(searchArea)};
     if(contractTypes?.length) config.target_roles={...config.target_roles,contract_types:[...new Set(contractTypes)],contract_policy:"confirmed_only"};

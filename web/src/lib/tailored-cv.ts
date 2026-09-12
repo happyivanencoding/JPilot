@@ -24,7 +24,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 420;
 
-const ROLE_CV_RENDERER = "single-column-v6-strict-document-language";
+const ROLE_CV_RENDERER = "single-column-v7-application-language-authority";
 
 
 
@@ -277,32 +277,108 @@ function candidateRenderContext(profileId:string, version:Record<string,any>, ma
     linkedin:{url:linkedinUrl,display:linkedinUrl.replace(/^https?:\/\/(?:www\.)?/i,"").replace(/\/$/,"")},location:typeof candidateConfig.location === "string" ? candidateConfig.location : "",photo:"",
   }};
 }
-const HAN=/[\u3400-\u9fff]/u;
-async function normalizeCvLanguage(profileId:string,version:Record<string,any>,payload:TailoredPayload,material:string,hooks?:{onRun?:(run:any)=>void;onMetrics?:(metrics:any)=>void}) {
+const NON_LATIN_APPLICATION_SCRIPT=/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Cyrillic}\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Thai}\p{Script=Devanagari}]/u;
+const strings=(value:unknown,max=40)=>Array.isArray(value)?value.slice(0,max).map(item=>String(item??"").slice(0,4000)):[];
+function replacedLayoutKinds(payload:TailoredPayload={}) {
+  const result=new Set<string>();
+  if(String(payload.summary||"").trim())result.add("profile");
+  for(const kind of ["experience","projects","education","skills"] as const)if(Array.isArray(payload[kind])&&payload[kind]!.length)result.add(kind);
+  return result;
+}
+
+/** Only source-layout text that can survive into a tailored CV belongs in the
+ * language-normalization surface. Generated profile/experience/projects/
+ * education/skills blocks are replaced by the tailored payload, but their
+ * source section titles still need normalization. */
+export function roleCvLayoutSurface(layout:any,payload:TailoredPayload={}) {
+  const replaced=replacedLayoutKinds(payload);
+  const sections=Array.isArray(layout?.sections)?layout.sections:[];
+  return {
+    name:String(layout?.name||"").slice(0,500),headline:String(layout?.headline||"").slice(0,2000),contact:strings(layout?.contact),
+    sections:sections.map((section:any)=>{
+      const kind=String(section?.kind||"");
+      return {kind,title:String(section?.title||"").slice(0,1000),blocks:replaced.has(kind)?[]:(Array.isArray(section?.blocks)?section.blocks.slice(0,80).map((block:any)=>String(block?.text||"").slice(0,4000)):[])};
+    }),
+    footer:strings(layout?.footer),
+  };
+}
+
+/** Re-apply translated strings onto the immutable structural/geometric layout.
+ * Array indices and non-text fields always come from the original extraction;
+ * a model cannot add/remove sections or alter layout geometry. */
+export function applyRoleCvLayoutTranslation(layout:any,translated:any,payload:TailoredPayload={}) {
+  if(!layout||typeof layout!=="object")return layout;
+  const replaced=replacedLayoutKinds(payload);
+  const source=roleCvLayoutSurface(layout,payload),candidate=translated&&typeof translated==="object"?translated:{};
+  const nextSections=Array.isArray(candidate.sections)?candidate.sections:[];
+  const pick=(value:unknown,fallback:string,max=4000)=>typeof value==="string"?value.slice(0,max):fallback;
+  const mapList=(original:string[],value:unknown)=>{
+    const proposed=Array.isArray(value)?value:[];
+    return original.map((item,index)=>pick(proposed[index],item));
+  };
+  return {...layout,
+    name:pick(candidate.name,source.name,500),headline:pick(candidate.headline,source.headline,2000),contact:mapList(source.contact,candidate.contact),
+    sections:(Array.isArray(layout.sections)?layout.sections:[]).map((section:any,index:number)=>{
+      const visible=source.sections[index],proposed=nextSections[index]||{};
+      const baseBlocks=Array.isArray(section?.blocks)?section.blocks:[];
+      const translatedBlocks=Array.isArray(proposed?.blocks)?proposed.blocks:[];
+      const blocks=replaced.has(String(section?.kind||""))?baseBlocks:baseBlocks.map((block:any,blockIndex:number)=>({...block,text:pick(translatedBlocks[blockIndex],String(block?.text||""))}));
+      return {...section,title:pick(proposed?.title,visible?.title||String(section?.title||""),1000),blocks};
+    }),
+    footer:mapList(source.footer,candidate.footer),
+  };
+}
+
+function roleCvLayoutText(layout:any,payload:TailoredPayload={}) { return JSON.stringify(roleCvLayoutSurface(layout,payload)); }
+function completeRoleCvLayoutTranslation(source:any,translated:any) {
+  if(!source || !translated || typeof translated!=="object" || !Array.isArray(translated.sections))return false;
+  if(typeof translated.name!=="string" || typeof translated.headline!=="string")return false;
+  if(!Array.isArray(translated.contact) || translated.contact.length!==source.contact.length)return false;
+  if(!Array.isArray(translated.footer) || translated.footer.length!==source.footer.length)return false;
+  if(translated.sections.length!==source.sections.length)return false;
+  return source.sections.every((section:any,index:number)=>{
+    const candidate=translated.sections[index];
+    return candidate && typeof candidate.title==="string" && Array.isArray(candidate.blocks) && candidate.blocks.length===section.blocks.length;
+  });
+}
+function sourceLanguageTag(version:Record<string,any>) {
+  try {
+    const config=yaml.load(version?.sources?.config?.text || "") as any;
+    return ["fr","en"].includes(String(config?.cv?.source_language))?String(config.cv.source_language):"auto";
+  } catch { return "auto"; }
+}
+
+async function normalizeCvLanguage(profileId:string,version:Record<string,any>,payload:TailoredPayload,material:string,layoutSource:any=null,hooks?:{onRun?:(run:any)=>void;onMetrics?:(metrics:any)=>void}) {
   const base=candidateRenderContext(profileId,version,material).candidate;
   const candidate={name:String(base.name||""),location:String(base.location||"")};
   const body=JSON.stringify({...payload,change_notes:undefined});
-  const needs=HAN.test(candidate.name)||HAN.test(candidate.location)||HAN.test(body)||contradictsDocumentLanguage(body,material,version.sources.cv.text);
-  if(!needs)return {payload,candidate,metrics:{}};
+  const layoutBody=layoutSource?roleCvLayoutText(layoutSource,payload):"";
+  const sourceTag=sourceLanguageTag(version);
+  const layoutNeeds=!!layoutSource&&(sourceTag==="auto"||sourceTag!==material||NON_LATIN_APPLICATION_SCRIPT.test(layoutBody)||contradictsDocumentLanguage(layoutBody,material,version.sources.cv.text));
+  const needs=NON_LATIN_APPLICATION_SCRIPT.test(candidate.name)||NON_LATIN_APPLICATION_SCRIPT.test(candidate.location)||NON_LATIN_APPLICATION_SCRIPT.test(body)||contradictsDocumentLanguage(body,material,version.sources.cv.text)||layoutNeeds;
+  if(!needs)return {payload,candidate,layoutSource,metrics:{}};
   const target=material==='fr'?'French':'English';
-  const prompt=`Normalize this CV for a ${target}-language application. Return ONLY JSON with exactly {"candidate":{"name":"...","location":"..."},"payload":{...}}. Preserve the payload structure, array order, dates, numbers, entity identity, URLs, tools, skills and factual strength exactly. Translate human-readable prose into ${target}. For ANY Han-script content that will be rendered in the CV — including candidate name, candidate location, experience locations, employer names, school names, degree/program names or project names — use the established ${target}-language name when one exists, otherwise transliterate it into Latin characters without changing which person, place or institution it denotes. Never add, remove or strengthen facts. Copy payload.change_notes exactly unchanged because it is UI commentary, not CV content. No Han characters may remain in candidate.name, candidate.location or any CV-rendered payload field. INPUT=${JSON.stringify({candidate,payload})}`;
+  const surface=layoutSource?roleCvLayoutSurface(layoutSource,payload):null;
+  const prompt=`Normalize this CV for a ${target}-language application. Return ONLY JSON with exactly {"candidate":{"name":"...","location":"..."},"payload":{...},"layout":${surface?'the same layout text shape supplied below':'null'}}. Preserve the payload structure, layout array order/count, dates, numbers, language proficiency levels, entity identity, phone numbers, emails, URLs, tools, skills and factual strength exactly. Translate ALL human-readable text that will be visible in the final CV into ${target}, even when the uploaded source CV is French, English, Chinese, Spanish, German, Arabic, Russian, Japanese or another language. Text already in ${target} should remain semantically unchanged. For any non-Latin-script person/place/employer/school/degree/project name, use the established ${target}-language name when one exists; otherwise transliterate it into Latin characters without changing the entity. Never add, remove or strengthen facts. Copy payload.change_notes exactly unchanged because it is UI commentary, not CV content. The layout object contains only source-layout strings that may survive rendering: keep exactly the same section order/count and block counts; translate strings only. No Chinese/Japanese/Korean/Cyrillic/Arabic/Hebrew/Thai/Devanagari script may remain in any rendered candidate, payload or layout field. INPUT=${JSON.stringify({candidate,payload,layout:surface})}`;
   let output="",metrics:any={};
   await runModelTransport({cwd:workspaceRoot(),prompt,model:FLOW_DEFAULTS.cv.model as any,reasoning:"none" as any,timeoutMs:120_000,onRun:run=>hooks?.onRun?.(run),onMetrics:m=>{metrics=m;hooks?.onMetrics?.(m);},onText:t=>{output+=t;},onFinalText:t=>{output=t;}});
   const parsed=extractJsonObject(output).obj as any;
+  if(layoutNeeds && !completeRoleCvLayoutTranslation(surface,parsed?.layout))throw new Error("CV language normalization failed; the preserved layout was not fully translated.");
   const next=sanitizePayload(parsed?.payload,payload),nextCandidate={name:String(parsed?.candidate?.name||candidate.name).slice(0,300),location:String(parsed?.candidate?.location||candidate.location).slice(0,300)};
-  const nextBody=JSON.stringify({...next,change_notes:undefined});
-  if(HAN.test(nextCandidate.name)||HAN.test(nextCandidate.location)||HAN.test(nextBody)||contradictsDocumentLanguage(nextBody,material,version.sources.cv.text))throw new Error("CV language normalization failed; no mixed-language PDF was produced.");
-  return {payload:next,candidate:nextCandidate,metrics};
+  const nextLayout=layoutSource?applyRoleCvLayoutTranslation(layoutSource,parsed?.layout,next):layoutSource;
+  const nextBody=JSON.stringify({...next,change_notes:undefined}),nextLayoutBody=nextLayout?roleCvLayoutText(nextLayout,next):"";
+  if(NON_LATIN_APPLICATION_SCRIPT.test(nextCandidate.name)||NON_LATIN_APPLICATION_SCRIPT.test(nextCandidate.location)||NON_LATIN_APPLICATION_SCRIPT.test(nextBody)||NON_LATIN_APPLICATION_SCRIPT.test(nextLayoutBody)||contradictsDocumentLanguage(nextBody,material,version.sources.cv.text)||contradictsDocumentLanguage(nextLayoutBody,material,version.sources.cv.text))throw new Error("CV language normalization failed; no mixed-language PDF was produced.");
+  return {payload:next,candidate:nextCandidate,layoutSource:nextLayout,metrics};
 }
 
-async function renderDraftFiles(profileId:string,job:Job,version:Record<string,any>,payload:TailoredPayload,material:string,draftId:string,renderCandidate?:{name:string;location:string},emphasisKeywords?:string[]) {
+async function renderDraftFiles(profileId:string,job:Job,version:Record<string,any>,payload:TailoredPayload,material:string,draftId:string,renderCandidate?:{name:string;location:string},emphasisKeywords?:string[],normalizedLayoutSource?:any) {
   const root=workspaceRoot(),{cvOptions,candidate:baseCandidate}=candidateRenderContext(profileId,version,material),candidate={...baseCandidate,...(renderCandidate||{})};
   const renderPayload={lang:cvOptions.language,page_format:"a4",candidate,sections:{summary:"Professional Summary",competencies:"Core Competencies",experience:"Professional Experience",projects:"Selected Projects",education:"Education",certifications:"Certifications",awards:"Awards & Honors",interests:"Interests",skills:"Skills"},summary:payload.summary,competencies:[],experience:payload.experience||[],projects:payload.projects||[],education:payload.education||[],certifications:[],awards:[],interests:[],skills:payload.skills||[]};
   const outputDir=path.join(root,"output");
   const stem=`cv-draft-${slug(candidate.name,"candidate")}-${slug(job.company,"company")}-${draftId.slice(0,8)}`;
   const htmlPath=path.join(outputDir,stem+".html"),pdfPath=path.join(outputDir,stem+".pdf");
   const preserveOriginal=process.env.JOBPILOT_V1_PREVIEW==="1";
-  const layoutSource=preserveOriginal?await originalCvLayoutSource(profileId,version):null;
+  const layoutSource=preserveOriginal?(normalizedLayoutSource ?? await originalCvLayoutSource(profileId,version)):null;
   const emphasis=emphasisKeywords||jdEmphasisKeywords(job,payload);
   const rendered=await renderTailoredCv(renderPayload,{htmlPath,pdfPath,language:material,template:cvOptions.template,maxPages:cvOptions.preferredPages,keywords:cleanArray(job.cv?.keywords),
     ...(preserveOriginal?{referenceContent:version.sources.cv.text,layoutSource,tailoredPayload:payload,emphasisKeywords:emphasis}:{})});
@@ -349,18 +425,21 @@ export function updateTailoredCvGuidance(profileId:string,jobId:string,input:{fa
   (job as any).cvGuidance=guidance;writeStore(profileId,store);return {job,guidance};
 }
 
-/** Existing V1 drafts predate the original-layout renderer. Re-render their
- * already-saved payload mechanically on first preview/download: no model call,
- * no wording change, no new assessment, and no mutation of the canonical CV. */
+/** Existing V1 drafts predate the current application-language renderer.
+ * Re-render their already-saved payload on first preview/download. A bounded
+ * language-normalization call is allowed only when source-layout strings can
+ * survive in the wrong language; no new facts/assessment or canonical-CV
+ * mutation is allowed. */
 async function ensureCurrentTailoredRender(profileId:string,store:Store,job:Job,draft:TailoredDraft) {
   if(process.env.JOBPILOT_V1_PREVIEW!=="1")return draft;
   const root=workspaceRoot();
   const existing=draft.file ? path.resolve(root,draft.file) : "";
   if(draft.rendererVersion===ROLE_CV_RENDERER && existing && fs.existsSync(existing))return draft;
   const version=loadCandidateVersion(historyDirectory(profileId),draft.baseVersionId);
-  const normalized=await normalizeCvLanguage(profileId,version,draft.payload,draft.language);
+  const layoutSource=process.env.JOBPILOT_V1_PREVIEW==="1"?await originalCvLayoutSource(profileId,version):null;
+  const normalized=await normalizeCvLanguage(profileId,version,draft.payload,draft.language,layoutSource);
   const emphasis=jdEmphasisKeywords(job,normalized.payload);
-  const files=await renderDraftFiles(profileId,job,version,normalized.payload,draft.language,draft.id,normalized.candidate,emphasis);
+  const files=await renderDraftFiles(profileId,job,version,normalized.payload,draft.language,draft.id,normalized.candidate,emphasis,normalized.layoutSource);
   Object.assign(draft,{...files,payload:normalized.payload,renderCandidate:normalized.candidate,emphasisKeywords:emphasis,updatedAt:new Date().toISOString()});
   writeStore(profileId,store);
   return draft;
@@ -370,8 +449,9 @@ export async function updateTailoredCvDraft(profileId:string,draftId:string,payl
   const store=readStore(profileId),{job,draft}=findDraft(store,draftId);if(draft.status!=="pending")throw new Error("Ce brouillon a déjà été traité.");
   if(!userProvidedConfirmed)throw new Error("Confirmez que les modifications ajoutées par l’utilisateur sont factuelles avant de régénérer le CV.");
   const version=loadCandidateVersion(historyDirectory(profileId),draft.baseVersionId),next=sanitizePayload(payload,draft.payload);const revision=draft.revision+1;
-  const normalized=await normalizeCvLanguage(profileId,version,next,draft.language),emphasis=jdEmphasisKeywords(job,normalized.payload);
-  const files=await renderDraftFiles(profileId,job,version,normalized.payload,draft.language,draft.id,normalized.candidate,emphasis);
+  const layoutSource=process.env.JOBPILOT_V1_PREVIEW==="1"?await originalCvLayoutSource(profileId,version):null;
+  const normalized=await normalizeCvLanguage(profileId,version,next,draft.language,layoutSource),emphasis=jdEmphasisKeywords(job,normalized.payload);
+  const files=await renderDraftFiles(profileId,job,version,normalized.payload,draft.language,draft.id,normalized.candidate,emphasis,normalized.layoutSource);
   if(!Number.isFinite(Number(draft.baselinePresentationScore)) && Number.isFinite(Number(draft.assessment?.baselineScore))) draft.baselinePresentationScore=Number(draft.assessment?.baselineScore);
   const updatedAt=new Date().toISOString();
   Object.assign(draft,{...files,payload:normalized.payload,renderCandidate:normalized.candidate,emphasisKeywords:emphasis,revision,updatedAt,assessment:null,userProvidedEdit:{confirmedAt:updatedAt,revision}});writeStore(profileId,store);return draft;
@@ -543,14 +623,15 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
         const initialPayload=sanitizePayload(parsed);
         emit({t:"progress",label:"Vérification de la langue et traduction finale"});
         let languageMetrics:Record<string,any>={};
-        const normalized=await normalizeCvLanguage(profileId,inputVersion,initialPayload,material,{
+        const layoutSource=process.env.JOBPILOT_V1_PREVIEW==="1"?await originalCvLayoutSource(profileId,inputVersion):null;
+        const normalized=await normalizeCvLanguage(profileId,inputVersion,initialPayload,material,layoutSource,{
           onRun:run=>emit({t:"execution",transport:run.transport,sessionId:run.sessionId,runId:run.runId,remoteSessionId:run.remoteSessionId}),
           onMetrics:m=>{languageMetrics=m;},
         });
         const payload=normalized.payload,renderCandidate=normalized.candidate,emphasis=jdEmphasisKeywords(job!,payload);
         const draftId=randomUUID(),revision=1;
         emit({t:"progress",label:"Mise en page du brouillon · mots-clés du poste mis en valeur"});
-        const rendered=await renderDraftFiles(profileId,job!,inputVersion,payload,material,draftId,renderCandidate,emphasis);
+        const rendered=await renderDraftFiles(profileId,job!,inputVersion,payload,material,draftId,renderCandidate,emphasis,normalized.layoutSource);
         emit({t:"progress",label:"Comparaison avec le CV actuel pour ce poste"});
         let assessmentMetrics:Record<string,any>={};
         const comparison=await compareCvPresentation(profileId,job!,inputVersion,payload,locale,revision,{

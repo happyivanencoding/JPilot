@@ -10,6 +10,7 @@ import {offerInSearchArea,normalizeSearchArea} from '../src/lib/search-area.mjs'
 import {applyJobUpdate} from '../src/lib/mobile-domain.mjs';
 import {operationKey} from '../src/lib/mobile-state.mjs';
 import {rankSearchResults} from '../src/lib/job-search/index.mjs';
+import {professionalTailoredHtml} from '../src/lib/backend/reference-template.mjs';
 
 const matchBasis={currentScore:50,cvPotentialScore:65};
 const prepared={versionId:'v1',language:'en',matchBasis,payload:{summary:'Relevant existing research',experience:[]},assessment:{scoringVersion:'role-fit-2-cv',baselineScore:50,draftScore:58,delta:8}};
@@ -39,7 +40,7 @@ test('explicit search geography rejects outside and ambiguous locations at ranki
  const result=rankSearchResults({query:'Research analyst',country:'France',city:'Paris',searchArea:area,contractTypes:['Stage']},[offer('paris','Paris','France'),offer('lyon','Lyon','France'),offer('texas','Paris, Texas','US')],[]);
  assert.deepEqual(result.offers.map(o=>o.company),['paris']);
 });
-test('auto CV import detects real document language independently of analysis language',async()=>{
+test('application CV language stays independent from uploaded source and analysis language',async()=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'onward-import-'));
  const previous=process.env.CAREER_OPS_ROOT;process.env.CAREER_OPS_ROOT=root;
  try {
@@ -47,16 +48,37 @@ test('auto CV import detects real document language independently of analysis la
   fs.writeFileSync(path.join(root,'data/profiles.json'),JSON.stringify({version:1,defaultProfileId:'synthetic',profiles:[{id:'synthetic',name:'Synthetic',cvMarkdown:'data/cv.md',config:'data/config.yml',notes:'data/notes.md',candidatures:'data/candidatures.json'}]}));
   fs.writeFileSync(path.join(root,'data/cv.md'),'');fs.writeFileSync(path.join(root,'data/notes.md'),'');fs.writeFileSync(path.join(root,'data/config.yml'),'cv: {language: en}');
   const {saveImportedCv,currentCandidateVersion}=await import('../src/lib/mobile-history.ts');
-  await saveImportedCv('synthetic','Formation et recherche avec des projets pour les entreprises.',currentCandidateVersion('synthetic').id,'auto','zh',['Stage']);
+  await saveImportedCv('synthetic','Formation et recherche avec des projets pour les entreprises.',currentCandidateVersion('synthetic').id,'en','zh',['Stage']);
   let config=yaml.load(fs.readFileSync(path.join(root,'data/config.yml'),'utf8'));
-  assert.equal(config.cv.language,'fr');assert.equal(config.cv.source_language,'fr');assert.equal(config.display.analysis_language,'zh');
-  await saveImportedCv('synthetic','EDUCATION SKILLS Research with Python and databases for the team.',currentCandidateVersion('synthetic').id,'auto','fr',['CDI']);
+  assert.equal(config.cv.language,'en');assert.equal(config.cv.source_language,'fr');assert.equal(config.display.analysis_language,'zh');
+  await saveImportedCv('synthetic','EDUCATION SKILLS Research with Python and databases for the team.',currentCandidateVersion('synthetic').id,'fr','fr',['CDI']);
   config=yaml.load(fs.readFileSync(path.join(root,'data/config.yml'),'utf8'));
-  assert.equal(config.cv.language,'en');assert.equal(config.cv.source_language,'en');assert.equal(config.display.analysis_language,'fr');
+  assert.equal(config.cv.language,'fr');assert.equal(config.cv.source_language,'en');assert.equal(config.display.analysis_language,'fr');
+  await saveImportedCv('synthetic','教育 经历 技能 项目',currentCandidateVersion('synthetic').id,'en','en',['Stage']);
+  config=yaml.load(fs.readFileSync(path.join(root,'data/config.yml'),'utf8'));
+  assert.equal(config.cv.language,'en');assert.equal(config.cv.source_language,'auto');assert.equal(config.display.analysis_language,'en');
  } finally {
   if(previous===undefined)delete process.env.CAREER_OPS_ROOT;else process.env.CAREER_OPS_ROOT=previous;
   fs.rmSync(root,{recursive:true,force:true});
  }
+});
+
+test('role CV layout translation covers source-only text that survives the tailored payload',async()=>{
+ const {roleCvLayoutSurface,applyRoleCvLayoutTranslation}=await import('../src/lib/tailored-cv.ts');
+ const layout={name:'李若晴',headline:'数据分析师',contact:['巴黎 · +33 6 00 00 00 00 · ruoqing@example.test'],sections:[
+  {kind:'experience',title:'工作经历',blocks:[{kind:'entry',text:'图书馆 — 2026'},{kind:'bullet',text:'整理数据'}]},
+  {kind:'languages',title:'语言',blocks:[{kind:'text',text:'中文：母语 · 法语：B2'}]},
+ ],footer:['更新于 2026']};
+ const payload={summary:'Data analyst.',experience:[{company:'Library',role:'Assistant',location:'Paris',dates:'2026',bullets:['Organised data.']}],skills:[]};
+ const surface=roleCvLayoutSurface(layout,payload);
+ assert.deepEqual(surface.sections[0].blocks,[],'tailored experience content is replaced, so only its source title survives');
+ assert.deepEqual(surface.sections[1].blocks,['中文：母语 · 法语：B2']);
+ const translated=applyRoleCvLayoutTranslation(layout,{name:'Ruoqing Li',headline:'Data Analyst',contact:['Paris · +33 6 00 00 00 00 · ruoqing@example.test'],sections:[
+  {kind:'experience',title:'Experience',blocks:[]},
+  {kind:'languages',title:'Languages',blocks:['Chinese: Native · French: B2']},
+ ],footer:['Updated 2026']},payload);
+ const html=professionalTailoredHtml({content:'',layoutSource:translated,language:'en',tailoredPayload:payload});
+ assert.match(html,/Ruoqing Li/);assert.match(html,/Chinese: Native/);assert.match(html,/Organised data/);assert.doesNotMatch(html,/[\u3400-\u9fff]/u);
 });
 
 test('reply autosave edits one draft without manufacturing received-reply events',()=>{

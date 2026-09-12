@@ -67,7 +67,7 @@ test('public V1 root accepts cross-site document navigation but APIs remain same
 test('upload commits facts automatically then analyses only that profile, without a raw-text confirmation result',async()=>{
   const file=path.join(mobileDirectory(a.profileId),'uploads','synthetic','source.txt');fs.mkdirSync(path.dirname(file),{recursive:true});
   fs.writeFileSync(file,'Yuki Tanaka\nMSc International Business. Export sales support and market research.\nLooking for a first full-time business development role.');
-  const task=await startMobileTask(a.profileId,{kind:'ingest',filename:'synthetic.txt',autoImport:true,sourceLanguage:'fr',analysisLanguage:'zh',contractTypes:['Stage','Alternance'],silent:true},file);
+  const task=await startMobileTask(a.profileId,{kind:'ingest',filename:'synthetic.txt',autoImport:true,applicationLanguage:'fr',analysisLanguage:'zh',contractTypes:['Stage','Alternance'],silent:true},file);
   await waitFor(()=>{const t=readMobileTask(a.profileId,task.id);if(t.status==='failed')throw new Error(t.error);return t.status==='completed'&&t;});
   const done=readMobileTask(a.profileId,task.id);
   assert.equal(done.result.imported,true);assert.equal(done.result.proposal,undefined);
