@@ -2,7 +2,9 @@
 
 ## 2026-09-12 Home direction header cleanup
 
-The phone Home `Directions à explorer` header no longer renders the secondary `Modifier / Edit / 调整` action. That control was redundant with the Profile job-preference controls and, on narrow phone viewports, could collapse into one-character-per-line wrapping beside the section title. The Home header now contains only the section title and guidance copy; its `spread` alignment is removed as well, so there is no reserved right-side action space. Direction cards, direction selection/search behavior and Profile preferences are unchanged. Android remains frozen on this Mobile Web-only branch.
+The phone Home `Directions à explorer` header no longer renders the secondary `Modifier / Edit / 调整` action. That control was redundant with the Profile job-preference controls and, on narrow phone viewports, could collapse into one-character-per-line wrapping beside the section title. The Home header now contains only the section title and guidance copy; its `spread` alignment is removed as well, so there is no reserved right-side action space. Direction cards, direction selection/search behavior and Profile preferences are unchanged.
+
+The Opportunities search surface also removes the separate `Actualiser ces résultats / Refresh these results / 刷新当前结果` row. Users search again from the same primary `Rechercher / Search / 搜索` action instead of carrying a second refresh control. That primary search button now stretches across the full content width to the left edge of the phone content column rather than sitting as a compact right-aligned button. Search semantics and explicit direction chips are unchanged. Android remains frozen on this Mobile Web-only branch.
 
 ## 2026-09-12 tester-feedback / CV-language / first-run polish
 
