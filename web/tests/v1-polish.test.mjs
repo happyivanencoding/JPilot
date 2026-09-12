@@ -28,6 +28,15 @@ test('one active selection is reused; six new directions per day still allow cac
  assert.equal(planDirectionSearch([active,...tasks],{query:'unique 2'},'cv-a',{},now).reuse.id,'2','existing results can be opened while another direction prepares');
  assert.equal(compactDirectionHistory([task('1','export sales'),task('2','assistant commercial export'),task('3','data analyst')]).length,2);
 });
+test('direction budget and history are scoped to Candidate Version, while manual refresh bypasses cache',()=>{
+ const six=Array.from({length:6},(_,i)=>task(String(i),'unique '+i));
+ assert.equal(planDirectionSearch(six,{query:'new role'},'cv-b',{},now).reason,'new','a new CV gets its own exploration budget');
+ const refreshed=planDirectionSearch(six,{query:'unique 2',refresh:true},'cv-a',{},now);
+ assert.equal(refreshed.reason,'refresh');assert.ok(refreshed.refreshSequence>=1);assert.equal(refreshed.reuse,undefined);
+ assert.equal(planDirectionSearch([...six,task('refresh','unique 2',{input:{query:'unique 2',refreshSequence:1}})],{query:'brand new'},'cv-a',{},now).reason,'daily-limit','refreshing a direction does not create a seventh direction slot');
+ const history=compactDirectionHistory([task('a','export sales'),task('b','export sales',{inputVersionId:'cv-b'})]);
+ assert.equal(history.length,2,'the same direction remains visible for two CV evidence versions');
+});
 test('search revision invalidates stale cached zero-result directions without deleting history',()=>{
  const old=task('old','Technical Lead FinOps Paris',{input:{query:'Technical Lead FinOps Paris',directionKey:'finops-lead-paris-technical'}});
  const fresh=planDirectionSearch([old],{query:'Technical Lead FinOps Paris',searchRevision:V1_SEARCH_REVISION},'cv-a',{},now);
@@ -97,10 +106,10 @@ test('estimated liquid progress decelerates and reaches 100 only for actual succ
  assert.ok(curve[2]-curve[1]>curve[4]-curve[3]);assert.ok(estimatedProgress(1000,'running')<1);
  assert.ok(estimatedProgress(70,'failed')<1);assert.equal(estimatedProgress(70,'completed'),1);
  const search=task('1','export');
- assert.equal(searchProgress(search,{availableCount:4,offers:[{deepMatchState:'loading'}],ready:false}).status,'running');
- assert.equal(searchProgress(search,{availableCount:4,offers:[{deepMatchState:'ready'}],ready:false}).status,'running','translation is still pending');
- assert.equal(searchProgress(search,{availableCount:4,offers:[{deepMatchState:'ready'}],ready:true}).status,'completed');
- assert.equal(searchProgress(search,{availableCount:4,offers:[],ready:false,failed:true}).status,'failed');
+ assert.equal(searchProgress(search,{availableCount:4,offers:[{deepMatchState:'loading'}],ready:false}).status,'completed','Deep Match no longer blocks search completion');
+ assert.equal(searchProgress(search,{availableCount:4,offers:[{deepMatchState:'ready'}],ready:false}).status,'completed','translation no longer blocks search completion');
+ assert.equal(searchProgress({...search,status:'running'},{availableCount:4,offers:[],ready:false}).status,'running');
+ assert.equal(searchProgress({...search,status:'failed'},{availableCount:4,offers:[],ready:false}).status,'failed');
 });
 test('plain gaps turn unknown ability into a check, not an invented shortfall',()=>{
  assert.equal(friendlyGapTitle('Portuguese not demonstrated'),'Clarify Portuguese');

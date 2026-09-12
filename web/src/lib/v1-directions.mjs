@@ -44,15 +44,20 @@ export function planDirectionSearch(tasks,input,versionId,analysis={},now=Date.n
  const searches=tasks.filter(t=>t.kind==='search'&&t.inputVersionId===versionId);
  const compatible=t=>(t.input.directionKey || directionDescriptor(t.input.query,analysis).key)===descriptor.key
   && (!input.searchRevision || t.input.searchRevision===input.searchRevision);
- const inFlightUrls=new Set(tasks.filter(t=>t.kind==='deep_match'&&t.inputVersionId===versionId&&['queued','running','reconciling'].includes(t.status)).map(t=>t.input.url));
- const active=searches.find(t=>['queued','running','reconciling'].includes(t.status) || (t.result?.offers || []).slice(0,4).some(o=>inFlightUrls.has(o.url)));
- const cached=searches.find(t=>compatible(t)&&t.status==='completed'&&!incompleteEmptySearch(t)&&now-Date.parse(t.createdAt)<V1_SEARCH_CACHE_MS);
+ const active=searches.find(t=>['queued','running','reconciling'].includes(t.status));
+ const cached=!input.refresh&&searches.find(t=>compatible(t)&&t.status==='completed'&&!incompleteEmptySearch(t)&&now-Date.parse(t.createdAt)<V1_SEARCH_CACHE_MS);
  if(cached) return {descriptor,reuse:cached,reason:norm(cached.input.query)===norm(input.query)?'reused':'merged'};
  if(active) return {descriptor,reuse:active,reason:compatible(active)?'reused':'active'};
  const date=new Date(now).toISOString().slice(0,10);
- const used=tasks.filter(t=>t.kind==='search'&&!incompleteEmptySearch(t)&&t.createdAt?.slice(0,10)===date).length;
- if(used>=V1_NEW_SEARCHES_PER_DAY) return {descriptor,reason:'daily-limit',used,limit:V1_NEW_SEARCHES_PER_DAY};
- return {descriptor,reason:'new',used,limit:V1_NEW_SEARCHES_PER_DAY};
+ // Direction budgets belong to the current Candidate Version. Uploading a new
+ // CV creates a new evidence version and must not inherit yesterday's/current
+ // day's exploratory quota from a different CV.
+ const today=searches.filter(t=>!incompleteEmptySearch(t)&&t.createdAt?.slice(0,10)===date);
+ const usedDirections=new Set(today.map(t=>t.input.directionKey || directionDescriptor(t.input.query,analysis).key));
+ const used=usedDirections.size;
+ if(used>=V1_NEW_SEARCHES_PER_DAY && !usedDirections.has(descriptor.key)) return {descriptor,reason:'daily-limit',used,limit:V1_NEW_SEARCHES_PER_DAY};
+ const refreshSequence=input.refresh ? 1+searches.filter(t=>compatible(t)&&t.createdAt?.slice(0,10)===date).length : 0;
+ return {descriptor,reason:input.refresh?'refresh':'new',used,limit:V1_NEW_SEARCHES_PER_DAY,refreshSequence};
 }
 export function directionNotice(reason,title,locale='en') {
  const choose=(zh,fr,en)=>locale==='zh'?zh:locale==='fr'?fr:en;
@@ -63,7 +68,7 @@ export function directionNotice(reason,title,locale='en') {
  return '';
 }
 export function compactDirectionHistory(tasks,analysis={}) {
- const seen=new Set();return tasks.filter(t=>{const key=t.input.directionKey || directionDescriptor(t.input.query,analysis).key;if(seen.has(key))return false;seen.add(key);return true;});
+ const seen=new Set();return tasks.filter(t=>{const direction=t.input.directionKey || directionDescriptor(t.input.query,analysis).key;const key=`${t.inputVersionId || 'legacy'}:${direction}`;if(seen.has(key))return false;seen.add(key);return true;});
 }
 
 export function v1CandidatePriority(offer,query) {

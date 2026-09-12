@@ -64,13 +64,30 @@ function renderColumnSection(section,labels) {
  if(list)body+='</ul>';
  return `<section><h2>${escape(title)}</h2>${body}</section>`;
 }
+function contactKey(value) {
+ const text=clean(value).toLowerCase();
+ const email=text.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/)?.[0];
+ if(email)return `email:${email}`;
+ const digits=text.replace(/\D/g,'');if(digits.length>=9)return `phone:${digits}`;
+ const url=text.match(/(?:https?:\/\/)?(?:www\.)?(?:linkedin\.com\/in\/|[a-z0-9.-]+\.[a-z]{2,}\/)[^\s·|]*/)?.[0];
+ if(url)return `url:${url.replace(/^https?:\/\/(?:www\.)?/,'').replace(/\/$/,'')}`;
+ return `text:${norm(text).replace(/\s+/g,' ')}`;
+}
+function contactPieces(value) {
+ const text=clean(value);if(!text)return [];
+ const pieces=text.split(/\s*[·|]\s*/).map(clean).filter(Boolean);
+ return pieces.length>1?pieces:[text];
+}
 function professionalHtml(layout,language,compact=false) {
  const payload={language};
  const fr=payload.language==='fr';
  const labels=fr?{profile:'Profil',education:'Formation',experience:'Expérience professionnelle',projects:'Projets et engagements',skills:'Compétences',tools:'Outils',languages:'Langues',interests:'Centres d’intérêt',other:'Informations complémentaires'}:{profile:'Profile',education:'Education',experience:'Experience',projects:'Projects & activities',skills:'Skills',tools:'Tools',languages:'Languages',interests:'Interests',other:'Additional information'};
  const sections=(layout.sections||[]).filter(s=>s.blocks?.length);
  const groups=kind=>sections.filter(s=>s.kind===kind);
- const contacts=[...new Set([...(Array.isArray(layout.contact)?layout.contact:[]),...groups('contact').flatMap(s=>s.blocks.map(b=>b.text))])];
+ const contacts=[];const seenContacts=new Set();
+ for(const value of [...(Array.isArray(layout.contact)?layout.contact:[]),...groups('contact').flatMap(s=>s.blocks.map(b=>b.text))]){
+  for(const text of contactPieces(value)){const key=contactKey(text);if(seenContacts.has(key))continue;seenContacts.add(key);contacts.push(text);}
+ }
  let content=`<header><h1>${escape(layout.name)}</h1>${contacts.length?`<p class="contact">${contacts.map(escape).join(' · ')}</p>`:''}${layout.headline?`<p class="headline">${escape(layout.headline)}</p>`:''}</header>`;
  // Source columns describe extraction order only; every generated CV is A4 single-column.
  content+=`<main>${sections.filter(s=>s.kind!=='contact').map(s=>renderColumnSection(s,labels)).join('')}</main>`;

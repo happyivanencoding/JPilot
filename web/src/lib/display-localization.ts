@@ -39,7 +39,9 @@ export async function localizeDisplay(profileId:string,target:unknown,value:any,
   if(options.schedule!==false && missing.size) {
     await withProfileLock(historyDirectory(profileId),()=>{
       active=readJson(path.join(directory,'active.json'));
-      if(active && ['queued','running'].includes(active.status) && processAlive(active.ownerPid))return;
+      const activeUpdated=Date.parse(active?.updatedAt || active?.createdAt || '');
+      const activeFresh=Number.isFinite(activeUpdated) && Date.now()-activeUpdated<5*60*1000;
+      if(active && ['queued','running'].includes(active.status) && processAlive(active.ownerPid) && activeFresh)return;
       // Interrupted readonly work never silently launches a replacement Agent.
       if(active && ['queued','running'].includes(active.status)) {
         active={...active,status:'interrupted',updatedAt:new Date().toISOString()};
@@ -65,8 +67,10 @@ export async function localizeDisplay(profileId:string,target:unknown,value:any,
       void work.finally(()=>running.delete(`${profileId}:${locale}:${key}`));
     });
   }
-  const failed=missing.size>0 && active && ['failed','interrupted'].includes(active.status);
-  const state={locale,pending:missing.size>0,failed:!!failed,missingSegments:missing.size,operationId:active?.key || null,
+  const relevantActive=missing.size>0 && active && Array.isArray(active.segmentKeys) && active.segmentKeys.some((key:string)=>missing.has(key));
+  const failed=!!relevantActive && ['failed','interrupted'].includes(active.status);
+  const status=!missing.size?'ready':failed?'failed':options.schedule===false?'idle':'translating';
+  const state={locale,status,pending:missing.size>0,failed,retryable:failed,missingSegments:missing.size,operationId:relevantActive?active?.key || null:null,
     message:missing.size ? failed ? choose(locale,'翻译暂未完成，原始结果仍保留。请重试显示翻译，不需要重新评估。','Traduction indisponible. Le résultat original est conservé ; réessayez la traduction, pas l’analyse.','Translation is unavailable. The original result is preserved; retry translation, not analysis.') : choose(locale,'正在翻译已有结果，不会重新分析，也不会修改评分或简历。','Traduction du résultat enregistré, sans nouvelle analyse ni modification du score ou du CV.','Translating saved results without reanalysis or changes to scores or CV.') : ''};
   result.localization=state;
   if(options.schedule!==false && sourceKeys.length && !missing.size) {

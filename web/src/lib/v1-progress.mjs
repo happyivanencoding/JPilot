@@ -5,10 +5,12 @@ export function estimatedProgress(elapsedSeconds, status, targetSeconds=90) {
 }
 export function searchProgress(task,group,locale='en',requestedAt) {
  if(!task)return null;
- const phase=['queued','running','reconciling'].includes(task.status)?'search':!(group.offers || []).every(o=>o.deepMatchState==='ready')?'match':'translate';
- const failed=['failed','interrupted'].includes(task.status)||group.failed;
- const status=failed?'failed':task.status==='completed'&&(group.ready||group.availableCount===0&&group.resultMatches!==false)?'completed':'running';
- const labels={search:['正在找岗位','Recherche des offres','Finding roles'],match:['正在比较匹配','Comparaison des profils','Comparing your fit'],translate:['正在准备建议','Préparation des conseils','Preparing insights']};
- const label=labels[phase][locale==='zh'?0:locale==='fr'?1:2];
+ // Search is complete once provider retrieval + Fast Match are persisted. Deep
+ // Match, localization and role-CV work are independent enrichment states and
+ // must never hold the search button at 96%.
+ const failed=['failed','interrupted'].includes(task.status);
+ const status=failed?'failed':task.status==='completed'?'completed':'running';
+ const labels={running:['正在找岗位','Recherche des offres','Finding roles'],completed:['岗位已找到','Offres trouvées','Roles found'],failed:['搜索未完成','Recherche interrompue','Search did not finish']};
+ const label=labels[status][locale==='zh'?0:locale==='fr'?1:2];
  return {id:task.id,kind:'search',status,createdAt:requestedAt||task.createdAt,updatedAt:task.updatedAt,estimate:{targetSeconds:90},label};
 }

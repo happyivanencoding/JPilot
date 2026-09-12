@@ -95,16 +95,17 @@ test('directions and advantages are withheld until display translation is comple
   assert.match(done.analysis.strengths[0].title,/中文/);assert.match(done.v1.careerDirections[0].title,/中文/);
   assert.equal(done.v1.careerDirections[0].searchQuery,'business developer junior');assert.equal(modelCalls,1);assert.ok(translationCalls>0);
 });
-test('old CV scores do not enrich a current CV and whole batches wait for all deep matches plus translations',async()=>{
+test('old CV scores do not enrich a current CV and Fast Match offers publish before Deep Match finishes',async()=>{
   const offer={url:'https://example.invalid/jobs/export',title:'Export Sales',fastMatch:{score:71},deepMatch:{currentScore:71,cvPotentialScore:78,outputLocale:'en',roleSummary:'Help develop export sales in Europe.',strengths:[{title:'Client communication',evidence:'Supported customers and prepared client reports.'}],capabilityGaps:[]}};
   const old={kind:'deep_match',inputVersionId:'old-cv',status:'completed',input:{url:offer.url},result:{deepMatch:offer.deepMatch}};
   const projected=discoveryProjection({offers:[{...offer,deepMatch:undefined}]},[],currentVersionTasks([old],version.id));
   assert.equal(projected.offers[0].deepMatch,null);
   let snapshot={...base(),discovery:{taskId:'search1',offers:[{...offer,deepMatchState:'ready'},{...offer,url:offer.url+'2',deepMatchState:'loading'}],history:[]}};
   let view=await prepareV1Display(a.profileId,'zh',snapshot,[],{});
-  assert.deepEqual(view.discovery.offers,[]);assert.equal(view.v1.offersReady,false);
+  assert.equal(view.discovery.offers.length,2);assert.equal(view.v1.offersReady,true);
+  assert.equal(view.discovery.offers[1].enrichment.deepMatchState,'loading');
   snapshot.discovery.offers[1].deepMatchState='ready';
-  view=await waitFor(async()=>{const x=await prepareV1Display(a.profileId,'zh',snapshot,[],{});return x.v1.offersReady&&x;});
+  view=await waitFor(async()=>{const x=await prepareV1Display(a.profileId,'zh',snapshot,[],{});return !x.discovery.offers[0].localization?.pending&&x;});
   assert.equal(view.discovery.offers.length,2);assert.equal(view.discovery.offers[0].deepMatch.currentScore,71);assert.equal(view.discovery.offers[0].deepMatch.cvPotentialScore,78);assert.match(view.discovery.offers[0].deepMatch.strengths[0].title,/中文/);
 });
 test('language failure hides the whole section and offers an explicit translation retry, not reanalysis',async()=>{
@@ -153,8 +154,8 @@ test('snapshot exports the real search pipeline progress, translated query label
  const offer={url:'https://example.invalid/jobs/progress',title:'Junior Business Developer',fastMatch:{score:35},deepMatchState:'loading'};
  const snapshot={...base(),discovery:{taskId:task.id,query:task.input.query,availableCount:1,offers:[offer],history:[]}};
  let value=await prepareV1Display(a.profileId,'zh',snapshot,[task],journey);
- assert.equal(value.v1.searchProgress.status,'running');assert.equal(value.v1.searchProgress.createdAt,journey.searchRequestedAt);
- assert.deepEqual(value.discovery.offers,[]);
+ assert.equal(value.v1.searchProgress.status,'completed');assert.equal(value.v1.searchProgress.createdAt,journey.searchRequestedAt);
+ assert.equal(value.discovery.offers.length,1);assert.equal(value.v1.offersReady,true);
  offer.deepMatchState='ready';offer.deepMatch={currentScore:70,cvPotentialScore:80,roleSummary:'Develop business opportunities.',outputLocale:'en',strengths:[],capabilityGaps:[]};
  value=await waitFor(async()=>{const x=await prepareV1Display(a.profileId,'zh',snapshot,[task],journey);return x.v1.offersReady&&x;});
  assert.equal(value.v1.searchProgress.status,'completed');assert.match(value.v1.journey.label,/业务/);assert.match(value.v1.searchNotice,/已并入/);
@@ -162,5 +163,6 @@ test('snapshot exports the real search pipeline progress, translated query label
  const next={...task,id:'new-search',status:'running'};
  value=await prepareV1Display(a.profileId,'zh',snapshot,[next,task],{...journey,searchTaskId:next.id});
  assert.equal(value.v1.searchProgress.status,'running','an earlier ready batch cannot complete the new request');
- assert.equal(value.v1.offersReady,false);
+ assert.equal(value.v1.offersReady,true,'the previous usable batch stays visible while the next request runs');
+ assert.equal(value.discovery.offers.length,1);
 });

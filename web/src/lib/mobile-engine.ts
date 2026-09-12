@@ -24,7 +24,7 @@ import { currentCandidateVersion, currentAnalysis, analysisContinuity, saveImpor
 import { findPersistedEvaluation } from "@/lib/evaluation-state";
 import { executeTransportEvaluation } from "@/lib/evaluation-transport";
 import { readCandidatureStore, writeCandidatureStore, reconcileCandidatures, saveMobileOffer } from "@/lib/candidatures";
-import { generateTailoredCv, reviewTailoredCvDraft, prepareRoleCv } from "@/lib/tailored-cv";
+import { generateTailoredCv, reviewTailoredCvDraft } from "@/lib/tailored-cv";
 import { cvAnalysisPrompt } from "@/lib/cv-analysis-prompt.mjs";
 import { parseAnalysisResult } from "@/lib/analysis-result.mjs";
 import {preservePresentationLanguage} from "@/lib/cv-global-plan.mjs";
@@ -329,26 +329,11 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
       if(task.input.experience==='v1' && (parsed.obj?.scoring_version!=='role-fit-2' || parsed.obj?.scoring_method!=='anchored-4x4-v1' || !parsed.obj?.ratings || !parsed.obj?.score_rationale))throw new Error('Incomplete match rubric');
       const deepMatch={...normalizeDeepMatch(parsed.obj,fastMatch),outputLocale:task.input.uiLocale};
       writeJobIntelligence(String(task.input.url || offer.url || ""),deepMatch);
-      let preparedCv:any=null;
-      if(task.input.experience==='v1') {
-        const modelMetrics:any[]=[task.metrics].filter(Boolean);
-        try {
-          preparedCv=await prepareRoleCv(task.profileId,version,offer,deepMatch,uiLocale(task.input.uiLocale),{
-            onRun,onMetrics:m=>{modelMetrics.push(m);},onPhase:phase=>{task.phase=phase;saveTask(task);},applicationLanguage:String(task.input.applicationLanguage || ""),
-          });
-          Object.assign(deepMatch,{preparedCvScore:preparedCv.assessment.draftScore,preparedCvLanguage:preparedCv.language,cvPotentialScore:preparedCv.assessment.draftScore});
-        } catch(error) {
-          // A failed optional preparation cannot invent a numeric promise or erase
-          // useful role analysis. Explicit CV generation can retry the real work.
-          Object.assign(deepMatch,{cvPotentialScore:deepMatch.currentScore,preparationState:'failed'});
-          (task as any).preparationError=error instanceof Error?error.message:String(error);
-        }
-        const aggregate={...modelMetrics.at(-1)};
-        for(const key of ['inputTokens','outputTokens','cachedInputTokens','totalTokens','agentMs','estimatedCostUsd'])aggregate[key]=modelMetrics.reduce((sum,m)=>sum+(Number(m?.[key])||0),0);
-        metrics(aggregate);
-      }
+      // Deep Match is role analysis only. Preparing an actual role-specific CV is
+      // an explicit, independently retriable action from the CV tab and must never
+      // keep search enrichment running or block the first visible search result.
       task.text=String(deepMatch.roleSummary || "");
-      task.result={url:String(task.input.url || offer.url || ""),deepMatch,preparedCv,outputLocale:task.input.uiLocale};
+      task.result={url:String(task.input.url || offer.url || ""),deepMatch,outputLocale:task.input.uiLocale};
     } else if (task.kind === "evaluate") {
       task.phase = "Évaluation officielle et enregistrement du rapport"; saveTask(task);
       await consume(task, await executeTransportEvaluation({ profileId: task.profileId, url: String(task.input.url), inputVersionId: task.inputVersionId, locale: String(task.input.uiLocale), model: defaultFlow.model, reasoning: defaultFlow.reasoning }));
@@ -508,7 +493,7 @@ export async function startMobileTask(profileId: string, input: Record<string, u
         }
         return selected;
       }
-      input={...input,query:plan.descriptor.searchQuery,directionKey:plan.descriptor.key,directionTitle:plan.descriptor.sourceTitle};
+      input={...input,query:plan.descriptor.searchQuery,directionKey:plan.descriptor.key,directionTitle:plan.descriptor.sourceTitle,...(plan.refreshSequence?{refreshSequence:plan.refreshSequence}:{})};
     }
 
     if(kind === "ingest" && uploadPath) {

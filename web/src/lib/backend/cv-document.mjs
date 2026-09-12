@@ -356,10 +356,6 @@ export async function renderTailoredCv(
       result = compactResult;
     }
   }
-  if (result.pages > maxPages)
-    throw new Error(
-      `Le CV occupe ${result.pages} pages pour une limite de ${maxPages}. Réduisez le contenu du brouillon.`,
-    );
   if (result.layout.horizontalOverflow)
     throw new Error(
       "Le CV déborde horizontalement. Corrigez le contenu du brouillon.",
@@ -370,6 +366,10 @@ export async function renderTailoredCv(
   fs.writeFileSync(pdfPath, result.bytes);
   return {
     pages: result.pages,
+    onePageTargetMet: result.pages <= maxPages,
+    warnings: result.pages > maxPages ? [
+      `Le CV occupe ${result.pages} pages. Le contenu factuel a été conservé ; révisez la longueur avant envoi si vous souhaitez rester sur une page.`,
+    ] : [],
     atsScore: ats.score,
     atsPass: ats.pass,
     atsGrade: ats.grade,
