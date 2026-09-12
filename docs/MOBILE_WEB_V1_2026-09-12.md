@@ -10,7 +10,7 @@ The same public walkthrough also proved that the recurring “Pas encore d’off
 
 The full-screen CV/search water also had a visible horizontal seam where the rectangular liquid fill began under the SVG wave. The fill now starts a few pixels below the wave and the SVG uses the same translucent liquid fill, removing the separate hard boundary without changing the bottom-up progress behavior.
 
-Targeted regressions cover the wrong-locale legacy orientation, short Chinese translation rejection, OpenAI translation transport/model/reasoning, the four supply-chain market families and distinct search identities, and the wave/fill boundary. Web typecheck and production build are release gates for this hotfix. Public deployment and final mobile-browser evidence are recorded separately after rollout.
+Targeted regressions cover the wrong-locale legacy orientation, short Chinese translation rejection, OpenAI translation transport/model/reasoning, the four supply-chain market families and distinct search identities, and the wave/fill boundary. Web typecheck and production build are release gates for this hotfix. The final VPS/mobile-browser evidence is recorded in the Deployment section below.
 
 ## Product decision
 
@@ -21,7 +21,7 @@ This decision is scoped to `feature/v1-mobile-web-only-20260912`:
 - Worktree: `C:\dev\onward-v1-mobile-web-20260912`
 - Base: `feature/v1-student-match-loop-20260910@2cffc680959aaa37bbdf59efb5b5455e93ea62e8`
 - Branch: `feature/v1-mobile-web-only-20260912`
-- Web version: `0.9.0`
+- Web version: `0.9.1`
 - Canonical tester URL: `https://jobs-v1.thegreatnovel.com/`
 - Android V1 source is retained and frozen; this branch does not maintain Web→Android UI parity.
 - No iOS client is created. Safari/PWA is the iPhone path.
@@ -116,6 +116,12 @@ The Safari/WebKit acceptance exposed and fixed an actual upload milestone race: 
 
 ## Deployment
 
-The V1-only deployment channel now tracks `feature/v1-mobile-web-only-20260912`. Product commit **`60569cfd39aa35fc3bc5b9fcb51428ea400275f1`** is deployed on the isolated `jobpilot-v1` stack and the Web container is healthy. Public root normal navigation is **200**; simulated external document navigation (`Sec-Fetch-Site: cross-site`, `mode=navigate`, `dest=document`) is also **200**; cross-site API access remains **403**. `manifest.webmanifest` and the public QR PNG are **200**.
+The V1-only deployment channel tracks `feature/v1-mobile-web-only-20260912`. The localization/search/wave hotfix was implemented in **`10e1231dd1c447bd4ec71115ce11e727164aa642`**; a small follow-up **`63667cea43aff70f633e6d4dc43c02716ceca680`** localizes the CV-privacy upload errors that were exposed while re-running the French public flow. The final deployed product SHA is therefore **`63667cea43aff70f633e6d4dc43c02716ceca680`**. The V1 root deploy completed its session/Profile isolation, logout, model-key, search-provider and internal-analytics gates and returned **`V1_DEPLOY_OK 63667cea43aff70f633e6d4dc43c02716ceca680`**. `jobpilot-v1-web-1` is healthy on image `jobpilot-v1:63667cea43aff70f633e6d4dc43c02716ceca680`.
 
-Production and Yifeng were not rebuilt. Their five Web/gateway/tunnel container IDs and `StartedAt` values exactly match the pre-rollout baseline; only the V1 Web/tunnel were recreated. Current V1 Web image: `jobpilot-v1:60569cfd39aa35fc3bc5b9fcb51428ea400275f1`.
+Public entry checks after the final rollout: normal root navigation **200**; simulated external top-level document navigation (`Sec-Fetch-Site: cross-site`, `mode=navigate`, `dest=document`) **200**; cross-site `/api/v1/session` remains **403**. The live mobile-width Chrome session re-entered the synthetic tester workspace with `test.prénom@g.com` and the Hugo Pelletier fixture. The Home/orientation surface was consistently French despite the old DeepSeek-era Chinese cache files still existing on disk. A new localization operation created on the VPS records **`gpt-5.6-luna` / `reasoning=none` / `openai-direct`**. The stale Chinese cache is therefore retained only as history and is no longer accepted as the French display projection.
+
+The same public session selected **Planification supply chain**. The new `v12-market-vocabulary` search queried `planificateur supply chain`: France Travail returned **62 raw offers**, the relevance layer removed **55**, and **1 offer survived** instead of the old false zero. The UI rendered **`M Supply Planner (F/H) - Industrie Pharmaceutique`**, `75 - Paris`, `CDI`, proving that the recurring empty state was fixed in the real search pipeline rather than hidden by copy. JSearch still returned HTTP 429 in this run; the successful France Travail path continued normally. The related deep-match task also completed with `gpt-5.6-luna`.
+
+The final browser replay also deliberately exercised the stale-consent upload guard. The backend correctly returned **428**, and the French UI now presents the notice-required error in French instead of leaking the raw English server message. The full-screen wave/fill seam fix is deployed and covered by the targeted CSS regression; this final pass did not claim a new physical 89%-progress screenshot.
+
+Production and Yifeng were not rebuilt or restarted. Their five Web/gateway/tunnel container IDs and `StartedAt` values remained exactly equal to the pre-hotfix baseline; only the isolated V1 Web/tunnel were recreated. Physical iPhone Safari remains the outstanding device boundary already described above.
