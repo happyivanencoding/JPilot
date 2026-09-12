@@ -7,6 +7,7 @@ import {searchProgress} from "@/lib/v1-progress.mjs";
 import {cvProgress} from "@/lib/v1-cv-progress.mjs";
 import {localizeDisplay} from '@/lib/display-localization';
 import {orientationOutputLocale} from '@/lib/v1-journey.mjs';
+import {candidateNameForMaterial} from '@/lib/candidate-display-name.mjs';
 
 /** Release complete product sections, never placeholder translations or a score
  * computed from an older CV. Raw persisted model outputs stay untouched. */
@@ -59,7 +60,7 @@ export async function prepareV1Display(profileId:string, locale:string, snapshot
   const activeImport=importTask && ['queued','running','reconciling'].includes(importTask.status);
   const failed=['failed','interrupted'].includes(importTask?.status) || ['failed','interrupted'].includes(snapshot.v1.analysisState) || ['failed','interrupted'].includes(searchTask?.status) || !!analysis?.localization?.failed;
   result.analysis=analysisReady && !activeImport ? analysis : null;
-  if(analysisReady && analysis.candidateName) result.profile={...result.profile,name:analysis.candidateName};
+  if(analysisReady && analysis.candidateName) result.profile={...result.profile,name:candidateNameForMaterial(analysis.candidateName,snapshot.languageSettings?.applicationLanguage)};
   result.v1={...snapshot.v1,careerDirections:firstRunReady&&!activeImport?displayDirections:[],
     analysisReady:firstRunReady&&!activeImport,offersReady:current.ready&&!activeImport,
     presentationFailed:!!failed||!!titles.localization?.failed,importState:importTask?.status || 'none',

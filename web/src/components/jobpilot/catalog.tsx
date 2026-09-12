@@ -6,7 +6,7 @@ import { DISCOVERY_OFFER_LIMIT } from "@/lib/mobile-domain.mjs";
 import { rows, texts, usePilot, type Json } from "./pilot-context";
 import { ACTIVE, safeExternalUrl } from "./model.mjs";
 import { AiProgressButton, Button, Card, Chip, Empty, External, Hint, Input, Pill, RowLink, Score, TextArea, Title } from "./ui";
-import {CompanyMark,DirectionMedallion,EditorialIdentity,MatchLabel,MetaRow,OnwardArcMotif} from "./onward-visual";
+import {CompanyMark,DirectionMedallion,MatchLabel,MetaRow,OnwardArcMotif} from "./onward-visual";
 
 function identityStatement(signal:Json|undefined,tr:(zh:string,fr:string,en:string)=>string){
  return String(signal?.title||"").trim() || tr("你的优势正在形成清晰方向。","Vos points forts dessinent une direction claire.","Your strengths are pointing to a clear direction.");
@@ -15,22 +15,24 @@ function identityStatement(signal:Json|undefined,tr:(zh:string,fr:string,en:stri
 export function HomePage() {
   const { data, tr, navigate, openOffer, startTask, retryV1,product } = usePilot();
   const offers=rows(data.discovery?.offers),directions=rows(data.v1?.careerDirections),signals=rows(data.analysis?.strengths).length?rows(data.analysis?.strengths):rows(data.analysis?.globalLayout?.signals),growth=rows(data.analysis?.growthAreas)[0];
-  const hasCv = Boolean(data.cv?.trim()),lead=signals[0];
+  const hasCv = Boolean(data.cv?.trim());
   const analysing=hasCv && ["queued","running","reconciling","pending"].includes(String(data.v1?.analysisState||"")) && !directions.length;
-  const firstName=String(data.profile?.name||"").trim().split(/\s+/)[0];
+  const displayName=String(data.profile?.name||"").trim();
+  const [activeStrength,setActiveStrength]=useState<Json|null>(null);
+  useEffect(()=>{if(!activeStrength)return;const close=(event:KeyboardEvent)=>{if(event.key==="Escape")setActiveStrength(null);};window.addEventListener("keydown",close);return()=>window.removeEventListener("keydown",close);},[activeStrength]);
   return <div className="jp-page onward-home" data-testid="home-page">
     <OnwardArcMotif className="home"/>
-    <div className="onward-home-greeting">{tr(firstName?`你好，${firstName}。`:"你好。",firstName?`Bonjour, ${firstName}.`:"Bonjour.",firstName?`Hello, ${firstName}.`:"Hello.")}</div>
+    <div className="onward-home-greeting">{tr(displayName?`你好，${displayName}。`:"你好。",displayName?`Bonjour, ${displayName}.`:"Bonjour.",displayName?`Hello, ${displayName}.`:"Hello.")}</div>
     {!hasCv ? <section className="jp-hero onward-home-empty"><h2>{tr("你的下一章，从这里开始。","Votre prochain chapitre commence ici.","Your next chapter starts here.")}</h2><Hint>{tr("上传简历，Onward 会从你的真实经历出发，找出值得探索的方向与岗位。","Importez votre CV : Onward part de votre parcours réel pour faire émerger les directions et les offres à explorer.","Upload your CV and Onward will use your real experience to surface directions and roles worth exploring.")}</Hint><Button onClick={()=>navigate({tab:"profile"})}>{tr("上传我的简历","Importer mon CV","Upload my CV")}</Button></section> : <>
-      <EditorialIdentity title={identityStatement(lead,tr)} detail={lead?.evidence||lead?.why}/>
+      <section className="onward-home-strengths" aria-labelledby="home-strengths-title"><p id="home-strengths-title">{tr("你的经历已经显现出这些核心优势：","Votre parcours fait déjà ressortir ces forces essentielles :","Your experience already shows these core strengths:")}</p><ul>{signals.slice(0,3).map((signal,i)=><li key={i}><button type="button" data-testid={`home-strength-${i}`} aria-haspopup="dialog" onClick={()=>setActiveStrength(signal)}><span aria-hidden="true" className="onward-strength-dot"/><span>{identityStatement(signal,tr)}</span><ChevronRight size={15}/></button></li>)}</ul></section>
       {growth&&<Card className="onward-home-growth"><strong>{tr("下一步补强","Prochaine progression","Next area to strengthen")}</strong><h3>{growth.title}</h3><Hint>{growth.nextAction}</Hint></Card>}
       {data.v1?.cvProgress?.status==="failed"&&<Card><p role="alert">{data.v1.cvProgress.failure?.message}</p><Button onClick={()=>retryV1()}>{tr("继续分析","Reprendre l’analyse","Continue analysis")}</Button></Card>}
       <section className="jp-stack onward-home-section direction-section"><div className="jp-row"><div><h3>{tr("值得探索的方向","Directions à explorer","Directions to explore")}</h3><Hint>{tr("选一个方向，直接查看对应岗位。","Choisissez une piste pour voir les offres correspondantes.","Choose a direction to see matching roles.")}</Hint></div></div>{analysing?<><div className="jp-progress indeterminate"/><Hint>{tr("为你准备新的方向。","De nouvelles pistes se préparent.","New possibilities are on their way.")}</Hint></>:<div className="jp-direction-grid">{directions.slice(0,4).map((d,i)=><button type="button" key={i} className="jp-direction-card onward-interactive-row" style={{"--onward-delay":`${Math.min(i,4)*34}ms`} as CSSProperties} data-analytics="choose_direction" onClick={()=>{navigate({tab:"offers"});void startTask({kind:"search",query:d.searchQuery,silent:true});}}><DirectionMedallion label={String(d.title)}/><span className="onward-row-copy"><strong>{d.title}</strong><Hint>{texts(d.evidence).slice(0,2).join(" · ")}</Hint></span><ArrowRight size={17}/></button>)}</div>}</section>
       {!!offers.length&&<section className="jp-stack onward-home-section offer-section"><div className="jp-row spread"><h3>{tr("今天值得看的岗位","Pour vous aujourd’hui","For you today")}</h3><Button kind="text" onClick={()=>navigate({tab:"offers"})}>{tr("全部","Tout voir","See all")}</Button></div>{offers.slice(0,3).map((offer,i)=>{const score=offer.deepMatch?.currentScore ?? offer.fastMatch?.score;return <button type="button" key={offer.url} className="jp-v1-role-card onward-job-row onward-interactive-row" style={{"--onward-delay":`${Math.min(i,4)*34}ms`} as CSSProperties} data-analytics="open_job" onClick={()=>openOffer(String(offer.url))}><CompanyMark company={String(offer.company||"")}/><span className="onward-row-copy"><strong>{offer.title}</strong><span className="jp-company">{offer.company}</span><MetaRow location={String(offer.location||"")} contract={offer.contractType&&offer.contractType!=="unknown"?product(offer.contractType):undefined}/></span><MatchLabel value={score}/><ChevronRight size={17}/></button>})}</section>}
     </>}
+    {activeStrength&&<div className="onward-strength-popover-backdrop" data-testid="home-strength-popover" onClick={()=>setActiveStrength(null)}><section className="onward-strength-popover" role="dialog" aria-modal="true" aria-labelledby="home-strength-popover-title" onClick={event=>event.stopPropagation()}><small>{tr("简历中的具体例子","Exemple concret tiré du CV","Concrete example from your CV")}</small><h3 id="home-strength-popover-title">{identityStatement(activeStrength,tr)}</h3><p>{String(activeStrength.evidence||activeStrength.why||tr("这个优势来自你简历中已经写明的经历。","Cet atout vient d’une expérience déjà présente dans votre CV.","This strength comes from experience already stated in your CV."))}</p></section></div>}
   </div>;
 }
-
 export function Match100({value}:{value:unknown}) { const n=value==null?NaN:Number(value);return <div className="jp-match100" aria-label={Number.isFinite(n)?`${Math.round(n)} / 100`:"—"}>{Number.isFinite(n)?Math.round(n):"—"}<span>/100</span></div>; }
 
 export function SearchMetrics({ value: m }: { value: Json }) {
