@@ -87,13 +87,23 @@ test('role-CV detail keeps the same before-after score surface even when uplift 
  assert.match(android,/if\(\(detail&&ready\)\|\|gain>0\)/);
  assert.match(android,/匹配分没有变化/);
 });
-test('job detail uses inline tracking instead of a third tab and exposes grounded pre-generation CV guidance',()=>{
+test('job detail records application status from one dropdown and has no tracking page',()=>{
  const sheets=fs.readFileSync(new URL('../src/components/jobpilot/sheets.tsx',import.meta.url),'utf8');
- assert.match(sheets,/data-testid="toggle-job-tracking"/);assert.match(sheets,/data-testid="inline-job-tracking"/);
+ const css=fs.readFileSync(new URL('../src/components/jobpilot/onward.css',import.meta.url),'utf8');
+ assert.match(sheets,/data-testid="job-tracking-stage"/);
+ assert.match(sheets,/queueTracking\(job,offer,\{status:value\},true\)/);
+ assert.match(sheets,/aria-label=\{tr\("投递状态","Statut de candidature","Application status"\)\}/);
+ assert.doesNotMatch(sheets,/<span>\{tr\("跟踪投递","Suivre la candidature","Track application"\)\}<\/span>/);
+ assert.doesNotMatch(sheets,/data-testid="toggle-job-tracking"/);assert.doesNotMatch(sheets,/data-testid="inline-job-tracking"/);
+ assert.doesNotMatch(sheets,/Votre correspondance|onward-match-summary/);
+ assert.match(sheets,/requestedTab===1\?1:0/);
  assert.match(sheets,/labels=\{\[tr\("匹配", "Match", "Fit"\), "CV"\]\}/);
  assert.doesNotMatch(sheets,/labels=\{\[tr\("匹配", "Match", "Fit"\), "CV", tr\("跟踪"/);
- assert.match(sheets,/<details className="onward-cv-guidance" data-testid="pre-generation-cv-guidance"/);assert.match(sheets,/data-testid="cv-guidance-facts"/);assert.match(sheets,/data-testid="cv-guidance-preferences"/);
- assert.match(sheets,/userProvidedConfirmed:!facts\|\|guidanceConfirmed/);assert.match(sheets,/这些补充只影响这个岗位版本/);
+ assert.doesNotMatch(sheets,/pre-generation-cv-guidance|cv-guidance-facts|cv-guidance-preferences|Ajouter un détail ou une préférence|这些补充只影响这个岗位版本/);
+ assert.match(sheets,/compactHeader/);
+ assert.match(css,/\.jp-sheet-header\.compact\{position:absolute/);
+ assert.match(css,/\.onward-job-hero-copy h1\{[^}]*font-size:27px;line-height:29px/);
+ assert.doesNotMatch(css,/\.onward-cv-guidance/);
  assert.doesNotMatch(sheets,/来源：\$\{job\.source/);
 });
 test('first-run guidance is actionable, search diagnostics are hidden, and visible water never claims 100%',()=>{
