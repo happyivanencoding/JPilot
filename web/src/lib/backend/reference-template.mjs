@@ -2,7 +2,7 @@
 // extracted PDF line. Layout-only; each content block remains source text.
 const escape=text=>String(text??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm=text=>String(text).normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-const kinds={contact:/^(contact|coordonnees|personal details)$/,profile:/^(profil|profile|summary|about me|objective)$/,education:/^(formation|education|academic background|etudes)$/,experience:/^(experiences?( professionnelles?)?|professional experience|work experience|employment|experience professionnelle)$/,projects:/^(projets?.*|projects?.*|volunteering|activities|engagements.*)$/,skills:/^(competences|skills|expertise)$/,tools:/^(outils|tools|software|technical skills)$/,languages:/^(langues|languages)$/,interests:/^(interets|interests|hobbies)$/};
+const kinds={contact:/^(contact|coordonnees|personal details)$/,profile:/^(professional summary|profil|profile|summary|about me|objective)$/,education:/^(formation|education|academic background|etudes)$/,experience:/^(experiences?( professionnelles?)?|professional experience|work experience|employment|experience professionnelle)$/,projects:/^(ai projects?.*|projets?.*|projects?.*|volunteering|activities|engagements.*)$/,skills:/^(competences|skills|expertise)$/,tools:/^(outils|tools|software|technical skills)$/,languages:/^(langues|languages)$/,interests:/^(interets|interests|hobbies)$/};
 export function textCvLayout(text){
  const sections=[];let name='',headline='',section=null;
  for(const original of String(text).split(/\r?\n/)){
@@ -72,40 +72,12 @@ function professionalHtml(layout,language,compact=false) {
  const groups=kind=>sections.filter(s=>s.kind===kind);
  const contacts=[...new Set([...(Array.isArray(layout.contact)?layout.contact:[]),...groups('contact').flatMap(s=>s.blocks.map(b=>b.text))])];
  let content=`<header><h1>${escape(layout.name)}</h1>${contacts.length?`<p class="contact">${contacts.map(escape).join(' · ')}</p>`:''}${layout.headline?`<p class="headline">${escape(layout.headline)}</p>`:''}</header>`;
- const columnCount=Math.max(Number(layout.columnCount||1),...sections.map(s=>Number(s.column||0)+1));
- if(columnCount>1){
-  const bodySections=sections.filter(s=>s.kind!=='contact');
-  const fractions=Array.isArray(layout.columnFractions)&&layout.columnFractions.length===columnCount?layout.columnFractions.map(Number):Array.from({length:columnCount},(_,i)=>i===0?.72:.28);
-  const grid=fractions.map(value=>`minmax(0,${Number.isFinite(value)&&value>0?value:1}fr)`).join(' ');
-  const pageWidth=Number(layout.pageWidth),pageHeight=Number(layout.pageHeight);
-  const originalPage=Number.isFinite(pageWidth)&&Number.isFinite(pageHeight)&&pageWidth>=250&&pageWidth<=2000&&pageHeight>=250&&pageHeight<=2000;
-  const pageRule=originalPage?`${pageWidth}pt ${pageHeight}pt`:'A4';
-  content+=`<main class="cv-columns">${Array.from({length:columnCount},(_,column)=>`<div class="cv-column">${bodySections.filter(s=>Number(s.column||0)===column).map(s=>renderColumnSection(s,labels)).join('')}</div>`).join('')}</main>`;
-  if(layout.footer?.length)content+=`<footer>${layout.footer.map(escape).join(' · ')}</footer>`;
-  return `<!doctype html><html lang="${fr?'fr':'en'}"><head><meta charset="utf-8"><title>${escape(layout.name)} — CV</title><style>
- @page{size:${pageRule};margin:${compact?'8pt 12pt':'10pt 14pt'}}*{box-sizing:border-box}body{font:9.2pt/1.18 Georgia,"Times New Roman",serif;color:#19262e;margin:0;overflow-wrap:break-word}header{text-align:left;margin-bottom:6pt}h1{font-size:20pt;line-height:1.08;margin:0 0 4pt;color:#162f40}.contact{font:8pt/1.25 Arial,sans-serif;margin:0}.headline{font-size:9pt;margin:4pt 0 0}.cv-columns{display:grid;grid-template-columns:${grid};gap:16pt;align-items:start}.cv-column{min-width:0}h2{font:700 9pt/1.08 Arial,sans-serif;text-transform:uppercase;letter-spacing:.45pt;color:#162f40;border-bottom:.6pt solid #426070;margin:7pt 0 4pt;padding-bottom:2pt;break-after:avoid}h3{font-size:9.1pt;margin:4pt 0 1.5pt;break-after:avoid}p{margin:1.5pt 0;orphans:2;widows:2}.meta{font-size:8.4pt;font-style:italic;margin:1pt 0 2pt}ul{padding-left:11pt;margin:2pt 0 3pt}li{margin:1.2pt 0;break-inside:avoid}footer{font:6.2pt/1.15 Arial,sans-serif;color:#687781;margin-top:6pt}strong{font-weight:700}body.compact{font-size:8.35pt;line-height:1.1}body.compact h1{font-size:18.5pt}body.compact h2{font-size:8.3pt;margin:4pt 0 2.5pt}body.compact h3{font-size:8.35pt;margin:2.5pt 0 .8pt}body.compact p{margin:.7pt 0}body.compact ul{margin:.7pt 0 1.5pt}body.compact li{margin:.5pt 0}
- </style></head><body${compact?' class="compact"':''}>${content}</body></html>`;
- }
- for(const kind of ['profile','education','experience','projects','other']) {
-  const selected=sections.filter(s=>s.kind===kind||kind==='other'&&!Object.keys(labels).includes(s.kind)&&s.kind!=='contact');
-  if(!selected.length)continue;
-  let body='';for(const section of selected){
-   let list=false;
-   for(const block of section.blocks){
-    if(block.kind==='bullet'){if(!list){body+='<ul>';list=true;}body+=`<li>${escape(block.text)}</li>`;continue;}
-    if(list){body+='</ul>';list=false;}
-    body+=block.kind==='entry'?`<h3>${escape(block.text)}</h3>`:`<p${/\b(19|20)\d{2}\b/.test(block.text)&&block.text.length<90?' class="meta"':''}>${escape(block.text)}</p>`;
-   }
-   if(list)body+='</ul>';
-  }
-  content+=`<section><h2>${labels[kind]}</h2>${body}</section>`;
- }
- const compactKinds=['skills','tools','languages','interests'].filter(k=>groups(k).length);
- if(compactKinds.length){content+=`<section><h2>${fr?'Compétences et informations complémentaires':'Skills & additional information'}</h2>`;for(const key of compactKinds){content+=`<p><strong>${labels[key]}:</strong> ${groups(key).flatMap(s=>s.blocks.map(b=>b.text)).map(escape).join(' · ')}</p>`;}content+='</section>';}
+ // Source columns describe extraction order only; every generated CV is A4 single-column.
+ content+=`<main>${sections.filter(s=>s.kind!=='contact').map(s=>renderColumnSection(s,labels)).join('')}</main>`;
  if(layout.footer?.length)content+=`<footer>${layout.footer.map(escape).join(' · ')}</footer>`;
  return `<!doctype html><html lang="${fr?'fr':'en'}"><head><meta charset="utf-8"><title>${escape(layout.name)} — CV</title><style>
- @page{size:A4;margin:13mm 16mm}*{box-sizing:border-box}body{font:10pt/1.24 Georgia,"Times New Roman",serif;color:#19262e;margin:0;width:178mm;overflow-wrap:break-word}header{text-align:center;margin-bottom:8pt}h1{font-size:21pt;line-height:1.1;margin:0 0 5pt;color:#162f40}.contact{font:8.5pt/1.35 Arial,sans-serif;margin:0}.headline{font-size:9.5pt;margin:6pt 0 0}h2{font:700 10pt/1.1 Arial,sans-serif;text-transform:uppercase;letter-spacing:.5pt;color:#162f40;border-bottom:.65pt solid #426070;margin:9pt 0 5pt;padding-bottom:3pt;break-after:avoid}h3{font-size:10pt;margin:6pt 0 2pt;break-after:avoid}p{margin:2pt 0;orphans:2;widows:2}.meta{font-size:9pt;font-style:italic;margin:1pt 0 3pt}ul{padding-left:13pt;margin:3pt 0 5pt}li{margin:2pt 0;break-inside:avoid}footer{font:6.5pt/1.2 Arial,sans-serif;color:#687781;margin-top:10pt}strong{font-weight:700}
- </style></head><body>${content}</body></html>`;
+ @page{size:A4;margin:13mm 16mm}*{box-sizing:border-box}body{font:10pt/1.24 Arial,Helvetica,sans-serif;color:#111;margin:0;overflow-wrap:break-word}header{text-align:left;margin-bottom:10pt}h1{font-size:17pt;line-height:1.1;margin:0 0 6pt}.contact{font-size:8.5pt;line-height:1.35;margin:0}.headline{font-size:10pt;margin:5pt 0 0}h2{font:700 10.5pt/1.1 Arial,Helvetica,sans-serif;text-transform:uppercase;letter-spacing:.15pt;border-bottom:.6pt solid #222;margin:11pt 0 4pt;padding-bottom:2pt;break-after:avoid}h3{font-size:10pt;margin:5pt 0 2pt;break-after:avoid}p{margin:2pt 0;orphans:2;widows:2}.meta{font-size:9pt;font-style:italic;margin:1pt 0 3pt}ul{padding-left:13pt;margin:3pt 0 5pt}li{margin:2pt 0;break-inside:avoid}footer{font-size:7pt;line-height:1.2;margin-top:10pt}strong{font-weight:700}body.compact{font-size:9pt;line-height:1.16}body.compact h1{font-size:16pt}body.compact h2{font-size:10pt;margin:7pt 0 3pt}body.compact h3{font-size:9pt;margin:3pt 0 1pt}body.compact p{margin:1pt 0}body.compact ul{margin:1pt 0 3pt}body.compact li{margin:1pt 0}
+ </style></head><body${compact?' class="compact"':''}>${content}</body></html>`;
 }
 export function professionalReferenceHtml(payload) {
  return professionalHtml(payload.layoutSource || textCvLayout(payload.content),payload.language);

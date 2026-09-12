@@ -23,7 +23,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 420;
 
-const ROLE_CV_RENDERER = "original-layout-v3-source-page";
+const ROLE_CV_RENDERER = "single-column-v4-a4";
 
 
 
@@ -385,7 +385,7 @@ export async function downloadTailoredCv(req: Request) {
       const baseline=await renderCvPreview(profileId,undefined,baseVersionId);
       if(compare==="baseline")output=baseline.pdf;
       else {
-        output=abs.replace(/\.pdf$/i,`-changes-v2-r${draft?.revision || 1}.pdf`);
+        output=abs.replace(/\.pdf$/i,`-changes-v3-single-column-r${draft?.revision || 1}.pdf`);
         if(!fs.existsSync(output))await promisify(execFile)(process.env.JOBPILOT_PYTHON || "python",[path.resolve(process.cwd(),"scripts/cv-compare.py"),baseline.pdf,abs,output],{timeout:30000,maxBuffer:1024*1024,env:{...process.env,PYTHONIOENCODING:"utf-8"}});
       }
     }

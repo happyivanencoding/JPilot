@@ -114,11 +114,11 @@ Journey 永远不展示 email、CV、raw Profile ID、岗位正文或用户输�
 
 ## Storage / retention
 
-- 默认保留最近 30 天。
-- 每个 Profile 最多 20,000 条事件。
+- 滚动保留最近六个自然月，以 UTC 同一日同一时刻为边界；目标月份没有对应日期时夹取月末（例如 8 月 31 日回溯至 2 月 28/29 日），边界时刻包含在内。
+- 取消每个 Profile 20,000 条事件的旧上限，避免活跃用户在六个月内提前丢失记录；客户端每批最多 50 条和现有请求校验仍然保留。
 - event ID 重试幂等；server/client namespace 和 event type 共同参与去重。
 - 每小时有新 ingestion 时物理 prune；也可运行 `node scripts/analytics-report.mjs --root /data --prune`。
-- cap / retention 丢弃数量通过 `discardedEvents` 报告。
+- 过期丢弃数量与历史旧上限丢弃累计通过 `discardedEvents` 报告。读取、报告、写入和物理 prune 对客户端和服务端事件使用同一六个月边界。旧策略已删除的数据无法恢复，不补造历史记录。
 
 CLI：
 

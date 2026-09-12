@@ -6,7 +6,7 @@ import path from 'node:path';
 import {randomUUID,createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {authenticatedAnalyticsProfile,validateAnalyticsEvents,recordAnalytics,readProfileAnalytics,readAllAnalytics,analyticsReport,FUNNEL_STEPS,RETENTION_MS,MAX_EVENTS,pruneAnalytics,recordServerAiTask} from '../src/lib/product-analytics.mjs';
+import {authenticatedAnalyticsProfile,validateAnalyticsEvents,recordAnalytics,readProfileAnalytics,readAllAnalytics,analyticsReport,FUNNEL_STEPS,analyticsRetentionCutoff,pruneAnalytics,recordServerAiTask} from '../src/lib/product-analytics.mjs';
 const now=Date.now();
 const sessionId=randomUUID();
 const event=(extra={})=>({id:randomUUID(),sessionId,event:'page_enter',page:'home',...extra});
@@ -20,14 +20,14 @@ test('authentication derives only a valid session profile and rejects forged hea
   fs.mkdirSync(path.join(root,'.career-ops-web','v1-sessions'),{recursive:true});
   fs.mkdirSync(path.join(root,'data'));
   fs.writeFileSync(path.join(root,'data','profiles.json'),JSON.stringify({profiles:[{id:'alice'}]}));
-  fs.writeFileSync(path.join(root,'.career-ops-web','v1-sessions',token+'.json'),JSON.stringify({profileId:'alice',expiresAt:now+100000}));
+  fs.writeFileSync(path.join(root,'.career-ops-web','v1-sessions',token+'.json'),JSON.stringify({authVersion:2,profileId:'alice',expiresAt:now+100000}));
   assert.equal(authenticatedAnalyticsProfile(root,new Headers({authorization:'Bearer '+token,'x-jobpilot-profiles':'bob'})),'alice');
   assert.throws(()=>authenticatedAnalyticsProfile(root,new Headers({'x-jobpilot-profiles':'alice','x-jobpilot-role':'admin'})),e=>e.status===401);
   fs.unlinkSync(path.join(root,'.career-ops-web','v1-sessions',token+'.json'));
   assert.throws(()=>authenticatedAnalyticsProfile(root,new Headers({authorization:'Bearer '+token})),e=>e.status===401);
 });
 test('strict bounded schema rejects identifiers, text, URLs and invalid measures',()=>{
-  for(const value of [event({email:'a@b.com'}),event({page:'../alice'}),event({page:'https://example.com'}),event({durationMs:-1}),event({scrollDepth:101}),event({timestamp:now-RETENTION_MS-1}),event({event:'ai_wait'}),event({id:'bad'})])
+  for(const value of [event({email:'a@b.com'}),event({page:'../alice'}),event({page:'https://example.com'}),event({durationMs:-1}),event({scrollDepth:101}),event({timestamp:analyticsRetentionCutoff(now)-1}),event({event:'ai_wait'}),event({id:'bad'})])
     assert.throws(()=>validateAnalyticsEvents({events:[value]},now));
   assert.throws(()=>validateAnalyticsEvents({profileId:'other',events:[event()]},now));
   assert.throws(()=>validateAnalyticsEvents({events:Array.from({length:51},()=>event())},now));
@@ -124,18 +124,63 @@ test('real CV generation terminal creates a separate completed or failed product
   assert.equal(events.filter(e=>e.event==='cv_failed').length,1);
   assert.equal(analyticsReport([{userId:'alice',events}],now).serverAiTasks.cv.tasks,2);
 });
-test('retention and per-profile cap physically compact on write',async t=>{
+test('six-month retention preserves more than the old event cap and physically expires events',async t=>{
   const root=fixture(t);
   await recordAnalytics(root,'alice',{events:[event()]},now);
   const file=path.join(root,'.career-ops-web','analytics',createHash('sha256').update('alice').digest('hex'),'events.json');
   const store=JSON.parse(fs.readFileSync(file,'utf8'));
-  store.events=[event({timestamp:now-RETENTION_MS-1}),...Array.from({length:MAX_EVENTS},()=>event({timestamp:now}))];
+  store.events=[event({timestamp:analyticsRetentionCutoff(now)-1}),...Array.from({length:20001},()=>event({timestamp:now}))];
   fs.writeFileSync(file,JSON.stringify(store));
   await recordAnalytics(root,'alice',{events:[event()]},now);
   const saved=JSON.parse(fs.readFileSync(file,'utf8'));
-  assert.equal(saved.events.length,MAX_EVENTS);
-  assert.equal(saved.discarded,2);
-  assert.ok(saved.events.every(e=>e.timestamp>=now-RETENTION_MS));
-  await pruneAnalytics(root,now+RETENTION_MS+1,true);
+  assert.equal(saved.events.length,20002);
+  assert.equal(saved.discarded,1);
+  assert.ok(saved.events.every(e=>e.timestamp>=analyticsRetentionCutoff(now)));
+  await pruneAnalytics(root,now,true);
+  assert.equal(JSON.parse(fs.readFileSync(file,'utf8')).events.length,20002);
+  await pruneAnalytics(root,now+367*86400000,true);
   assert.equal(JSON.parse(fs.readFileSync(file,'utf8')).events.length,0);
+});
+
+
+test('calendar retention clamps month ends and includes the exact six-month boundary', () => {
+  for (const [at, cutoff] of [
+    ['2026-08-31T12:34:56.789Z', '2026-02-28T12:34:56.789Z'],
+    ['2024-08-31T12:34:56.789Z', '2024-02-29T12:34:56.789Z'],
+    ['2026-01-31T00:00:00.000Z', '2025-07-31T00:00:00.000Z'],
+  ]) {
+    const current=Date.parse(at), boundary=Date.parse(cutoff);
+    assert.equal(analyticsRetentionCutoff(current), boundary);
+    assert.equal(validateAnalyticsEvents({events:[event({timestamp:boundary})]}, current).length,1);
+    assert.throws(()=>validateAnalyticsEvents({events:[event({timestamp:boundary-1})]}, current));
+    const events=[event({timestamp:boundary-1}),event({timestamp:boundary}),
+      {id:randomUUID(),event:'server_ai_task',source:'server',kind:'search',status:'completed',durationMs:1,timestamp:boundary}];
+    const report=analyticsReport([{userId:'boundary',events}],current);
+    assert.equal(report.retentionMonths,6);
+    assert.equal(report.retentionCutoffAt,boundary);
+    assert.equal(report.retentionTimeZone,'UTC');
+    assert.equal(report.retentionDays,(current-boundary)/86400000);
+    assert.equal(report.events,1);
+    assert.equal(report.serverAiTasks.search.tasks,1);
+  }
+});
+
+
+test('prune uses the report cutoff for client and server events at the calendar boundary', async t => {
+  const root=fixture(t), current=Date.parse('2026-08-31T12:34:56.789Z');
+  await recordAnalytics(root,'boundary',{events:[event()]},current);
+  const file=path.join(root,'.career-ops-web','analytics',createHash('sha256').update('boundary').digest('hex'),'events.json');
+  const store=JSON.parse(fs.readFileSync(file,'utf8'));
+  const cutoff=analyticsReport([],current).retentionCutoffAt;
+  store.events=[event({timestamp:cutoff-1}),event({timestamp:cutoff}),
+    {id:randomUUID(),event:'cv_ready',source:'server',timestamp:cutoff-1},
+    {id:randomUUID(),event:'cv_ready',source:'server',timestamp:cutoff}];
+  fs.writeFileSync(file,JSON.stringify(store));
+  assert.equal(readProfileAnalytics(root,'boundary',current).events.length,2);
+  assert.equal(readAllAnalytics(root,current)[0].events.length,2);
+  await pruneAnalytics(root,current,true);
+  const saved=JSON.parse(fs.readFileSync(file,'utf8'));
+  assert.equal(saved.events.length,2);
+  assert.ok(saved.events.every(e=>e.timestamp===cutoff));
+  assert.equal(saved.discarded,2);
 });

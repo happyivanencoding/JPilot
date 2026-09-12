@@ -7,10 +7,10 @@ from pathlib import Path
 
 HEADINGS = {
     "contact": r"contact|coordonnees|personal details",
-    "profile": r"profil|profile|summary|objective|about me",
+    "profile": r"professional summary|profil|profile|summary|objective|about me",
     "education": r"formation|education|academic|etudes",
     "experience": r"professional experience|experience professionnelle|experience|experiences|employment|work history",
-    "projects": r"projets?|projects?|engagement|volunteer|activities",
+    "projects": r"ai projects?|projets?|projects?|engagement|volunteer|activities",
     "languages": r"langues|languages|language skills",
     "tools": r"outils|tools|software|technical skills",
     "skills": r"competences|skills|expertise",
@@ -51,12 +51,18 @@ def pdf_layout(filename):
                 text = ''.join(s['text'] for s in line['spans']).strip()
                 x0, y0, x1, y1 = line['bbox']
                 rows.append(dict(text=text, x=x0, y=y0, right=x1, bottom=y1,
-                                 size=max(s['size'] for s in spans), bold=any(s.get('flags', 0) & 16 for s in spans)))
-                if re.search(r'@|linkedin|(?:\+|00)\s*\d|\(\+\d', text, re.I) and text not in contact:
-                    contact.append(text)
+                                 size=max(s['size'] for s in spans), bold=any(s.get('flags', 0) & 16 for s in spans),
+                                 mostly_bold=sum(len(s['text']) for s in spans if s.get('flags', 0) & 16) >= .85 * sum(len(s['text']) for s in spans)))
         if not rows:
             continue
         body = [r for r in rows if r['y'] < page.rect.height * .94]
+        first_section = min((r['y'] for r in body if heading(r['text']) and heading(r['text']) != 'contact'), default=page.rect.height * .18)
+        for row in body:
+            text = row['text']
+            phone = re.search(r'(?:\+|00|\(\+)\s*\d[\d\s().-]{6,}\d', text)
+            valid_phone = phone and len(re.sub(r'\D', '', phone.group())) >= 8 and '%' not in text
+            if row['y'] < first_section and (re.search(r'@|linkedin', text, re.I) or valid_phone) and text not in contact:
+                contact.append(text)
         footer.extend(r['text'] for r in rows if r not in body)
         if page_number == 0 and body:
             top = [r for r in body if r['y'] < page.rect.height * .25 and not heading(r['text'])]
@@ -72,8 +78,28 @@ def pdf_layout(filename):
         possible = [(b-a, (a+b)/2) for a,b in zip(starts,starts[1:]) if b-a > page.rect.width*.18]
         split = None
         for _, mid in sorted(possible, reverse=True):
-            if sum(r['x'] < mid for r in body) >= 6 and sum(r['x'] >= mid for r in body) >= 6:
-                split=mid;break
+            left = [r for r in body if r['x'] < mid]
+            right = [r for r in body if r['x'] >= mid]
+            if len(left) >= 6 and len(right) >= 6:
+                right_edge = min(r['x'] for r in right)
+                crossing = [r for r in left if r['right'] > right_edge - 8 and not heading(r['text'])]
+                metadata = lambda r: len(r['text']) < 85 and (bool(re.search(r'\b(?:19|20)\d{2}\b', r['text'])) or (',' in r['text'] and len(r['text'].split()) <= 6))
+                # Right-aligned dates/locations are entry metadata, not a sidebar.
+                if len(crossing) < 2 and not all(metadata(r) for r in right):
+                    split=mid;break
+        if split is None:
+            # Join same-baseline metadata before reading down the page. This keeps
+            # a date attached to its entry rather than collecting dates at the end.
+            joined = []
+            for row in sorted(body, key=lambda r: (round(r['y']/3), r['x'])):
+                peer = next((r for r in reversed(joined) if abs(r['y']-row['y']) <= 3 and r['right'] + (1 if re.match(r'^[-•▪*]$', r['text']) else 8) < row['x']), None)
+                bullet_peer = peer is not None and bool(re.match(r'^[-•▪*]$', peer['text']))
+                if peer is not None and (bullet_peer or (row['x'] > page.rect.width * .5 and len(row['text']) < 85)):
+                    peer['text'] += (' ' if bullet_peer else ' — ') + row['text']
+                    peer['right'] = row['right']
+                else:
+                    joined.append(dict(row))
+            body = joined
         columns = [[r for r in body if r['x']<split], [r for r in body if r['x']>=split]] if split else [body]
         max_columns = max(max_columns, len(columns))
         if len(columns) > 1:
@@ -86,18 +112,23 @@ def pdf_layout(filename):
             size=median([r['size'] for r in ordered]) if ordered else 10
             section=None
             previous=None
+            pending_bullet=False
             for row in ordered:
                 kind=heading(row['text'])
                 # Only heading-shaped lines, not a sentence mentioning experience.
                 is_heading=kind and (len(row['text'])<45 or row['text'].isupper()) and (row['bold'] or row['text'].isupper() or row['size']>size+.5)
                 if is_heading:
-                    section=dict(kind=kind,title=row['text'],blocks=[],column=column_index);sections.append(section);previous=None;continue
+                    section=dict(kind=kind,title=row['text'],blocks=[],column=column_index);sections.append(section);previous=None;pending_bullet=False;continue
                 if section is None:
                     section=dict(kind='contact' if len(row['text'])<85 and (re.search(r'@|linkedin|\d',row['text']) or row['x']<page.rect.width*.25) else 'profile',title='',blocks=[],column=column_index)
                     sections.append(section)
                 text=row['text']
-                is_bullet=bool(re.match(r'^[-•▪*]\s*',text))
-                block_kind='bullet' if is_bullet else 'entry' if row['bold'] and section['kind'] in ('education','experience','projects') else 'text'
+                if re.match(r'^[-•▪*]$', text):
+                    pending_bullet=True
+                    continue
+                is_bullet=pending_bullet or bool(re.match(r'^[-•▪*]\s*',text))
+                pending_bullet=False
+                block_kind='bullet' if is_bullet else 'entry' if row.get('mostly_bold') and len(text)<160 and section['kind'] in ('education','experience','projects') else 'text'
                 if previous and section['blocks'] and block_kind=='text' and previous['kind'] in ('text','bullet') and abs(row['size']-previous['row']['size'])<.3 and 0<=row['y']-previous['row']['bottom']<6 and not re.match(r'^\d{4}',text) and section['kind'] in ('profile','experience','projects','education'):
                     section['blocks'][-1]['text'] += ' '+text
                     previous['row']=row

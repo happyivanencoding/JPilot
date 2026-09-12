@@ -54,9 +54,9 @@ test('V1 tailored CV keeps the original identity/contact/layout family while rep
  const tailored=professionalTailoredHtml({content:'',layoutSource:layout,language:'fr',tailoredPayload:{summary:'Profil ciblé.',experience:[{company:'ENGIE',dates:'2026',role:'Stagiaire',location:'Lyon',bullets:['Analyse de 14 bâtiments.']}],skills:[{category:'Outils',items:['Python','Excel']}]}});
  for(const expected of ['Thomas Nguyen','thomas@example.com','+33 6 12 34 56 78','Français C1, Anglais C1'])assert.match(tailored,new RegExp(expected.replace(/[+.*?^${}()|[\]\\]/g,'\\$&')));
  assert.match(tailored,/Profil ciblé/);assert.match(tailored,/Analyse de 14 bâtiments/);assert.doesNotMatch(tailored,/Profil original/);
- assert.equal(tailored.match(/font:10pt\/1\.24 Georgia/g)?.length,source.match(/font:10pt\/1\.24 Georgia/g)?.length);
+ assert.equal(tailored.match(/font:10pt\/1\.24 Arial/g)?.length,source.match(/font:10pt\/1\.24 Arial/g)?.length);
 });
-test('V1 tailored CV preserves a detected two-column topology and exposes a compact retry mode',()=>{
+test('V1 tailored CV flattens a detected two-column topology into A4 and exposes a compact retry mode',()=>{
  const layout={name:'Youness Kinani',headline:'Enterprise Platform & IT',contact:['youness@example.com','(+33) 6 12 34 56 78'],columnCount:2,columnFractions:[.76,.24],pageCount:1,pageWidth:960,pageHeight:540,sections:[
   {kind:'skills',column:0,title:'TECHNICAL SKILLS',blocks:[{kind:'text',text:'FinOps, TBM, SQL, APIs'}]},
   {kind:'experience',column:1,title:'PROFESSIONAL EXPERIENCE',blocks:[{kind:'entry',text:'IBM — 2022–Present'},{kind:'bullet',text:'Cloud cost governance.'}]},
@@ -65,8 +65,8 @@ test('V1 tailored CV preserves a detected two-column topology and exposes a comp
  const tailoredPayload={summary:'FinOps Technical Lead.',experience:[{company:'IBM',dates:'2022–Present',role:'Technical Lead',location:'Paris',bullets:['Chargeback and showback governance.','Cloud cost monitoring.']}],education:[{title:'Computer Science Engineering Degree',org:'ENSIAS',year:'2016'}],skills:[{category:'FinOps',items:['TBM','Cloudability','SQL']}]};
  const html=professionalTailoredHtml({content:'',layoutSource:layout,language:'en',tailoredPayload});
  const compact=professionalTailoredHtml({content:'',layoutSource:layout,language:'en',tailoredPayload,compact:true});
- assert.match(html,/class="cv-columns"/);assert.equal((html.match(/class="cv-column"/g)||[]).length,2);
- assert.match(html,/youness@example\.com/);assert.match(html,/\(\+33\) 6 12 34 56 78/);assert.match(html,/size:960pt 540pt/);assert.match(html,/Chargeback and showback governance/);assert.match(html,/TECHNICAL SKILLS/);
+ assert.doesNotMatch(html,/class="cv-columns?"|grid-template-columns/);assert.match(html,/header\{text-align:left/);
+ assert.match(html,/youness@example\.com/);assert.match(html,/\(\+33\) 6 12 34 56 78/);assert.match(html,/size:A4/);assert.doesNotMatch(html,/size:960pt 540pt/);assert.match(html,/Chargeback and showback governance/);assert.match(html,/TECHNICAL SKILLS/);
  assert.match(compact,/<body class="compact">/);
 });
 test('page overflow is explained instead of collapsing to the generic failure copy',()=>{

@@ -149,14 +149,14 @@ export async function renderCvPreview(profileId: string, draftId?: string, versi
   const directory=historyDirectory(profileId);
   const draft = draftId ? readCvDraft(profileId,draftId) : null;
   const version = versionId ? loadCandidateVersion(directory,versionId) : await withProfileLock(directory,()=>currentCandidateVersion(profileId));
-  const id = draft ? `layout6-draft-${draft.id}` : `layout7-version-${version.id}`;
+  const id = draft ? `single-column-v1-draft-${draft.id}` : `single-column-v1-version-${version.id}`;
   const folder=path.join(directory,"cv-previews",id);
   const pdf=path.join(folder,"cv.pdf"), meta=path.join(folder,"render.json");
   if (!fs.existsSync(pdf) || !fs.existsSync(meta)) {
     fs.mkdirSync(folder,{recursive:true});
     let layoutSource=null;
-    const professional=process.env.JOBPILOT_V1_PREVIEW==="1" && !draft;
-    if(professional) layoutSource=await originalCvLayoutSource(profileId,version);
+    const professional=process.env.JOBPILOT_V1_PREVIEW==="1";
+    if(professional && !draft) layoutSource=await originalCvLayoutSource(profileId,version);
     await renderReferenceCv({content:draft?.content || version.sources.cv.text,language:draft?.documentLanguage || documentLanguage(version),globalPlan:!!draft?.globalPlan,professional,layoutSource},folder);
   }
   return { pdf, ...readJson(meta), draft, versionId:version.id, cvVersion:version.cvVersion };

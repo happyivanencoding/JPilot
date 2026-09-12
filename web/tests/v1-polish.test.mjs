@@ -110,7 +110,7 @@ test('plain gaps turn unknown ability into a check, not an invented shortfall',(
 test('the professional template preserves source sections, hierarchy, and escapes source HTML',()=>{
  const layout=textCvLayout('Yuki Tanaka\nCONTACT\nyuki@example.test\nPROFILE\nExport sales support.\nEDUCATION\n### NEOMA Business School\n2025 - 2027\n- International business\nEXPERIENCE\n### Sales assistant\n- Customer support\nSKILLS\nExcel & <script>\nLANGUAGES\nFrench B2');
  const html=professionalReferenceHtml({layoutSource:layout,language:'en'});
- assert.match(html,/<h1>Yuki Tanaka/);assert.match(html,/<h2>Education/);assert.match(html,/<h3>Sales assistant/);assert.match(html,/<li>Customer support/);assert.match(html,/French B2/);
+ assert.match(html,/<h1>Yuki Tanaka/);assert.match(html,/<h2>Education/i);assert.match(html,/<h3>Sales assistant/);assert.match(html,/<li>Customer support/);assert.match(html,/French B2/);
  assert.doesNotMatch(html,/<script>/);assert.match(html,/Excel &amp; &lt;script&gt;/);
 });
 

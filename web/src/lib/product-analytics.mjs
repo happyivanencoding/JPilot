@@ -7,8 +7,17 @@ import { previewToken, readPreviewSession } from './v1-session.mjs';
 export const FUNNEL_STEPS = ['login','upload_cv','choose_direction','view_jobs','open_job','view_cv','generate_cv','tracking'];
 export const CORE_FUNNEL_STEPS = ['cv_ready','jobs_seen','job_opened','analysis_read','generate_cv_started','cv_completed'];
 export const CANONICAL_PAGES = ['onboarding_email','onboarding_upload','onboarding_analysis','onboarding_direction','onboarding_search','onboarding_results','home','offers','profile','profile_analysis','task_center','task_detail','job_report','compare','cv_edit','job_match','job_cv','job_tracking','pdf'];
-export const RETENTION_MS = 30 * 86400000;
-export const MAX_EVENTS = 20000;
+export const RETENTION_MONTHS = 6;
+// UTC calendar months make the rolling boundary independent of the server timezone.
+// Clamp month-end dates (for example August 31 -> February 28/29).
+export function analyticsRetentionCutoff(now = Date.now()) {
+  const date = new Date(now), day = date.getUTCDate();
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() - RETENTION_MONTHS);
+  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+  date.setUTCDate(Math.min(day, lastDay));
+  return date.getTime();
+}
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TOKEN = /^[a-z][a-z0-9_-]{0,63}$/;
 const CONTEXT = /^[a-f0-9]{16,64}$/i;
@@ -61,7 +70,7 @@ export function validateAnalyticsEvents(input, now = Date.now()) {
     if (value.event==='funnel' && !event.step) fail('Step required.');
     if (value.event==='ai_wait' && (!event.kind || !event.status || event.durationMs===undefined)) fail('AI wait fields required.');
     const timestamp = value.timestamp ?? now;
-    if (!Number.isSafeInteger(timestamp) || timestamp < now-RETENTION_MS || timestamp > now+300000) fail('Invalid analytics timestamp.');
+    if (!Number.isSafeInteger(timestamp) || timestamp < analyticsRetentionCutoff(now) || timestamp > now+300000) fail('Invalid analytics timestamp.');
     return {...event,timestamp,receivedAt:now};
   });
 }
@@ -78,14 +87,14 @@ async function persistAnalytics(root,profileId,incoming,now) {
   return withProfileLock(dir, () => {
     const file=path.join(dir,'events.json');
     const store=readJson(file,{userId:randomUUID(),events:[],discarded:0});
-    const retained=store.events.filter(event=>event.timestamp>=now-RETENTION_MS);
+    const retained=store.events.filter(event=>event.timestamp>=analyticsRetentionCutoff(now));
     const identity=event=>(event.source==='server'?'server:':'client:')+String(event.event||'event')+':'+event.id;
     const ids=new Set(retained.map(identity));
     const added=[];
     for(const event of incoming) if(!ids.has(identity(event))) { ids.add(identity(event)); added.push(event); }
     const all=[...retained,...added];
-    const discarded=(store.discarded||0)+store.events.length-retained.length+Math.max(0,all.length-MAX_EVENTS);
-    writeJson(file,{userId:store.userId,discarded,events:all.slice(-MAX_EVENTS)});
+    const discarded=(store.discarded||0)+store.events.length-retained.length;
+    writeJson(file,{userId:store.userId,discarded,events:all});
     return {accepted:added.length,duplicates:incoming.length-added.length};
   });
 }
@@ -114,7 +123,7 @@ export async function recordServerAiTask(root,task,finishedAt=Date.now()) {
 }
 export function readProfileAnalytics(root,profileId,now=Date.now()) {
   const store=readJson(path.join(directory(root,profileId),'events.json'),{userId:null,events:[],discarded:0});
-  return {...store,events:store.events.filter(event=>event.timestamp>=now-RETENTION_MS)};
+  return {...store,events:store.events.filter(event=>event.timestamp>=analyticsRetentionCutoff(now))};
 }
 const percentile=(values,p)=>values.length ? [...values].sort((a,b)=>a-b)[Math.max(0,Math.ceil(values.length*p)-1)] : null;
 const rate=(a,b)=>b? a/b : null;
@@ -154,7 +163,7 @@ function ttv(label,users,start,end) {
   return {metric:label,samples:values.length,p50Ms:percentile(values,.5),p90Ms:percentile(values,.9)};
 }
 export function analyticsReport(stores,now=Date.now()) {
-  const retainedStores=stores.map(store=>({...store,events:(store.events||[]).filter(e=>e.timestamp>=now-RETENTION_MS).map(e=>e.page?{...e,page:normalizeAnalyticsPage(e.page)}:e)})).filter(store=>store.events.length);
+  const retainedStores=stores.map(store=>({...store,events:(store.events||[]).filter(e=>e.timestamp>=analyticsRetentionCutoff(now)).map(e=>e.page?{...e,page:normalizeAnalyticsPage(e.page)}:e)})).filter(store=>store.events.length);
   const users=retainedStores.map(store=>{
     const events=store.events.filter(e=>e.source!=='server').sort((a,b)=>a.timestamp-b.timestamp);
     const serverEvents=store.events.filter(e=>e.source==='server').sort((a,b)=>a.timestamp-b.timestamp);
@@ -203,7 +212,7 @@ export function analyticsReport(stores,now=Date.now()) {
     ttv('first_job_opened_to_analysis_read',users,u=>u.jobOpenedAt,u=>u.analysisReadAt),
   ];
   const overview={testUsers:users.length,loggedInUsers,cvReady:coreFunnel[0].users,jobsSeen:coreFunnel[1].users,jobOpened:coreFunnel[2].users,analysisRead:coreFunnel[3].users,cvGenerateStarted:coreFunnel[4].users,cvGenerateCompleted:coreFunnel[5].users,cvFailed:users.filter(u=>u.serverEvents.some(e=>e.event==='cv_failed')).length,d1Returned:returned.length,d1Eligible:eligible.length,d1RetentionRate:rate(returned.length,eligible.length)};
-  return {generatedAt:now,timeZone:'Europe/Paris',retentionDays:30,measurement:'client_observed_visible_wait_segments',pageTaxonomy:CANONICAL_PAGES,
+  return {generatedAt:now,timeZone:'Europe/Paris',retentionMonths:RETENTION_MONTHS,retentionCutoffAt:analyticsRetentionCutoff(now),retentionTimeZone:'UTC',retentionDays:(now-analyticsRetentionCutoff(now))/86400000,measurement:'client_observed_visible_wait_segments',pageTaxonomy:CANONICAL_PAGES,
     coreFunnelDefinition:'CV Ready → Jobs Seen → Job Opened → Analysis Read → CV Generate Started → CV Generate Completed. Each later stage must occur after the prior stage for the same pseudonymous user.',
     analysisReadDefinition:'A pseudonymous user/job context qualifies after >=8 seconds of accumulated foreground job_match time or >=50% scroll. New clients send only an opaque hashed job context; legacy contextless data is grouped per session.',
     d1Definition:'Day 0 is the Europe/Paris calendar day of first cv_ready. D1 return requires page_enter or page_heartbeat on the next Paris day. D0 users enter the denominator only after that entire D1 calendar day has ended.',
@@ -220,7 +229,7 @@ export function readAllAnalytics(root,now=Date.now()) {
   if(!fs.existsSync(base)) return [];
   return fs.readdirSync(base,{withFileTypes:true}).filter(e=>e.isDirectory()&&/^[a-f0-9]{64}$/.test(e.name)).map(e=>{
     const store=readJson(path.join(base,e.name,'events.json'),{userId:null,events:[],discarded:0});
-    return {...store,events:store.events.filter(event=>event.timestamp>=now-RETENTION_MS)};
+    return {...store,events:store.events.filter(event=>event.timestamp>=analyticsRetentionCutoff(now))};
   });
 }
 
@@ -236,7 +245,7 @@ export async function pruneAnalytics(root,now=Date.now(),force=false) {
         const file=path.join(dir,'events.json');
         const store=readJson(file);
         if(!store) return;
-        const retained=store.events.filter(event=>event.timestamp>=now-RETENTION_MS).slice(-MAX_EVENTS);
+        const retained=store.events.filter(event=>event.timestamp>=analyticsRetentionCutoff(now));
         if(retained.length!==store.events.length) writeJson(file,{...store,events:retained,discarded:(store.discarded||0)+store.events.length-retained.length});
       });
     }
