@@ -1,4 +1,4 @@
-import {recordServerAiTask} from "@/lib/product-analytics.mjs";
+import {recordServerAiTask,recordServerProductEvent} from "@/lib/product-analytics.mjs";
 import {assertNotWithdrawn} from "@/lib/cv-privacy.mjs";
 import {planDirectionSearch,directionNotice,v1CandidatePriority,V1_SEARCH_REVISION} from "@/lib/v1-directions.mjs";
 import {orientationPrompt,parseOrientation} from "@/lib/v1-journey.mjs";
@@ -247,6 +247,7 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
         task.result = task.input.autoImport === true
           ? {...await saveImportedCv(task.profileId,proposal,String(task.inputVersionId),String(task.input.sourceLanguage),String(task.input.analysisLanguage),Array.isArray(task.input.contractTypes)?task.input.contractTypes.map(String):undefined,task.input.searchArea as Record<string,unknown>|undefined),filename:task.input.filename}
           : { proposal, filename: task.input.filename, confirmed: false };
+        if(task.result?.imported) void recordServerProductEvent(workspaceRoot(),task.profileId,'cv_ready',task.id,Date.now()).catch(()=>{});
         task.phase = "Aperçu prêt. Confirmation requise avant de remplacer le CV.";
       } catch (e) {
         const failure = e as Error & { stderr?: string };

@@ -8,6 +8,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.distinctUntilChanged
 import org.json.JSONArray
 import org.json.JSONObject
+import java.security.MessageDigest
 import java.util.UUID
 
 /** Only fixed semantic identifiers leave the client; never text, URLs or document content. */
@@ -15,6 +16,7 @@ class ProductAnalytics(private val api: JobPilotApi, private val scope: Coroutin
     private var session = UUID.randomUUID().toString()
     private var profile = ""
     private var page = ""
+    private var contextId = ""
     private var entered = SystemClock.elapsedRealtime()
     private var foreground = true
     private var depth = 0
@@ -25,7 +27,7 @@ class ProductAnalytics(private val api: JobPilotApi, private val scope: Coroutin
     private var sending = false
     init {scope.launch {while(isActive){delay(15000);if(foreground && page.isNotBlank()){val now=SystemClock.elapsedRealtime();event("page_heartbeat","durationMs" to (now-entered),"scrollDepth" to depth);entered=now}}}}
     private fun event(type: String, vararg fields: Pair<String, Any?>) {
-        queue.add(json("id" to UUID.randomUUID().toString(), "sessionId" to session, "event" to type, "page" to page.ifBlank {"login"}, "timestamp" to System.currentTimeMillis(), *fields))
+        queue.add(json("id" to UUID.randomUUID().toString(), "sessionId" to session, "event" to type, "page" to page.ifBlank {"onboarding_email"}, "timestamp" to System.currentTimeMillis(), *fields).apply {if(contextId.isNotBlank())put("contextId",contextId)})
         if(queue.size > 150) queue.removeAt(0)
         flush()
     }
@@ -35,10 +37,12 @@ class ProductAnalytics(private val api: JobPilotApi, private val scope: Coroutin
         profile=value
         flush()
     }
-    fun navigate(value: String, step: String? = null) {
-        if(value != page) {
+    private fun contextHash(value:String?)=value?.takeIf(String::isNotBlank)?.let {raw->MessageDigest.getInstance("SHA-256").digest(raw.trim().toByteArray()).take(12).joinToString(""){"%02x".format(it.toInt() and 0xff)}}.orEmpty()
+    fun navigate(value: String, step: String? = null, context: String? = null) {
+        val nextContext=contextHash(context)
+        if(value != page || nextContext != contextId) {
             if(foreground && page.isNotBlank()) event("page_exit", "durationMs" to (SystemClock.elapsedRealtime()-entered), "scrollDepth" to depth)
-            page=value;depth=0;entered=SystemClock.elapsedRealtime()
+            page=value;contextId=nextContext;depth=0;entered=SystemClock.elapsedRealtime()
             if(foreground) event("page_enter")
         }
         step?.let(::funnel)
@@ -76,7 +80,7 @@ class ProductAnalytics(private val api: JobPilotApi, private val scope: Coroutin
         } else {entered=SystemClock.elapsedRealtime();event("page_enter")}
         foreground=value
     }
-    fun reset() { foreground(false);profile="";queue.clear();waits.clear();steps.clear();observedTasks.clear();session=UUID.randomUUID().toString();page="";foreground=true;entered=SystemClock.elapsedRealtime() }
+    fun reset() { foreground(false);profile="";queue.clear();waits.clear();steps.clear();observedTasks.clear();session=UUID.randomUUID().toString();page="";contextId="";foreground=true;entered=SystemClock.elapsedRealtime() }
     private fun flush() {
         if(sending || profile.isBlank() || api.token==null || queue.isEmpty())return
         val batch=queue.take(40);queue.subList(0,batch.size).clear();val target=profile;sending=true

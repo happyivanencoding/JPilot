@@ -114,6 +114,16 @@ test('server task timing includes silent deep match and cannot be forged or coll
   const blocked=path.join(root,'file');fs.writeFileSync(blocked,'not a directory');
   assert.deepEqual(await recordServerAiTask(blocked,task,now),{recorded:false});
 });
+test('real CV generation terminal creates a separate completed or failed product outcome',async t=>{
+  const root=fixture(t),completedId=randomUUID(),failedId=randomUUID();
+  await recordServerAiTask(root,{id:completedId,profileId:'alice',kind:'cv',status:'completed',createdAt:new Date(now-5000).toISOString()},now);
+  await recordServerAiTask(root,{id:failedId,profileId:'alice',kind:'cv',status:'failed',createdAt:new Date(now-4000).toISOString()},now);
+  const events=readProfileAnalytics(root,'alice',now).events;
+  assert.equal(events.filter(e=>e.event==='server_ai_task'&&e.taskKind==='cv').length,2);
+  assert.equal(events.filter(e=>e.event==='cv_completed').length,1);
+  assert.equal(events.filter(e=>e.event==='cv_failed').length,1);
+  assert.equal(analyticsReport([{userId:'alice',events}],now).serverAiTasks.cv.tasks,2);
+});
 test('retention and per-profile cap physically compact on write',async t=>{
   const root=fixture(t);
   await recordAnalytics(root,'alice',{events:[event()]},now);

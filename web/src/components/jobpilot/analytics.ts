@@ -5,14 +5,19 @@ type Event = Record<string, string | number>;
 type Task = {id?:string;kind?:string;status?:string};
 const active=new Set(["queued","running","reconciling"]);
 const kindOf=(kind:string)=>kind==="deep_match"?"evaluate":kind==="ingest"?"analysis":kind==="cv_review"?"cv":["analysis","search","evaluate","cv"].includes(kind)?kind:"";
+export async function analyticsContext(value:string) {
+  if(!value)return "";
+  const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value.trim()));
+  return Array.from(new Uint8Array(digest).slice(0,12),byte=>byte.toString(16).padStart(2,"0")).join("");
+}
 export function createAnalytics(profile:string) {
   const sessionId=crypto.randomUUID();
-  let page="",started=0,depth=0,queue:Event[]=[],sending=false;
+  let page="",contextId="",started=0,depth=0,queue:Event[]=[],sending=false;
   const waits=new Map<string,{kind:string;start:number}>();
   const done=new Set<string>();
   const emit=(event:string,fields:Event={})=>{
     if(!profile)return;
-    queue.push({id:crypto.randomUUID(),sessionId,timestamp:Date.now(),event,page:page||"onboarding_email",...fields});
+    queue.push({id:crypto.randomUUID(),sessionId,timestamp:Date.now(),event,page:page||"onboarding_email",...(contextId?{contextId}:{}),...fields});
     if(queue.length>200)queue.shift();
   };
   const flush=async()=>{
@@ -35,10 +40,10 @@ export function createAnalytics(profile:string) {
     if(started)emit("page_exit",{durationMs:Math.round(performance.now()-started),scrollDepth:depth});
     started=0;endWaits();void flush();
   };
-  const enter=(next:string)=>{
-    if(page===next&&started)return;
+  const enter=(next:string,nextContext="")=>{
+    if(page===next&&contextId===nextContext&&started)return;
     if(started)emit("page_exit",{durationMs:Math.round(performance.now()-started),scrollDepth:depth});
-    started=0;page=next;depth=0;
+    started=0;page=next;contextId=nextContext;depth=0;
     if(!document.hidden){started=performance.now();emit("page_enter");}
   };
   const step=(step:string)=>emit("funnel",{step});

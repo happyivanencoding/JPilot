@@ -1,3 +1,8 @@
+# Onward V1 0.6.5 / Web 0.8.5 — Product Analytics parity
+
+Android and Web now emit the same canonical Analytics pages and the same commercial-intent milestones. Both clients count Jobs Seen only with non-empty real results, emit `generate_cv_started` on the explicit role-CV request, and attach a one-way opaque job context to `job_match/job_cv/job_tracking` so the shared report can deduplicate Analysis Read without receiving a posting URL. Old Android/Web tokens remain normalized in the report for retained history.
+
+Outcome truth remains server-owned: CV Ready follows persisted valid CV state, and CV completed/failed follows the actual `kind=cv` task terminal state. The common V1 report derives >=8s / >=50% Analysis Read, Paris D1, p50/p90 Time-to-Value, core funnel and client-vs-server AI performance. Project OS consumes the aggregate read-only interface; it does not become a second telemetry store. Full definitions: `PRODUCT_ANALYTICS.md`.
 # Onward V1 0.6.2 / Web 0.8.2 — profile navigation parity
 
 Android 0.6.2/code30 and Web 0.8.2 now share the same Profile information architecture: the former `个人资料 / 投递情况` split is removed; CV, analysis, language, job preferences and appearance are collapsible second-level sections; city / all-France search scope is embedded under job preferences. The three profile summary metrics are actionable on both clients and open application, saved-role and role-CV drawers based on existing real records.

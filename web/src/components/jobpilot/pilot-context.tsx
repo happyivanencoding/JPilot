@@ -1,5 +1,5 @@
 "use client";
-import {useAnalytics} from "./analytics";
+import {analyticsContext,useAnalytics} from "./analytics";
 import {systemUiLanguage} from "@/lib/search-area.mjs";
 import {trackingAutosave} from "./tracking-autosave.mjs";
 
@@ -201,15 +201,22 @@ function useController(profileId: string, preview: boolean) {
       .then(()=>refresh())
       .catch(e=>{if(scopeRef.current===scope){v1BootstrapRef.current="";fail(e);}});
   }, [ready,data.v1?.needsBootstrap,data.cvState?.versionId,profileId,locale,request,refresh,scope,fail]);
+  const selectedJob = rows(data.jobs).find(j => j.id === route.job || String(j.reportNum) === route.job);
+  const discoveryOffers=[...rows(data.discovery?.offers),...rows(data.discovery?.history).flatMap(group=>rows(group.offers))];
+  const selectedOffer = discoveryOffers.find(offer => String(offer.url) === String(route.offer || ""));
   const analyticsPage=preview&&data.v1?.journey?.completed!==true
     ? (!profileId?"onboarding_email":!data.cv?"onboarding_upload":!data.v1?.analysisReady?"onboarding_analysis":!data.v1?.journey?.query?"onboarding_direction":!data.v1?.offersReady?"onboarding_search":"onboarding_results")
     : route.view==="job"||route.view==="offer" ? ["job_match","job_cv","job_tracking"][Number(route.jobTab)||0] : route.view||route.tab;
   useEffect(()=>{
     if(!ready || loading&&!data.profile?.id)return;
-    analytics.current?.enter(analyticsPage);
-    const step=analyticsPage==="job_match"?"open_job":analyticsPage==="job_cv"||analyticsPage==="pdf"?"view_cv":analyticsPage==="job_tracking"?"tracking":analyticsPage==="onboarding_results"||analyticsPage==="offers"&&rows(data.discovery?.offers).length?"view_jobs":"";
-    if(step)analytics.current?.step(step);
-  },[ready,analyticsPage,profileId,loading,Boolean(rows(data.discovery?.offers).length)]);
+    let live=true;
+    const roleKey=analyticsPage.startsWith("job_")?String(selectedJob?.url||selectedOffer?.url||""):"";
+    void (roleKey?analyticsContext(roleKey):Promise.resolve("")).then(context=>{if(!live)return;analytics.current?.enter(analyticsPage,context);
+      const step=analyticsPage==="job_match"?"open_job":analyticsPage==="job_cv"||analyticsPage==="pdf"?"view_cv":analyticsPage==="job_tracking"?"tracking":analyticsPage==="onboarding_results"||analyticsPage==="offers"&&rows(data.discovery?.offers).length?"view_jobs":"";
+      if(step)analytics.current?.step(step);
+    });
+    return()=>{live=false;};
+  },[ready,analyticsPage,profileId,loading,Boolean(rows(data.discovery?.offers).length),selectedJob?.url,selectedOffer?.url]);
   useEffect(()=>{
     const tasks=rows(data.tasks);
     const visible=preview?tasks.filter(t=>!["ingest","analysis","search"].includes(t.kind)):tasks;
@@ -217,9 +224,6 @@ function useController(profileId: string, preview: boolean) {
     if(preview&&data.v1?.searchProgress)visible.push({...data.v1.searchProgress,kind:"search"});
     analytics.current?.tasks(visible);
   },[data.tasks,data.v1?.cvProgress,data.v1?.searchProgress,preview]);
-  const selectedJob = rows(data.jobs).find(j => j.id === route.job || String(j.reportNum) === route.job);
-  const discoveryOffers=[...rows(data.discovery?.offers),...rows(data.discovery?.history).flatMap(group=>rows(group.offers))];
-  const selectedOffer = discoveryOffers.find(offer => String(offer.url) === String(route.offer || ""));
   const displayIds = route.view === "compare" ? route.ids || "" : selectedJob && ["job", "report", "pdf"].includes(route.view || "") ? selectedJob.id : "";
   useEffect(() => { if (displayIdsRef.current !== displayIds) { displayIdsRef.current = displayIds; if (ready && displayIds) void refresh(); } }, [displayIds, ready, refresh]);
   useEffect(() => { setDetail(null); if (ready) void refreshDetail(); }, [route.view, route.task, route.report, ready, scope, refreshDetail]);
@@ -274,7 +278,7 @@ function useController(profileId: string, preview: boolean) {
     const silent=input.silent===true;
     const waitId=crypto.randomUUID();analytics.current?.begin(waitId,String(input.kind));
     if(input.kind==="search")analytics.current?.step("choose_direction");
-    if(input.kind==="cv")analytics.current?.step("generate_cv");
+    if(input.kind==="cv")analytics.current?.step("generate_cv_started");
     const task = await request("/api/mobile", { method: "POST", body: JSON.stringify({ action: "task", profileId, input: { ...input, uiLocale: locale, language: locale } }) }).catch(e=>{analytics.current?.bind(waitId,{});throw e;});
     invalidateReads(); await refresh();
     analytics.current?.bind(waitId,preview&&["search","analysis"].includes(String(input.kind))?{...task,status:task.status==="failed"?"failed":"running"}:task);
@@ -303,7 +307,7 @@ function useController(profileId: string, preview: boolean) {
     await refresh(); notify(tr(`已收藏 ${offers.length} 个岗位`, `${offers.length} offres enregistrées`, `Saved ${offers.length} roles`)); return result;
   }), [execute, request, profileId, refresh, notify, tr]);
   const tailorOffer = useCallback(async (offer: Json) => execute(async () => {
-    const waitId=crypto.randomUUID();analytics.current?.begin(waitId,"cv");analytics.current?.step("generate_cv");
+    const waitId=crypto.randomUUID();analytics.current?.begin(waitId,"cv");analytics.current?.step("generate_cv_started");
     const result = await request("/api/mobile", { method: "POST", body: JSON.stringify({ action: "tailorOffer", profileId, uiLocale: locale, offer }) }).catch(e=>{analytics.current?.bind(waitId,{});throw e;});
     invalidateReads(); await refresh();
     const task=result.task || {};

@@ -46,8 +46,9 @@ import kotlin.math.exp
     var profileMenu by remember { mutableStateOf(false) }
     var taskCenter by remember { mutableStateOf(false) }
     val holder = rememberSaveableStateHolder()
-    val analyticsPage=when {state.cvPreview!=null||state.previewLoading->"cv_preview";state.analysisVisible->"analysis";state.selectedJob!=null||state.selectedOffer!=null->"job_match";else->listOf("home","opportunities","profile")[tab]}
-    LaunchedEffect(analyticsPage) {if(analyticsPage!="job_match")vm.analytics.navigate(analyticsPage,if(analyticsPage=="opportunities")"view_jobs" else null)}
+    val analyticsPage=when {state.cvPreview!=null||state.previewLoading->"pdf";state.analysisVisible->"profile_analysis";state.selectedJob!=null||state.selectedOffer!=null->"job_match";else->listOf("home","offers","profile")[tab]}
+    val analyticsHasOffers=state.snapshot.child("discovery").objects("offers").isNotEmpty()
+    LaunchedEffect(analyticsPage,analyticsHasOffers) {if(analyticsPage!="job_match")vm.analytics.navigate(analyticsPage,if(analyticsPage=="offers"&&analyticsHasOffers)"view_jobs" else null)}
     val labels = listOf(tr("首页","Accueil","Home"),tr("机会","Offres","Offers"),tr("我的","Moi","My"))
     val icons = listOf(Icons.Rounded.Home,Icons.Rounded.Search,Icons.Rounded.PersonOutline)
     val tasks = state.snapshot.objects("tasks")

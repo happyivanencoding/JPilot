@@ -269,7 +269,7 @@ fun V1SavedJobDetailSheet(job: JSONObject, state: PilotState, vm: JobPilotViewMo
     val scoreRows=deep.objects("scoreBreakdown")
     val matchStrengths=deep.objects("strengths").ifEmpty {scoreRows.filter {it.optInt("rating")>=3}.take(3).map {row->json("title" to criterionTitle(row.text("key")),"evidence" to listOf(row.text("reason"),row.text("candidateEvidence")).filter(String::isNotBlank).joinToString(" · "))}}
     val matchGaps=deep.objects("capabilityGaps").ifEmpty {scoreRows.filter {it.optInt("rating")<=2&&it.optInt("deducted")>0}.take(4).map {row->json("title" to criterionTitle(row.text("key"),true),"why" to row.text("reason"))}}
-    LaunchedEffect(tab,roleKey,state.cvPreview,state.previewLoading) {if(state.cvPreview==null&&!state.previewLoading)vm.analytics.navigate(listOf("job_match","job_cv","job_tracking")[tab],when(tab){1->"view_cv";2->"tracking";else->null})}
+    LaunchedEffect(tab,roleKey,state.cvPreview,state.previewLoading) {if(state.cvPreview==null&&!state.previewLoading)vm.analytics.navigate(listOf("job_match","job_cv","job_tracking")[tab],when(tab){1->"view_cv";2->"tracking";else->null},roleKey)}
     var reply by rememberSaveable(roleKey) {mutableStateOf(job.child("followup").text("replyNote"))}
     var status by rememberSaveable(roleKey) { mutableStateOf(job.text("status")) }
     var statusMenu by remember { mutableStateOf(false) }

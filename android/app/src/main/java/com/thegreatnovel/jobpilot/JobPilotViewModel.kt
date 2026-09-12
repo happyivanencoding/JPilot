@@ -286,7 +286,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     fun startTask(input: JSONObject) {
         analytics.click("start_"+input.text("kind"));analytics.startWait(input.text("kind"))
         if(input.text("kind")=="search")analytics.funnel("choose_direction")
-        if(input.text("kind")=="cv")analytics.funnel("generate_cv")
+        if(input.text("kind")=="cv")analytics.funnel("generate_cv_started")
         val profile = mutable.value.profileId; val epoch = generation
         input.put("language", mutable.value.language)
         input.put("uiLocale", mutable.value.language)
@@ -400,7 +400,7 @@ class JobPilotViewModel(app: Application) : AndroidViewModel(app) {
     fun saveOffer(offer: JSONObject) = writeAction(json("action" to "saveOffer", "offer" to offer))
     fun trackOffer(offer:JSONObject,change:JSONObject)=writeAction(json("action" to "trackOffer","offer" to offer,"change" to change))
     fun tailorOffer(offer: JSONObject) {
-        analytics.click("generate_cv");analytics.funnel("generate_cv");analytics.startWait("cv")
+        analytics.click("generate_cv");analytics.funnel("generate_cv_started");analytics.startWait("cv")
         val profile=mutable.value.profileId;val epoch=generation;val language=mutable.value.language
         viewModelScope.launch {
             mutable.update { it.copy(working=true,error=null) }

@@ -140,7 +140,7 @@ fun V1FirstRunOnboarding(state: PilotState, vm: JobPilotViewModel) {
         if((stage==3 && targetStage==4 && v1.optBoolean("analysisReady")) || (stage==5 && targetStage==6 && v1.optBoolean("offersReady"))) delay(650)
         stage=targetStage
     }
-    LaunchedEffect(stage) {vm.analytics.navigate(when(stage){0,1->"login";2->"upload";3->"analysis_wait";4->"directions";5->"search_wait";else->"first_results"},if(stage==6)"view_jobs" else null)}
+    LaunchedEffect(stage,offers.size) {vm.analytics.navigate(when(stage){0,1->"onboarding_email";2->"onboarding_upload";3->"onboarding_analysis";4->"onboarding_direction";5->"onboarding_search";else->"onboarding_results"},if(stage==6&&offers.isNotEmpty())"view_jobs" else null)}
     val journeyScroll=rememberScrollState()
     LaunchedEffect(journeyScroll) {snapshotFlow {if(journeyScroll.maxValue>0)journeyScroll.value*100/journeyScroll.maxValue else 0}.collect {vm.analytics.scroll(it)}}
     val progress=if(stage==5) v1.child("searchProgress") else v1.child("cvProgress")

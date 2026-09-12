@@ -1,3 +1,12 @@
+## 2026-09-12 Onward V1 0.6.5 / Web 0.8.5 — commercial-validation Product Analytics
+
+V1 Product Analytics now uses server-backed commercial KPI boundaries rather than treating clicks as outcomes. `cv_ready` is recorded only after a valid CV is actually persisted; `cv_completed/cv_failed` come only from the terminal `kind=cv` backend task. Android/Web emit `generate_cv_started` on the user's explicit request, count `view_jobs` only when real results exist, and use one canonical page taxonomy. Role pages locally hash the role identity into an opaque analytics context so the report can count `Analysis Read` once per pseudonymous user/role without sending the URL.
+
+The report derives `Analysis Read` at >=8s foreground Match time or >=50% scroll, adds the V1 funnel `CV Ready → Jobs Seen → Job Opened → Analysis Read → CV Generate Started → CV Generate Completed`, Paris-calendar D1 retention with only fully elapsed D1 windows in the denominator, five p50/p90 Time-to-Value metrics, four consolidated client/server AI-performance rows and richer pseudonymous journeys. Legacy page/funnel tokens are normalized rather than discarded. The existing 30-day/private Profile-scoped telemetry boundary remains intact.
+
+Project OS integration is server-to-server and read-only: V1 exposes a bearer-protected `/api/internal/analytics` returning only aggregate + pseudonymous journeys. The JobPilot project gets an Analytics tab with a Dashboard-version selector; this release wires only the real `V1 · 第一轮商业验证` source. Exact KPI definitions and privacy limits are in `PRODUCT_ANALYTICS.md`.
+
+Release versions are Android **0.6.5/code33** and Web **0.8.5**. No paid AI is needed for validation; synthetic analytics fixtures cover 2-second non-read, 12-second read + CV failure, scroll-75% read, full-funnel D1 return and incomplete-D1 exclusion.
 # JobPilot Android — implementation handoff
 
 ## 2026-09-12 Onward V1 0.6.4 / Web 0.8.4 — complete sparse match surfaces + zero-uplift parity

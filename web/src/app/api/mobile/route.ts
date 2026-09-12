@@ -23,6 +23,7 @@ import {reportForDisplay} from "@/lib/localization-core.mjs";
 import { FLOW_DEFAULTS, flowEstimate } from "@/lib/ai-metrics.mjs";
 import { reconcileMobileTasks } from "@/lib/mobile-recovery";
 import { prewarmAgentDockCodex } from "@/lib/agentdock-acp";
+import {recordServerProductEvent} from "@/lib/product-analytics.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -217,6 +218,7 @@ export async function POST(req: Request) {
       if (task.kind !== "ingest" || task.status !== "completed" || body.confirmed !== true) throw new Error("Relire et confirmer l’aperçu avant d’enregistrer.");
       if (typeof body.content !== "string" || !body.content.trim()) throw new Error("CV vide.");
       const result = await saveCanonicalCv(profileId,body.content,body.expectedVersionId);
+      void recordServerProductEvent(workspaceRoot(),profileId,'cv_ready',task.id,Date.now()).catch(()=>{});
       const analysisTask=await startMobileTask(profileId,{kind:"analysis",silent:true,retry:true,source:"v1-auto-after-cv",uiLocale:locale});
       return Response.json({...result,analysisTaskId:analysisTask.id || null,analysisState:analysisTask.status});
     }
