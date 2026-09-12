@@ -23,11 +23,11 @@ export function useCvWaterProgress(progress:Json, enabled:boolean, paused:boolea
 }
 
 export function CvAnalysisWater({percent,paused,complete}:{percent:number;paused:boolean;complete:boolean}) {
-  const wave="M0 20 Q75 0 150 20 T300 20 T450 20 T600 20 T750 20 T900 20 T1050 20 T1200 20 V40 H0 Z";
+  // One continuous translucent shape: a separate fill creates a visible overlap seam.
+  const wave="M0 20 Q75 0 150 20 T300 20 T450 20 T600 20 T750 20 T900 20 T1050 20 T1200 20 V1000 H0 Z";
   return <div className={`jp-cv-water${paused?" paused":""}${complete?" complete":""}`} aria-hidden="true" data-testid="cv-water" data-level={percent}>
     <div className="jp-cv-water-level" style={{transform:`translateY(${100-percent}%)`}}>
-      <svg className="jp-cv-wave back" viewBox="0 0 1200 40" preserveAspectRatio="none"><path d={wave}/></svg>
-      <svg className="jp-cv-wave front" viewBox="0 0 1200 40" preserveAspectRatio="none"><path d={wave}/></svg>
+      <svg className="jp-cv-wave" viewBox="0 0 1200 1000" preserveAspectRatio="none"><path d={wave}/></svg>
     </div>
   </div>;
 }

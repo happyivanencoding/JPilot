@@ -1,6 +1,6 @@
 import {recordServerAiTask,recordServerProductEvent} from "@/lib/product-analytics.mjs";
 import {assertNotWithdrawn} from "@/lib/cv-privacy.mjs";
-import {planDirectionSearch,directionNotice,v1CandidatePriority,V1_SEARCH_REVISION} from "@/lib/v1-directions.mjs";
+import {planDirectionSearch,incompleteEmptySearch,directionNotice,v1CandidatePriority,V1_SEARCH_REVISION} from "@/lib/v1-directions.mjs";
 import {orientationPrompt,parseOrientation} from "@/lib/v1-journey.mjs";
 import {setProfileDisplayName} from "@/lib/v1-session.mjs";
 import fs from "node:fs";
@@ -15,7 +15,8 @@ import { atomicWrite } from "@/lib/backend/files.mjs";
 import { normalizeUrl } from "@/lib/posting-url.mjs";
 import { runModelTransport } from "@/lib/model-transport";
 import { extractJsonObject } from "@/lib/model-json.mjs";
-import { searchStructuredOffers, rankSearchResults } from "@/lib/job-search/index.mjs";
+import { searchStructuredOffers } from "@/lib/job-search/index.mjs";
+import {prepareSearchPlan,classifySearchOffers} from "@/lib/job-search/ai-search.mjs";
 import { searchRequestFromConfig } from "@/lib/job-search/mobile-context.mjs";
 import * as yaml from "js-yaml";
 import { withProfileLock, processAlive, canAdoptLegacy, operationKey, reusableTask, writeJson, loadCandidateVersion, resolvedIssues, contractMatches } from "@/lib/mobile-state.mjs";
@@ -272,27 +273,47 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
         if(/senior|director|directeur|lead|principal|head|responsable/i.test(q)) request.seniority="experienced";
         else if(/junior|graduate|entry|assistant|stage|intern|alternance|apprent/i.test(q)) request.seniority="junior";
       }
+      const searchModelMetrics:Record<string,any>[]=[];
+      const complete=async(prompt:string)=>{
+        let output="";
+        await runModelTransport({cwd:workspaceRoot(),prompt,model:"gpt-5.6-luna",reasoning:"none",timeoutMs:90_000,
+          onRun,onText:text=>{output+=text;},onFinalText:text=>{output=text;},
+          onMetrics:value=>{metrics(value);if(value.totalTokens!=null)searchModelMetrics.push(value);}});
+        const parsed=extractJsonObject(output);
+        if(parsed.truncated || !parsed.obj)throw new Error("Invalid AI search response");
+        return parsed.obj;
+      };
+      task.phase="Traduction des termes de recherche";saveTask(task);
+      const aiPlan=await prepareSearchPlan(request,complete);
+      const plannedRequest={...request,aiPlan};
       task.phase = "Interrogation des sources d’offres structurées"; saveTask(task);
-      const structured = await searchStructuredOffers(request, {
+      const structured = await searchStructuredOffers(plannedRequest, {
         trackedAts: { dataRoot: workspaceRoot(), enabled: process.env.JOBPILOT_SEARCH_ENABLE_TRACKED_ATS === "1" },
         includeDevelopmentSource: process.env.JOBPILOT_SEARCH_ENABLE_DEV_SOURCE === "1",
         limit: 24,
+        classifyOffers:async(raw:any[])=>{
+          task.phase="Vérification de la pertinence des offres";saveTask(task);
+          const unique=[...new Map(raw.map(offer=>[offer.url,offer])).values()];
+          const relevance=new Map();
+          for(let start=0;start<unique.length;start+=40) {
+            const batch=unique.slice(start,start+40);
+            const classified=await classifySearchOffers(request,batch,complete);
+            for(const [index,result] of classified)relevance.set(batch[index].url,result);
+          }
+          return relevance;
+        },
       });
       const providerRuns=structured.providerRuns || [];
       const liveProviderReady=providerRuns.some((run:any)=>["france-travail","jsearch"].includes(String(run.id))&&["ok","partial"].includes(String(run.status)));
-      if(!liveProviderReady && !(structured.offers || []).length) throw new Error("Les sources d’offres JobPilot ne sont pas configurées pour cet environnement.");
-      const fallbackOffers: Record<string, any>[] = [];
+      if(!liveProviderReady && !(structured.offers || []).length) throw new Error("Les sources d’offres sont temporairement indisponibles. Réessayez plus tard.");
       const fallbackMetrics: Record<string, any> | null = null;
-      task.result={offers:structured.offers || [],searchedAt:new Date().toISOString(),contractTypes:request.contractTypes || [],searchMetrics:structured.metrics,partial:true,warning:"Résultats structurés reçus. JobPilot n’autorise plus un agent ACP à naviguer sur le web en secours."};
-      task.metrics={...task.metrics,providers:structured.metrics.providers};saveTask(task);
-      const combined = rankSearchResults(request,[...(structured.providerRuns || []).flatMap((r:any)=>r.offers || []),...fallbackOffers],structured.providerRuns || [],{limit:24});
-      const offers = enrichOffersWithFastMatch(version,config,combined.offers);
-      if(task.input.experience==="v1") offers.sort((a:any,b:any)=>v1CandidatePriority(b,String(task.input.query))-v1CandidatePriority(a,String(task.input.query)));
-      const originalStructured=structured.metrics;structured.metrics={...combined.metrics,wallMs:originalStructured.wallMs};
+      const offers = enrichOffersWithFastMatch(version,config,structured.offers);
       const searchMetrics = finalSearchMetrics(offers,structured,fallbackMetrics,searchStarted);
-      if (!fallbackMetrics) task.metrics={model:"structured-search",reasoning:"none",inputTokens:0,outputTokens:0,totalTokens:0,actualCostUsd:null,estimatedCostUsd:searchMetrics.estimatedApiCostUsd,costKind:"search-api-estimate",searchMode:"structured",providers:searchMetrics.providers};
-      else task.metrics={...task.metrics,searchMode:"hybrid",estimatedApiCostUsd:searchMetrics.estimatedApiCostUsd,providers:searchMetrics.providers};
-      task.result = { offers, searchedAt: new Date().toISOString(), contractTypes:request.contractTypes || [], searchMetrics };
+      task.metrics={...searchModelMetrics.at(-1),searchMode:"ai-structured",providers:searchMetrics.providers,
+        estimatedApiCostUsd:searchMetrics.estimatedApiCostUsd};
+      for(const key of ["inputTokens","outputTokens","totalTokens","estimatedCostUsd"])
+        task.metrics[key]=searchModelMetrics.reduce((sum,m)=>sum+(Number(m[key])||0),0);
+      task.result = { offers, searchedAt: new Date().toISOString(), contractTypes:request.contractTypes || [], searchMetrics, aiPlan };
     } else if (task.kind === "deep_match") {
       const version=loadCandidateVersion(mobileDirectory(task.profileId),task.inputVersionId);
       const offer=(task.input.offer && typeof task.input.offer === "object" ? task.input.offer : {}) as Record<string,any>;
@@ -498,7 +519,7 @@ export async function startMobileTask(profileId: string, input: Record<string, u
     }
     const key=kind === "ingest" ? randomUUID() : operationKey(kind,input,version,jobs);
     const reusable=kind === "rewrite" ? tasks.filter(t=>!t.result?.draftId || JSON.parse(fs.readFileSync(path.join(mobileDirectory(profileId),"cv-drafts",t.result.draftId+".json"),"utf8")).status !== "rejected")
-      : kind === "cv" ? tasks.filter(t=>!t.result?.draftId || jobs.some(j=>j.cvDraft?.id===t.result?.draftId && j.cvDraft?.status!=="rejected")) : tasks;
+      : kind === "cv" ? tasks.filter(t=>!t.result?.draftId || jobs.some(j=>j.cvDraft?.id===t.result?.draftId && j.cvDraft?.status!=="rejected")) : kind === "search" ? tasks.filter(t=>!incompleteEmptySearch(t)) : tasks;
     const explicitRerun=input.retry===true && ["cv","cv_review"].includes(kind);
     const existing=(explicitRerun ? reusable.find(t=>t.operationKey===key && ["queued","running","reconciling"].includes(t.status)) : reusableTask(reusable,key)) as MobileTask | null;
     if (existing) return {...existing,reused:true};

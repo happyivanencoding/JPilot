@@ -96,12 +96,12 @@ function franceTravailQueries(query, roles, hasExplicitIntent, contractTypes = [
   return variants.slice(0, 3);
 }
 
-export function buildProviderInput({ query, targetRoles = [], city = '', country = '', contractTypes = [], remote = false, seniority = '', languages = {}, relocation, strictContract = false, fallbackPolicy = 'closest', fallbackLimit = 6, flexibleEurope = false, availableFrom = '', searchArea=null }) {
+export function buildProviderInput({ query, targetRoles = [], city = '', country = '', contractTypes = [], remote = false, seniority = '', languages = {}, relocation, strictContract = false, fallbackPolicy = 'closest', fallbackLimit = 6, flexibleEurope = false, availableFrom = '', searchArea=null, aiPlan=null }) {
   const roles = targetRoles.map(x => clean(x, 120)).filter(Boolean);
   const explicit = clean(query, 180);
   const hasExplicitIntent = Boolean(explicit) && !genericNaturalQuery(explicit);
   const fallbackMode = clean(fallbackPolicy, 40).toLowerCase();
-  const explicitAliases = hasExplicitIntent ? bilingualRoleQueries(explicit) : [];
+  const explicitAliases = hasExplicitIntent && !aiPlan ? bilingualRoleQueries(explicit) : [];
   const intentRoles = hasExplicitIntent ? [...new Set([explicit,...explicitAliases])].filter(Boolean) : roles;
   const queries = [];
   if (hasExplicitIntent) {
@@ -141,8 +141,8 @@ export function buildProviderInput({ query, targetRoles = [], city = '', country
   };
   return {
     query: clean(query, 2000),
-    queries: contractQueries(queries),
-    franceTravailQueries: contractQueries(franceTravailQueries(explicit, hasExplicitIntent ? [] : roles, hasExplicitIntent, contractTypes, fallbackMode),true),
+    queries: aiPlan ? aiPlan.queries : contractQueries(queries),
+    franceTravailQueries: aiPlan ? aiPlan.franceTravailQueries : contractQueries(franceTravailQueries(explicit, hasExplicitIntent ? [] : roles, hasExplicitIntent, contractTypes, fallbackMode),true),
     hasExplicitIntent,
     targetRoles: intentRoles,
     city: clean(city, 100), country: clean(country, 100), countryCode: countryCode(country),
@@ -425,7 +425,9 @@ export async function searchStructuredOffers(request, options = {}) {
     safely('jsearch', 'JSearch', () => searchJSearch(input, options.jsearch)),
     safely('arbeitnow-dev', 'Arbeitnow (dev)', () => searchArbeitnow(input, { ...options.arbeitnow, enabled: options.includeDevelopmentSource === true })),
   ]);
-  return rankSearchResults(request,runs.flatMap(run=>run.offers || []),runs,{...options,started});
+  const raw=runs.flatMap(run=>run.offers || []);
+  const semanticRelevance=options.classifyOffers ? await options.classifyOffers(raw) : null;
+  return rankSearchResults(request,raw,runs,{...options,semanticRelevance,started});
 }
 
 export function rankSearchResults(request, raw, runs = [], options = {}) {
@@ -461,13 +463,14 @@ export function rankSearchResults(request, raw, runs = [], options = {}) {
     if (input.contractTypes.length && contractType !== 'unknown' && !input.contractTypes.includes(contractType)) { contractRemoved++; return []; }
     const retainUnknownCdi = contractUnknown && input.strictContract && input.contractTypes.includes('CDI');
     if (contractUnknown && input.strictContract && !retainUnknownCdi) { contractUnknownRemoved++; return []; }
-    let relevance = searchRelevance(offer, input);
-    let relevanceTier = relevance >= (options.minimumRelevance ?? 18) ? 'strong' : 'none';
-    if (relevanceTier === 'none') {
+    const semantic=options.semanticRelevance?.get(offer.url);
+    let relevance = options.semanticRelevance ? (semantic?.tier==='strong'?78:semantic?.tier==='adjacent'?48:0) : searchRelevance(offer, input);
+    let relevanceTier = options.semanticRelevance ? (semantic?.tier || 'none') : relevance >= (options.minimumRelevance ?? 18) ? 'strong' : 'none';
+    if (relevanceTier === 'none' && !options.semanticRelevance) {
       relevance = adjacentSearchRelevance(offer, input);
       relevanceTier = relevance >= (options.minimumAdjacentRelevance ?? 28) ? 'adjacent' : 'none';
     }
-    if (relevanceTier === 'none') {
+    if (relevanceTier === 'none' && !options.semanticRelevance) {
       relevance = closestSearchRelevance(offer, input);
       relevanceTier = relevance >= (options.minimumClosestRelevance ?? 10) ? 'closest' : 'none';
     }
@@ -500,6 +503,7 @@ export function rankSearchResults(request, raw, runs = [], options = {}) {
       ageDays: days,
       searchRelevance: relevance,
       relevanceTier,
+      ...(semantic ? {relevanceReason:semantic.reason} : {}),
       dataQuality: dataQuality(offer),
       freshnessScore: freshnessScore(days),
       verification: 'unconfirmed',

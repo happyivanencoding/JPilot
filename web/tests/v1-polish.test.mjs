@@ -45,7 +45,12 @@ test('AI action buttons progress left-to-right while first-run full-screen water
  assert.match(androidButton,/val liquidRight=size\.width\*progress/);
  assert.match(androidWater,/val waterY = size\.height \* \(1 - level\)/);
  assert.match(waterCss,/\.jp-cv-water-level\{[^}]*background:transparent/);
- assert.match(waterCss,/\.jp-cv-water-level:after\{[^}]*top:3px/);
+ const water=fs.readFileSync(new URL('../src/components/jobpilot/cv-water.tsx',import.meta.url),'utf8');
+ assert.doesNotMatch(waterCss,/\.jp-cv-water-level:after/);
+ assert.match(waterCss,/height:calc\(100% \+ 32px\)/);
+ assert.equal((water.match(/<svg /g)||[]).length,1,'one continuous shape avoids translucent fill overlap seams');
+ assert.match(water,/V1000 H0 Z/);
+ assert.match(water,/translateY\(\$\{100-percent\}%\)/);
 });
 test('French orientation output is detected as French and common supply-chain directions stay market-readable',()=>{
  const parsed=parseOrientation({
@@ -107,4 +112,9 @@ test('the professional template preserves source sections, hierarchy, and escape
  const html=professionalReferenceHtml({layoutSource:layout,language:'en'});
  assert.match(html,/<h1>Yuki Tanaka/);assert.match(html,/<h2>Education/);assert.match(html,/<h3>Sales assistant/);assert.match(html,/<li>Customer support/);assert.match(html,/French B2/);
  assert.doesNotMatch(html,/<script>/);assert.match(html,/Excel &amp; &lt;script&gt;/);
+});
+
+test('a provider outage empty search can retry instead of reusing a false-zero cache',()=>{
+ const partial=task('partial','analyste crédit',{result:{offers:[],searchMetrics:{providers:[{id:'jsearch',status:'error'},{id:'france-travail',status:'ok'}]}}});
+ assert.equal(planDirectionSearch([partial],{query:'analyste crédit'},'cv-a',{},now).reason,'new');
 });

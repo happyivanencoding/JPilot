@@ -1,3 +1,4 @@
+import {incompleteEmptySearch} from "@/lib/v1-directions.mjs";
 import {compactDirectionHistory} from "@/lib/v1-directions.mjs";
 import {projectV1JobScores} from "@/lib/v1-match.mjs";
 import path from "node:path";
@@ -158,7 +159,7 @@ export async function POST(req: Request) {
       const journey=readJson(path.join(mobileDirectory(profileId),"journey.json")) || {};
       const selected=tasks.find((t:any)=>t.id===journey.searchTaskId);
       const urls=new Set((selected?.result?.offers || []).slice(0,4).map((o:any)=>o.url));
-      for(const task of tasks.filter((t:any)=>(t.id===selected?.id || t.kind==="deep_match"&&urls.has(t.input.url))&&["failed","interrupted"].includes(t.status))) {
+      for(const task of tasks.filter((t:any)=>(t.id===selected?.id || t.kind==="deep_match"&&urls.has(t.input.url))&&(["failed","interrupted"].includes(t.status)||incompleteEmptySearch(t)))) {
         const retried=await startMobileTask(profileId,{...task.input,retry:true});
         if(task.kind==="search") await withProfileLock(mobileDirectory(profileId),()=>{
           const file=path.join(mobileDirectory(profileId),"journey.json"),journey=(readJson(file) || {});

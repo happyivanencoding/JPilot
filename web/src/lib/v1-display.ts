@@ -49,6 +49,8 @@ export async function prepareV1Display(profileId:string, locale:string, snapshot
   }
   const importTask=tasks.find(t=>t.kind==='ingest' && t.id===journey.ingestTaskId);
   const searchTask=tasks.find(t=>t.kind==='search' && t.id===journey.searchTaskId);
+  const searchIncomplete=searchTask?.status==='completed' && (searchTask.result?.searchMetrics?.providers || []).some((r:any)=>['jsearch','france-travail'].includes(r.id)&&['error','partial','unconfigured'].includes(r.status));
+  const sourceNotice=searchIncomplete ? (uiLocale==='fr'?'Certaines sources sont temporairement indisponibles. Les résultats sont incomplets ; réessayez plus tard.':uiLocale==='zh'?'部分职位来源暂不可用，当前结果不完整，请稍后重试。':'Some job sources are temporarily unavailable. Results are incomplete; please retry later.') : '';
   const activeImport=importTask && ['queued','running','reconciling'].includes(importTask.status);
   const failed=['failed','interrupted'].includes(importTask?.status) || ['failed','interrupted'].includes(snapshot.v1.analysisState) || searchTask?.status==='failed' || current.failed || !!analysis?.localization?.failed;
   const hasNewSearch=searchTask && searchTask.id!==current.taskId;
@@ -64,7 +66,8 @@ export async function prepareV1Display(profileId:string, locale:string, snapshot
       resultMatches:!hasNewSearch,ready:current.ready&&labelsReady&&!hasNewSearch,
       failed:(!hasNewSearch&&current.failed)||!!titles.localization?.failed,
     },uiLocale,journey.searchRequestedAt),
-    searchNotice:labelsReady?directionNotice(journey.searchFeedback || '',current.label || '',uiLocale):'',
+    searchIncomplete,
+    searchNotice:sourceNotice || (labelsReady?directionNotice(journey.searchFeedback || '',current.label || '',uiLocale):''),
     journey:{completed:journey.completed===true,query:journey.query || '',label:current.label || ''},
     backgroundActive:snapshot.v1.backgroundActive || !!activeImport || (!!titles.localization?.pending&&!titles.localization?.failed) || (!!analysis?.localization?.pending&&!analysis?.localization?.failed) || (!!current.localization?.pending&&!current.localization?.failed) || history.some(g=>g.localization?.pending&&!g.localization?.failed),
   };

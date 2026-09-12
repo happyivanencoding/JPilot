@@ -2,7 +2,7 @@
 // common bilingual job titles, and specialisms are never discarded when merging.
 export const V1_NEW_SEARCHES_PER_DAY=6;
 export const V1_SEARCH_CACHE_MS=24*60*60*1000;
-export const V1_SEARCH_REVISION='v12-market-vocabulary';
+export const V1_SEARCH_REVISION='v13-ai-market-search';
 const norm=value=>String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[’']/g,' ').replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 const families=[
  ['export-sales',/\bexport\b|出口/,['Export sales support','Support commercial export','出口销售支持'],'assistant commercial export junior'],
@@ -32,8 +32,12 @@ export function directionDescriptor(query,analysis={},locale='en') {
  // A known personalised title is preferred by the client, but this stable label
  // also covers custom searches in history without displaying execution tokens.
  const title=family && !qualifiers.length ? family[2][index] : own?.title || String(query).trim();
- const searchQuery=/[\p{Script=Han}]/u.test(source)&&family&&!qualifiers.length?family[3]:source;
+ const searchQuery=source; // Market translation is performed by the AI search planner.
  return {key,title,searchQuery,sourceTitle:own?.title || String(query).trim(),known:!!family&&!qualifiers.length};
+}
+export function incompleteEmptySearch(task) {
+ return task?.kind==='search' && task.status==='completed' && !(task.result?.offers || []).length
+   && (task.result?.searchMetrics?.providers || []).some(run=>['jsearch','france-travail'].includes(run.id)&&['error','partial','unconfigured'].includes(run.status));
 }
 export function planDirectionSearch(tasks,input,versionId,analysis={},now=Date.now()) {
  const descriptor=directionDescriptor(input.query,analysis);
@@ -42,11 +46,11 @@ export function planDirectionSearch(tasks,input,versionId,analysis={},now=Date.n
   && (!input.searchRevision || t.input.searchRevision===input.searchRevision);
  const inFlightUrls=new Set(tasks.filter(t=>t.kind==='deep_match'&&t.inputVersionId===versionId&&['queued','running','reconciling'].includes(t.status)).map(t=>t.input.url));
  const active=searches.find(t=>['queued','running','reconciling'].includes(t.status) || (t.result?.offers || []).slice(0,4).some(o=>inFlightUrls.has(o.url)));
- const cached=searches.find(t=>compatible(t)&&t.status==='completed'&&now-Date.parse(t.createdAt)<V1_SEARCH_CACHE_MS);
+ const cached=searches.find(t=>compatible(t)&&t.status==='completed'&&!incompleteEmptySearch(t)&&now-Date.parse(t.createdAt)<V1_SEARCH_CACHE_MS);
  if(cached) return {descriptor,reuse:cached,reason:norm(cached.input.query)===norm(input.query)?'reused':'merged'};
  if(active) return {descriptor,reuse:active,reason:compatible(active)?'reused':'active'};
  const date=new Date(now).toISOString().slice(0,10);
- const used=tasks.filter(t=>t.kind==='search'&&t.createdAt?.slice(0,10)===date).length;
+ const used=tasks.filter(t=>t.kind==='search'&&!incompleteEmptySearch(t)&&t.createdAt?.slice(0,10)===date).length;
  if(used>=V1_NEW_SEARCHES_PER_DAY) return {descriptor,reason:'daily-limit',used,limit:V1_NEW_SEARCHES_PER_DAY};
  return {descriptor,reason:'new',used,limit:V1_NEW_SEARCHES_PER_DAY};
 }
