@@ -27,7 +27,10 @@ export function proxy(req: NextRequest) {
     const session=readPreviewSession(process.env.CAREER_OPS_ROOT || path.resolve(process.cwd(),".."),previewToken(req.headers));
     const publicRoute=req.nextUrl.pathname==="/api/v1/session" || req.nextUrl.pathname==="/";
     const internalPrewarm=req.nextUrl.pathname==="/api/internal/prewarm" && ["127.0.0.1","localhost"].includes(req.nextUrl.hostname);
-    if(!session && !publicRoute && !internalPrewarm) return NextResponse.json({error:"Please sign in."},{status:401});
+    // This one server-to-server route has its own private bearer check in the
+    // route handler. Let it reach that check without granting a V1 user session.
+    const internalAnalytics=req.nextUrl.pathname==="/api/internal/analytics";
+    if(!session && !publicRoute && !internalPrewarm && !internalAnalytics) return NextResponse.json({error:"Please sign in."},{status:401});
     const explicit=req.nextUrl.searchParams.get("profileId") || req.headers.get("x-jobpilot-profile");
     if(session && explicit && explicit!==session.profileId) return NextResponse.json({error:"This profile belongs to another session."},{status:403});
     if(session) {

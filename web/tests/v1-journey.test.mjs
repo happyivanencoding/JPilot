@@ -53,6 +53,7 @@ test('new simulated sign-ins own empty profiles, not a shared default',async()=>
 test('preview auth rejects anonymous, cross-profile and forged admin headers',()=>{
   const req=(profile,headers={})=>new NextRequest('http://localhost/api/mobile'+(profile?'?profileId='+profile:''),{headers:{host:'localhost',...headers}});
   assert.equal(proxy(req('')).status,401);
+  assert.equal(proxy(new NextRequest('http://localhost/api/internal/analytics',{headers:{host:'localhost'}})).status,200,'internal analytics reaches its own bearer guard');
   assert.equal(proxy(req(b.profileId,{authorization:'Bearer '+a.token})).status,403);
   const response=proxy(req(a.profileId,{authorization:'Bearer '+a.token,'x-jobpilot-role':'admin','x-jobpilot-profiles':a.profileId+','+b.profileId}));
   assert.equal(response.headers.get('x-middleware-request-x-jobpilot-profiles'),a.profileId);
