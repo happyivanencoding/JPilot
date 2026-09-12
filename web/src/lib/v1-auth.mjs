@@ -11,6 +11,10 @@ export function adminTimeCode(now=Date.now(),seed=process.env.JOBPILOT_V1_ADMIN_
   const slot=`${parts.year}${parts.month}${parts.day}-${parts.hour}`,suffix=createHmac('sha256',seed).update(slot).digest('hex').slice(0,6).toUpperCase();
   return `ONWARDADMIN-${slot}-${suffix}`;
 }
+const FIRST_TESTER_CODE_DIGESTS=new Set([
+  'b62e2d7ebdbc54e17c28bf3b6159f2dd90d0fb3eec338f6d4efd7d57ab09d650','e63fcc00e205e4cab317ae67467f62c87d109c4a101c871f5b7831798edad694','cc23b77b6ce2d0e61141f8348b63425304462a81ace38b528d6161e45e02a8a5','18ab66df91f5b91c7a1de250b1095f0ec55bab5d71c8ac0fc1729d6247613646','cb37897b5899eb8ff0df8127674fd2b6115f84b175c3ed7bf33294f69a13f0bc','8c1508f89cc287ae3ef39744c6cb9d90099820c6440977acb35080160d1b439a','b477478b743a52973d50da39c2401d96b0fcc07f4aaec2db2ae0b65ecf5bda21','3ba3dcc0ec82be75d35a2a1d0d1fe339dbbacebfa848e30d17e1294a394cbee7','ee83b6404f83337c8a84080da4b6891e4a4a5675012810dd6ad6799f2651e85a','a92c62028571231e5cbea817691cf6024f116c231100eaa7b5858943213495c1','a070f0f363131d37473ae160b7f8bdb718273e8253b8a9e564b0199e9b502dd9','a0e33bde163620773a0c8f2a48d7d4b79775d364fa73d7b3c223807676c2ca55','12fcdd09218a92550af561c2203fe0d14a8d9b106e8e03073efdd70193eeae1a','cc4eb30355adcea7e4dffe72dfd31cb13d33efe6f8e1318e70492e22b5457fbe','6de2ed57915dec0dd53ce03ba56d18da7c6899f7311c08074ed2b65c18ec5e9c'
+]);
+export const FIRST_TESTER_CODE_COUNT=FIRST_TESTER_CODE_DIGESTS.size;
 const googleKeys = {keys: [], until: 0};
 const digest = value => createHash('sha256').update(value).digest('hex');
 const directory = root => path.join(root, '.career-ops-web', 'v1-auth-gates');
@@ -28,7 +32,8 @@ export function issueGate(root, code, options = {}) {
   const adminCodes=[adminCode,adminTimeCode(now,adminCode),adminTimeCode(now-3600_000,adminCode)];
   if (!googleCode || !adminCode || googleCode === adminCode) throw failure('Test access is not configured.', 'GATE_CONFIG', 503);
   const valid=value && value.length<=256;
-  const mode=valid && testerCodes.some(candidate=>sameCode(value,candidate)) ? 'google' : valid && adminCodes.some(candidate=>sameCode(value,candidate)) ? 'admin' : null;
+  const testerMatch=valid && (FIRST_TESTER_CODE_DIGESTS.has(digest(value))||testerCodes.some(candidate=>sameCode(value,candidate)));
+  const mode=testerMatch ? 'google' : valid && adminCodes.some(candidate=>sameCode(value,candidate)) ? 'admin' : null;
   if (!mode) throw failure('Invalid test code.', 'INVALID_GATE_CODE');
   const token = randomBytes(32).toString('base64url');
   const gate = {mode, nonce: randomBytes(32).toString('base64url'), createdAt: now, expiresAt: now + V1_GATE_TTL_MS};
