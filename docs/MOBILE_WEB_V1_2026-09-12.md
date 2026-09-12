@@ -1,5 +1,9 @@
 # Onward V1 — Mobile Web Only handoff (2026-09-12)
 
+## 2026-09-12 Home direction header cleanup
+
+The phone Home `Directions à explorer` header no longer renders the secondary `Modifier / Edit / 调整` action. That control was redundant with the Profile job-preference controls and, on narrow phone viewports, could collapse into one-character-per-line wrapping beside the section title. The Home header now contains only the section title and guidance copy; its `spread` alignment is removed as well, so there is no reserved right-side action space. Direction cards, direction selection/search behavior and Profile preferences are unchanged. Android remains frozen on this Mobile Web-only branch.
+
 ## 2026-09-12 tester-feedback / CV-language / first-run polish
 
 This pass implements the tester notes captured from the current French phone flow. The CV upload surface no longer opens the former three-language privacy document: it shows one short testing-phase sentence and keeps the existing versioned server consent record behind the upload action. Search diagnostics such as incomplete-source explanations, “search not finished” and “try another direction later” are no longer rendered to testers. The first-run result screen now gives the `Bonjour <name>` greeting a complete explanatory predicate, promotes the direction question to a true title, and renders each direction as a framed/tinted row with a leading medallion and trailing arrow. Full-screen first-run progress is deliberately capped at **96%**; completion transitions to the next state instead of showing a stuck 100% screen.
