@@ -49,13 +49,13 @@ export function displaySlots(value,scope) {
   function analysis(a,p=[]) {
     if(!a)return;
     const languageSample=[a.markdown,
-      ...(Array.isArray(a.strengths)?a.strengths:[]).flatMap(r=>[r?.title,r?.evidence]),
+      ...(Array.isArray(a.strengths)?a.strengths:[]).flatMap(r=>[r?.title,r?.evidence,...(Array.isArray(r?.examples)?r.examples:[])]),
       ...(Array.isArray(a.growthAreas)?a.growthAreas:[]).flatMap(r=>[r?.title,r?.nextAction]),
       ...(Array.isArray(a.careerDirections)?a.careerDirections:[]).flatMap(r=>[r?.title,r?.why,...(Array.isArray(r?.evidence)?r.evidence:[])]),
     ].filter(Boolean).join('\n');
     const hint=/[\p{Script=Han}]/u.test(languageSample)?'zh':detectedDocumentLanguage(languageSample)||a.outputLocale||'fr';
     fields(a,['markdown','changeSummary','expressionMarkdown','actionMarkdown'],p,hint);
-    rows(a,'strengths',p,(r,q)=>fields(r,['title','evidence'],q,hint));
+    rows(a,'strengths',p,(r,q)=>{fields(r,['title','evidence'],q,hint);strings(r,'examples',q,hint);});
     rows(a,'growthAreas',p,(r,q)=>fields(r,['title','nextAction'],q,hint));
     rows(a,'expressionIssues',p,(r,q)=>fields(r,['title','detail','evidence'],q,hint));
     rows(a,'actionIssues',p,(r,q)=>fields(r,['title','detail','nextAction','evidence'],q,hint));

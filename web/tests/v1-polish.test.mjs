@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import {directionDescriptor,planDirectionSearch,compactDirectionHistory,V1_SEARCH_REVISION} from '../src/lib/v1-directions.mjs';
 import {broadCareerDirections} from '../src/lib/career-directions.mjs';
 import {parseOrientation} from '../src/lib/v1-journey.mjs';
-import {normalizeDeepMatch,matchScoreView,projectV1JobScores,friendlyGapTitle} from '../src/lib/v1-match.mjs';
+import {deepMatchPrompt,normalizeDeepMatch,matchScoreView,projectV1JobScores,friendlyGapTitle} from '../src/lib/v1-match.mjs';
+import {visibleRoleRequirements} from '../src/components/jobpilot/role-detail.mjs';
 import {estimatedProgress,searchProgress} from '../src/lib/v1-progress.mjs';
 import {professionalReferenceHtml,professionalTailoredHtml,textCvLayout} from '../src/lib/backend/reference-template.mjs';
 import {jdEmphasisKeywords} from '../src/lib/cv-jd-emphasis.mjs';
@@ -105,6 +106,40 @@ test('job detail records application status from one dropdown and has no trackin
  assert.match(css,/\.onward-job-hero-copy h1\{[^}]*font-size:27px;line-height:29px/);
  assert.doesNotMatch(css,/\.onward-cv-guidance/);
  assert.doesNotMatch(sheets,/来源：\$\{job\.source/);
+});
+test('job detail keeps plain duties first and removes duplicate metadata requirements',()=>{
+ const requirements=[
+  {title:'为期六个月的实习',why:'职位信息明确要求为期六个月的实习。'},
+  {title:'在马赛工作',why:'所述工作地点为法国马赛。'},
+  {title:'无需出差',why:'职位信息说明无需出差。'},
+  {title:'法语工作水平',why:'需要能够使用法语完成日常会议与报告。'},
+  {title:'商科或工程硕士',why:'Master level in business or engineering.'},
+  {title:'2027年3月开始实习',why:'明确从 2027年3月 开始。'},
+ ];
+ const visible=visibleRoleRequirements(requirements,{location:'Marseille',contract:'Stage'});
+ assert.deepEqual(visible.map(x=>x.title),['法语工作水平','商科或工程硕士','2027年3月开始实习']);
+ const sheets=fs.readFileSync(new URL('../src/components/jobpilot/sheets.tsx',import.meta.url),'utf8');
+ assert.ok(sheets.indexOf('主要职责')<sheets.indexOf('岗位要求'),'duties render before requirements');
+ assert.match(sheets,/visibleRoleRequirements/);
+ assert.match(sheets,/icon=\{false\}/);
+ assert.doesNotMatch(sheets,/查看分析并准备岗位版 CV|Voir l’analyse et préparer le CV ciblé|Review analysis and prepare the role CV/);
+ assert.doesNotMatch(sheets,/Prochaine étape|Next step/);
+});
+test('deep match prompt requests more plain duties and only hard selection criteria',()=>{
+ const prompt=deepMatchPrompt({candidate:{sources:{cv:{text:'CV'},notes:{text:''}}},offer:{title:'Stage PMO',description:'Description',contractType:'Stage'},fastMatch:{score:50},jobIntelligence:null,language:'zh'});
+ assert.match(prompt,/Responsibilities must be 4-6 concrete duties/);
+ assert.match(prompt,/Requirements must contain only candidate qualifications or hard selection criteria/);
+ assert.match(prompt,/Do NOT repeat the contract type, internship duration, work location/);
+});
+test('role CV review has only preview keep reject controls and no pre-generation score promise',()=>{
+ const sheets=fs.readFileSync(new URL('../src/components/jobpilot/sheets.tsx',import.meta.url),'utf8');
+ assert.doesNotMatch(sheets,/生成前不承诺加分|Aucun gain n’est promis avant la génération|No score gain is promised before generation/);
+ assert.doesNotMatch(sheets,/手动修改这个版本|Modifier manuellement cette version|Edit this version manually/);
+ assert.match(sheets,/查看为这个岗位定制的专属简历/);
+ assert.match(sheets,/Voir le CV conçu pour cette offre/);
+ assert.match(sheets,/View the CV tailored for this role/);
+ assert.match(sheets,/data-testid="accept-tailored-draft"/);
+ assert.match(sheets,/data-testid="reject-tailored-draft"/);
 });
 test('first-run guidance is actionable, search diagnostics are hidden, and visible water never claims 100%',()=>{
  const onboarding=fs.readFileSync(new URL('../src/components/jobpilot/onboarding.tsx',import.meta.url),'utf8');
