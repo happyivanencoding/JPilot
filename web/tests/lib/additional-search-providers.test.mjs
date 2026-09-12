@@ -1,3 +1,4 @@
+import {operationKey,reusableTask} from '../../src/lib/mobile-state.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {searchJobicy} from '../../src/lib/job-search/providers/jobicy.mjs';
@@ -63,4 +64,11 @@ test('new sources survive primary-provider outage and deterministic area filters
   });
   assert.equal(seen.length,1);assert.equal(seen[0].location,'Paris');
   assert.equal(r.productionProviderSucceeded,true);assert.equal(r.offers.length,1);assert.equal(r.offers[0].source,'jooble');
+});
+
+test('search version invalidates the lower task cache as well as the direction cache',()=>{
+ const base={experience:'v1',query:'analyste crédit'},version={id:'test-cv'};
+ const old=operationKey('search',{...base,searchRevision:'v13-ai-market-search'},version,[],'2026-09-12');
+ const next=operationKey('search',{...base,searchRevision:'v14-multi-source-ai-search'},version,[],'2026-09-12');
+ assert.notEqual(old,next);assert.equal(reusableTask([{kind:'search',status:'completed',operationKey:old}],next),null);
 });

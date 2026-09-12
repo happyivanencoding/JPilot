@@ -90,7 +90,7 @@ export function operationKey(kind, input, version, jobs, day = new Date().toISOS
   if (kind === 'evaluate') return JSON.stringify([kind, normalizeUrl(input.url)]);
   if (kind === 'deep_match') return JSON.stringify([kind, input.experience==='v1'?'role-fit-2-onward-prepared-v1':'v1', version.id, normalizeUrl(input.url || input.offer?.url), input.applicationLanguage || null]);
   if (kind === 'analysis') return JSON.stringify([kind, input.experience==='v1' ? 'analysis-v3-personal-orientation' : ANALYSIS_OPERATION_VERSION, version.id]);
-  if (kind === 'search') return JSON.stringify([kind, input.experience==='v1' ? 'search-v11-contract-seniority' : SEARCH_OPERATION_VERSION, version.id, clean(input.query), day]);
+  if (kind === 'search') return JSON.stringify([kind, input.experience==='v1' ? 'search-v11-contract-seniority' : SEARCH_OPERATION_VERSION, version.id, clean(input.query), day, ...(input.experience==='v1'?[input.searchRevision || 'legacy']:[])]);
   if (kind === 'cv') return JSON.stringify([kind, version.id, evidence(job), ...(input.applicationLanguage ? [input.applicationLanguage] : [])]);
   if (kind === 'cv_review') return JSON.stringify([kind, input.jobId, input.draftId, Number(input.revision || 0)]);
   if (kind === 'rewrite') return JSON.stringify([kind, version.id, input.analysisId, [...(input.suggestionIds || [])].sort()]);
