@@ -1,3 +1,7 @@
+# 2026-09-12 V1 Mobile Web-only override
+
+For `feature/v1-mobile-web-only-20260912`, the earlier Android/Web parity release rule is intentionally frozen: **Web 0.9.0 is the sole official V1 tester client**, Android V1 remains preserved at 0.6.5/code33 without new UI work, and no iOS client is created. The canonical tester URL is `https://jobs-v1.thegreatnovel.com/`. This is a V1 testing decision, not a retroactive rewrite of the historical parity releases below. Current browser/session/upload/PDF/PWA/QR acceptance and device limitations are authoritative in `MOBILE_WEB_V1_2026-09-12.md`.
+
 # Onward V1 0.6.5 / Web 0.8.5 — Product Analytics parity
 
 Android and Web now emit the same canonical Analytics pages and the same commercial-intent milestones. Both clients count Jobs Seen only with non-empty real results, emit `generate_cv_started` on the explicit role-CV request, and attach a one-way opaque job context to `job_match/job_cv/job_tracking` so the shared report can deduplicate Analysis Read without receiving a posting URL. Old Android/Web tokens remain normalized in the report for retained history.

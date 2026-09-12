@@ -1,0 +1,24 @@
+/* Onward V1 Mobile Web-only release refinements. Keep this layer browser-specific. */
+@supports not (height:100dvh){
+  .jp-stage{height:100vh}
+  @media(max-width:600px){.jp-stage,.jp-overlay.full .jp-sheet{height:100vh}}
+}
+
+@media(max-width:600px){
+  .jp-field input,.jp-field textarea,.jp-field select{font-size:16px}
+  .jp-scroll,.jp-sheet-content,.jp-v1-first-run-body{scroll-padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
+  .onward-filter-toggle{min-height:44px;display:inline-flex;align-items:center}
+  .jp-select-box{min-width:44px;min-height:44px;padding:6px}
+  .jp-pdf-controls{display:grid;grid-template-columns:44px minmax(68px,1fr) 44px 44px 44px;align-items:center;gap:4px;padding:6px 8px;max-width:100%;overflow:hidden}
+  .jp-pdf-controls .jp-icon-button{width:44px;height:44px;min-width:44px}
+  .jp-pdf-controls span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .jp-pdf-scroll{padding:10px;max-width:100%;overscroll-behavior:contain}
+  .jp-pdf-pages{max-width:none}
+  .jp-privacy-body,.jp-sheet-content,.jp-v1-first-run-body{overscroll-behavior:contain}
+}
+
+@media(display-mode:standalone) and (max-width:600px){
+  .jp-stage{min-height:100dvh}
+  .jp-top{padding-top:env(safe-area-inset-top,0px)}
+  .jp-nav{padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+}

@@ -52,6 +52,10 @@ export function evidenceConfig(text) {
 }
 export function publicError(error, locale) {
   const raw=error instanceof Error?error.message:String(error || '');
+  if(/Formats acceptés|supported formats|PDF, DOCX, TXT, MD/i.test(raw)) return choose(locale,'支持 PDF、DOCX、TXT 或 MD。','Formats acceptés : PDF, DOCX, TXT ou MD.','Supported formats: PDF, DOCX, TXT or MD.');
+  if(/Document vide|supérieur à 12|12 Mo maximum|12 MB|empty document/i.test(raw)) return choose(locale,'文件不能为空，且最大为 12 MB。','Le fichier ne peut pas être vide et doit faire 12 Mo maximum.','The file cannot be empty and must be 12 MB or smaller.');
+  if(/Sélectionnez un document|select a document/i.test(raw)) return choose(locale,'请选择一份简历文件。','Sélectionnez un fichier de CV.','Choose a CV file.');
+  if(/type de contrat|contract type/i.test(raw)) return choose(locale,'请至少选择一种合同类型。','Choisissez au moins un type de contrat.','Choose at least one contract type.');
   if(/CV vide|empty CV/i.test(raw)) return choose(locale,'简历内容不能为空。','Le CV ne peut pas être vide.','The CV cannot be empty.');
   if(/CV occupe .*pages|pages pour une limite|occupies .*pages|page limit/i.test(raw)) return choose(locale,'岗位版简历超过当前一页版式。原简历已保留，请重试或精简内容。','Le CV ciblé dépasse la mise en page d’une page. Le CV original est conservé ; réessayez ou réduisez le contenu.','The role-specific CV exceeds the one-page layout. Your original CV is preserved; retry or shorten the content.');
   if(/changed|changé|version|brouillon.*décision/i.test(raw)) return choose(locale,'内容已发生变化，请刷新后再操作。原有简历未被覆盖。','Le contenu a changé. Actualisez avant de continuer ; le CV original est conservé.','Content changed. Refresh before continuing; the original CV is preserved.');

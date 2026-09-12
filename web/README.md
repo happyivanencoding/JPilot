@@ -1,6 +1,6 @@
 # JobPilot Web and backend
 
-This Next application mirrors the native Android product and serves both clients through the same API. There is no independent desktop dashboard or legacy Web workbench.
+This Next application is the **only official Onward V1 tester client** on `feature/v1-mobile-web-only-20260912`. It is designed first for iPhone Safari and Android Chrome, while desktop keeps the same phone-oriented product surface. Testers require only `https://jobs-v1.thegreatnovel.com/`; native installation is not part of the V1 test. Android source remains in the repository but is frozen on this branch, and there is no iOS client or legacy Web workbench.
 
 Install with `npm ci`, configure private `web/.env.local` from the root `.env.example`, then use `npm run dev` or `npm run build && npm start`. The root package simply delegates here; installing a separate root engine is unnecessary. Server-side PDF rendering requires Chromium/Edge/Chrome, optionally selected through `JOBPILOT_CHROMIUM_PATH`.
 

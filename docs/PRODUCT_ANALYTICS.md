@@ -24,6 +24,8 @@ Android / Web 新产生的数据统一使用：
 
 `upload_cv` 保留为历史 funnel / 上传尝试信号。它只说明用户已经发起上传，不代表系统已经成功读取 CV。
 
+Mobile Web V1 不再把这个关键 milestone 只押在浏览器 unload/keepalive 时序上：浏览器把 pseudonymous analytics `sessionId` + 单次 `eventId` 随 multipart upload 一起发送，上传 API 在认证 Profile 下持久化 `upload_cv`。因此 Safari/WebKit 即使在上传请求返回后立即刷新也不会丢这一步；telemetry 写失败仍不影响上传业务结果。没有 analytics session 的旧客户端继续使用原客户端事件路径。
+
 ### CV Ready
 
 `cv_ready` 是服务端 product milestone，不由按钮点击产生。

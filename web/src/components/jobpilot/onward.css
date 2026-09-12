@@ -300,9 +300,16 @@ hr{border-top-color:var(--jp-outline)}
 @keyframes jp-onward-liquid-wave{from{transform:translateX(-5%) scaleY(.82)}to{transform:translateX(4%) scaleY(1.08)}}
 
 @media(max-width:600px){
-  body{background:var(--jp-bg)}.jp-stage{padding:0}.jp-phone{border-radius:0;box-shadow:none}.jp-page{padding-left:22px;padding-right:22px}
-  .jp-nav{padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
-  .onward-identity h2{font-size:40px}.onward-job-hero{grid-template-columns:44px minmax(0,1fr) auto;padding-inline:18px}.onward-detail-score strong{font-size:40px}
+  body{background:var(--jp-bg)}.jp-stage{padding:0}.jp-phone{border-radius:0;box-shadow:none}.jp-page{padding-left:20px;padding-right:20px}
+  .jp-nav{padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+  .jp-v1-first-run-head{padding:calc(18px + env(safe-area-inset-top,0px)) 20px 8px}.jp-v1-first-run-body{padding:18px 20px calc(30px + env(safe-area-inset-bottom,0px))}.jp-v1-first-run-body h1{font-size:32px;line-height:36px}
+  .jp-v1-swipe-deck{padding-right:18px}.jp-v1-swipe-card{flex-basis:min(292px,calc(100vw - 58px))}
+  .onward-profile-stats>button{min-height:62px}.onward-profile-section>summary{min-height:52px}.onward-data-note{min-height:58px}
+  .onward-identity h2{font-size:40px}.onward-job-hero{grid-template-columns:44px minmax(0,1fr) auto;gap:10px;padding-inline:18px}.onward-detail-score strong{font-size:40px}
+}
+@media(max-width:375px){
+  .jp-page{padding-left:18px;padding-right:18px}.jp-v1-first-run-head{padding-left:18px;padding-right:18px}.jp-v1-first-run-body{padding-left:18px;padding-right:18px}
+  .onward-brand .onward-lockup{width:132px}.onward-brand.large .onward-lockup{width:154px}.onward-job-hero{grid-template-columns:40px minmax(0,1fr) auto;padding-inline:16px}.onward-job-hero>.onward-company-mark{width:40px;height:40px;flex-basis:40px}.onward-job-hero-copy h1{font-size:26px;line-height:28px}.onward-detail-score strong{font-size:36px}.onward-detail-score{min-width:54px}
 }
 @media(prefers-reduced-motion:reduce){
   .jp-page,.jp-sheet,.onward-home-section,.onward-interactive-row,.onward-detail-score b{animation:none!important;transform:none!important}

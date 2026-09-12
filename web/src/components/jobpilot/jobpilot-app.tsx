@@ -40,10 +40,9 @@ function Phone() {
       const height = viewport?.height || window.innerHeight;
       if (viewport && viewport.scale > 1.05) return; // Browser accessibility zoom must not collapse the app frame.
       const focused = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "");
-      if (!focused) maxHeight.current = height;
-      else maxHeight.current = Math.max(maxHeight.current, height);
-      setKeyboard(window.innerWidth <= 600 && focused && height < maxHeight.current - 120);
-      document.documentElement.style.setProperty("--jp-visible-height", `${height}px`);
+      if (!focused) maxHeight.current = Math.max(height, window.innerHeight);
+      const baseline = Math.max(maxHeight.current, window.innerHeight);
+      setKeyboard(window.innerWidth <= 600 && focused && height < baseline - 120);
     };
     measure(); window.addEventListener("resize", measure); window.visualViewport?.addEventListener("resize", measure);
     document.addEventListener("focusin", measure); document.addEventListener("focusout", measure);

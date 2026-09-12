@@ -1,12 +1,16 @@
 {
+  "id": "/",
   "name": "Onward",
   "short_name": "Onward",
+  "description": "Career direction, role matching and targeted CV preparation for early-career candidates.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#FAF8F1",
   "theme_color": "#0A4438",
+  "categories": ["business", "productivity"],
   "icons": [
     {
       "src": "/onward-192.png",

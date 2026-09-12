@@ -59,6 +59,11 @@ test('preview auth rejects anonymous, cross-profile and forged admin headers',()
   assert.equal(response.headers.get('x-middleware-request-x-jobpilot-profiles'),a.profileId);
   assert.equal(response.headers.get('x-middleware-request-x-jobpilot-role'),'user');
 });
+test('public V1 root accepts cross-site document navigation but APIs remain same-origin guarded',()=>{
+  const documentHeaders={host:'localhost','sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':'document'};
+  assert.equal(proxy(new NextRequest('http://localhost/',{headers:documentHeaders})).status,200);
+  assert.equal(proxy(new NextRequest('http://localhost/api/v1/session',{headers:documentHeaders})).status,403);
+});
 test('upload commits facts automatically then analyses only that profile, without a raw-text confirmation result',async()=>{
   const file=path.join(mobileDirectory(a.profileId),'uploads','synthetic','source.txt');fs.mkdirSync(path.dirname(file),{recursive:true});
   fs.writeFileSync(file,'Yuki Tanaka\nMSc International Business. Export sales support and market research.\nLooking for a first full-time business development role.');

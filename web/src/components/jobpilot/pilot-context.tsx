@@ -319,13 +319,15 @@ function useController(profileId: string, preview: boolean) {
     if (!/\.(pdf|docx|txt|md)$/i.test(file.name) || !file.size || file.size > 12 * 1024 * 1024) throw new Error(tr("请选择 PDF、DOCX、TXT 或 MD，最大 12 MB。", "PDF, DOCX, TXT ou MD · 12 Mo maximum.", "Choose PDF, DOCX, TXT or MD, up to 12 MB."));
     const form = new FormData(); form.set("file", file);
     form.set("sourceLanguage",sourceLanguage); form.set("analysisLanguage",analysisLanguage);
+    const analyticsSessionId=analytics.current?.sessionId;
+    if(analyticsSessionId){form.set("analyticsSessionId",analyticsSessionId);form.set("analyticsEventId",crypto.randomUUID());}
     if(contractTypes) form.set("contractTypes",JSON.stringify(contractTypes));
     if(searchArea)form.set("searchArea",JSON.stringify(searchArea));
     if(preview) { setData(old=>({...empty(),profile:old.profile,languageSettings:old.languageSettings,v1:{importState:"queued",backgroundActive:true,journey:{completed:false}}})); setDetail(null); }
 
-    const waitId=crypto.randomUUID();analytics.current?.begin(waitId,"analysis");
+    const waitId=crypto.randomUUID();if(!analyticsSessionId)analytics.current?.step("upload_cv");analytics.current?.begin(waitId,"analysis");
     const task = await request("/api/mobile/upload", { method: "POST", body: form }).catch(e=>{analytics.current?.bind(waitId,{});throw e;});
-    analytics.current?.bind(waitId,preview?{...task,kind:"analysis",status:task.status==="failed"?"failed":"running"}:task);analytics.current?.step("upload_cv");
+    analytics.current?.bind(waitId,preview?{...task,kind:"analysis",status:task.status==="failed"?"failed":"running"}:task);
     invalidateReads(); await refresh(); if(!preview) navigate({ tab: "profile", view: "task", task: task.id }); return task;
   }), [execute, request, refresh, navigate, tr]);
   const logout=useCallback(async()=>{

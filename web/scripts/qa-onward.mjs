@@ -6,12 +6,13 @@ import http from 'node:http';
 import {pathToFileURL} from 'node:url';
 import {spawn} from 'node:child_process';
 import assert from 'node:assert/strict';
-import {chromium} from 'playwright-core';
+import {chromium,webkit} from 'playwright-core';
 import {translationLooksLikeTarget} from '../src/lib/localization-core.mjs';
+const engine=process.env.QA_BROWSER_ENGINE==='webkit'?'webkit':'chromium';
 const cv=path.resolve(process.argv[2]||'../.career-ops-web/v146-delivery/Synthetic_Amina_QA.pdf');
 assert.ok(fs.existsSync(cv),'Pass a synthetic PDF path');
 const root=process.env.QA_RESUME_ROOT || fs.mkdtempSync(path.join(os.tmpdir(),'onward-qa-'));
-const artifacts=path.resolve(process.env.QA_ARTIFACT_DIR||'../.career-ops-web/qa-onward');
+const artifacts=path.resolve(process.env.QA_ARTIFACT_DIR||`../.career-ops-web/qa-onward-${engine}`);
 fs.mkdirSync(artifacts,{recursive:true});
 let modelCalls=0,providerCalls=0;const modelKinds=[],errors=[],analyticsRequests=[];
 const payload={summary:'Computer Science master student with Java REST API and PostgreSQL project experience, seeking a software development internship.',experience:[],projects:[{name:'Community reservation platform',description:'Built a Java REST API with authentication, unit tests and PostgreSQL. Worked in a five-person team using Git reviews and project documentation.',tech:'Java, PostgreSQL'},{name:'Student hackathon',description:'Contributed a Python backend prototype in 36 hours; team technical jury prize.',tech:'Python'}],education:[{title:'Master Computer Science',org:'Sorbonne Universite, Paris',year:'2025 - 2027',description:'Algorithms, systems, databases and software engineering.'},{title:'Bachelor Computer Science',org:'Universite Paris Cite',year:'2022 - 2025',description:''}],skills:[{category:'Technical skills',items:['Java','Python','TypeScript','SQL','REST APIs','PostgreSQL','Git','Linux','unit tests']},{category:'Languages',items:['French C1','English B2']}],change_notes:['Relevant API project is now immediately visible in the summary.']};
@@ -36,14 +37,16 @@ const port=Number(process.env.QA_PORT||19319),base=`http://127.0.0.1:${port}`;
 const app=spawn(process.execPath,['--import',pathToFileURL(preload).href,'node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port',String(port)],{cwd:process.cwd(),env:{...process.env,CAREER_OPS_ROOT:root,JOBPILOT_V1_PREVIEW:'1',JOBPILOT_MODEL_TRANSPORT:'direct-openai',JOBPILOT_JSEARCH_API_KEY:'synthetic-only',OPENAI_API_KEY:'synthetic-only',DEEPSEEK_API_KEY:'synthetic-only',JOBPILOT_FRANCE_TRAVAIL_CLIENT_ID:'',JOBPILOT_FRANCE_TRAVAIL_CLIENT_SECRET:'',JOBPILOT_OPENAI_CHAT_URL:`http://127.0.0.1:${model.address().port}/model`,JOBPILOT_DEEPSEEK_CHAT_URL:`http://127.0.0.1:${model.address().port}/translation`},stdio:['ignore','pipe','pipe']});
 let log='',browser,page;app.stdout.on('data',b=>log+=b);app.stderr.on('data',b=>log+=b);
 const result={ok:false,scope:'synthetic-only; real browser/API/import/PDF; model and search provider controlled',root,artifacts};
+const webkitNavigationCancellation=(message)=>engine==='webkit'&&/\/api\/mobile\?profileId=.*due to access control checks\.?$/i.test(String(message));
 try {
  for(let i=0;i<100;i++){try{if((await fetch(base)).ok)break;}catch{}await new Promise(r=>setTimeout(r,200));}
- browser=await chromium.launch({channel:'chrome',headless:true});
- const context=await browser.newContext({viewport:{width:430,height:932},deviceScaleFactor:1,locale:'en-US',extraHTTPHeaders:{'X-JobPilot-Locale':'en'}});
+ browser=engine==='webkit'?await webkit.launch({headless:true}):await chromium.launch({channel:'chrome',headless:true});
+ const context=await browser.newContext({viewport:{width:430,height:932},deviceScaleFactor:1,locale:'en-US',isMobile:true,hasTouch:true,extraHTTPHeaders:{'X-JobPilot-Locale':'en'}});
  page=await context.newPage();page.setDefaultTimeout(35000);page.on('pageerror',e=>errors.push(e.message));
  page.on('request',req=>{if(req.url().endsWith('/api/analytics')&&req.method()==='POST')try{analyticsRequests.push(req.postDataJSON());}catch{}});
  if(process.env.QA_RESUME_ROOT) {await resumeAcceptance(context,page);} else {
  await page.goto(base);await page.getByTestId('preview-email').fill('onward-synthetic@example.com');
+ assert.equal(await page.getByTestId('preview-email').evaluate(el=>getComputedStyle(el).fontSize),'16px');assert.match(await page.locator('meta[name="viewport"]').getAttribute('content')||'',/interactive-widget=resizes-content/);
  assert.ok(await page.locator('.onward-brand[aria-label="Onward"] img.onward-lockup').count());
  await page.waitForTimeout(350);await page.screenshot({path:path.join(artifacts,'01-email.png')});
  await page.getByTestId('preview-login').click();await page.getByTestId('onboarding-cv-input').waitFor({state:'attached'});
@@ -54,20 +57,23 @@ try {
  await page.getByTestId('onboarding-upload').click();await page.getByTestId('privacy-ack').check();
  const chooser=page.waitForEvent('filechooser');await page.getByTestId('privacy-accept').click();await(await chooser).setFiles(cv);
  await page.getByTestId('cv-analysis-progress').waitFor();await page.screenshot({path:path.join(artifacts,'03-cv-wait.png')});
- await Promise.race([page.getByText('Which direction interests you?',{exact:true}).waitFor(),page.getByTestId('first-search-progress').waitFor()]);console.log('QA analysis complete');
+ await page.reload({waitUntil:'domcontentloaded'});await Promise.race([page.getByTestId('cv-analysis-progress').waitFor(),page.getByText('Which direction interests you?',{exact:true}).waitFor()]);
+ await Promise.race([page.getByText('Which direction interests you?',{exact:true}).waitFor(),page.getByTestId('first-search-progress').waitFor()]);console.log('QA analysis refresh recovery complete');
  let snapshot=await(await context.request.get(base+'/api/mobile')).json();assert.match(snapshot.cv,/Amina/);assert.equal(snapshot.config.cv.language,'en');assert.equal(snapshot.config.cv.source_language,'en');assert.equal(snapshot.config.display.analysis_language,'en');
  const taskRoot=path.join(root,'.career-ops-web','profiles',session.profileId,'mobile','tasks');
  const tasks=()=>fs.readdirSync(taskRoot).filter(n=>n.endsWith('.json')).map(n=>JSON.parse(fs.readFileSync(path.join(taskRoot,n),'utf8')));
  assert.equal(tasks().find(t=>t.kind==='ingest').input.sourceLanguage,'auto');
  if(await page.getByTestId('onboarding-search').isVisible()){await page.locator('.jp-v1-direction-choice button').first().click();await page.getByTestId('onboarding-search').click();}
  await page.getByTestId('first-search-progress').waitFor();await page.screenshot({path:path.join(artifacts,'04-search-wait.png')});
+ await page.reload({waitUntil:'domcontentloaded'});await Promise.race([page.getByTestId('first-search-progress').waitFor(),page.locator('.jp-v1-swipe-card').first().waitFor({timeout:90000})]);
  await page.locator('.jp-v1-swipe-card').first().waitFor({timeout:90000});
  const preparedTask=tasks().find(t=>t.kind==='deep_match'&&t.status==='completed');assert.ok(preparedTask.result.preparedCv);assert.equal(preparedTask.result.deepMatch.preparedCvScore,82);
  console.log('QA prepared CV verified');const callsBeforeGenerate=modelKinds.filter(k=>k!=='translation').length;await page.screenshot({path:path.join(artifacts,'05-results.png')});
  await page.locator('.jp-v1-swipe-card').first().click();await page.getByTestId('job-tab-0').waitFor();
  assert.equal(await page.locator('[data-testid^="job-tab-"]').count(),3);assert.equal(await page.locator('[data-testid^="onboarding-"]').count(),0);
  await page.locator('.jp-sheet-content').evaluate(el=>{el.scrollTop=el.scrollHeight;});await page.waitForTimeout(300);await page.screenshot({path:path.join(artifacts,'06-match.png')});
- await page.getByTestId('job-tab-1').click();await page.getByTestId('generate-role-cv').click();
+ await page.getByTestId('job-tab-1').click();assert.equal(await page.getByTestId('job-content').evaluate(el=>el.scrollTop),0);await page.getByTestId('generate-role-cv').click();
+ await page.reload({waitUntil:'domcontentloaded'});await page.getByTestId('job-tab-1').waitFor();
  await page.getByTestId('preview-tailored-draft').waitFor({timeout:90000});
  console.log('QA generated PDF ready');snapshot=await(await context.request.get(base+'/api/mobile')).json();const job=snapshot.jobs[0];
  assert.equal(modelKinds.filter(k=>k!=='translation').length,callsBeforeGenerate);assert.deepEqual(job.cvDraft.payload,preparedTask.result.preparedCv.payload);assert.equal(job.cvOutcome.score,82);
@@ -76,6 +82,7 @@ try {
  if(!process.env.QA_SKIP_PDF){
  await page.getByTestId('preview-tailored-draft').click();await page.locator('.jp-pdf-page[data-rendered="true"]').first().waitFor();
  assert.equal(await page.getByTestId('role-cv-compare').getByRole('button').count(),2);assert.doesNotMatch(await page.getByTestId('role-cv-compare').innerText(),/highlight|diff/i);
+ await page.setViewportSize({width:360,height:800});const pdfLayout=await page.evaluate(()=>({innerWidth,root:document.documentElement.scrollWidth,body:document.body.scrollWidth,controls:document.querySelector('.jp-pdf-controls')?.scrollWidth||0,controlsWidth:document.querySelector('.jp-pdf-controls')?.clientWidth||0}));assert.ok(pdfLayout.root<=pdfLayout.innerWidth+1&&pdfLayout.body<=pdfLayout.innerWidth+1&&pdfLayout.controls<=pdfLayout.controlsWidth+1,'PDF preview must not overflow a 360px mobile viewport');
  await page.screenshot({path:path.join(artifacts,'08-clean-role-pdf.png')});
  const originalResponse=page.waitForResponse(r=>r.url().includes('compare=baseline')&&r.status()===200);await page.getByRole('button',{name:'Original CV',exact:true}).click();await originalResponse;await page.locator('.jp-pdf-page[data-rendered="true"]').first().waitFor();await page.screenshot({path:path.join(artifacts,'09-original-pdf.png')});
  }
@@ -87,21 +94,46 @@ try {
  snapshot=await(await context.request.get(base+'/api/mobile')).json();const tracked=snapshot.jobs.find(j=>j.id===job.id);
  assert.equal(tracked.status,'Entretien');assert.equal(tracked.followup.note,'SYNTHETIC PRIVATE NOTE NOT ANALYTICS');assert.equal(tracked.followup.replyNote,'SYNTHETIC PRIVATE REPLY NOT ANALYTICS');assert.equal(tracked.replies?.length||0,0);
  await page.screenshot({path:path.join(artifacts,'10-tracking-saved.png')});
- await page.goto(base+'/?tab=home');await page.getByTestId('home-page').waitFor();await page.waitForTimeout(2500);await page.screenshot({path:path.join(artifacts,'11-home.png')});
+ await page.goto(base+'/?tab=home');await page.getByTestId('home-page').waitFor();await page.waitForTimeout(16000);await page.screenshot({path:path.join(artifacts,'11-home.png')});
  const analytics=await(await context.request.get(base+'/api/analytics')).json();
  assert.ok(analytics.events>0,'Analytics API must contain persisted events');assert.ok(analytics.funnel.every(s=>s.users===1),'Ordered persisted funnel must reach Tracking');
  const observed=new Set(analytics.funnel.filter(s=>s.users>0).map(s=>s.step));
  const expected=['login','upload_cv','choose_direction','view_jobs','open_job','view_cv','generate_cv','tracking'];
  assert.deepEqual(expected.filter(step=>!observed.has(step)),[],'All funnel milestones should be emitted by the real UI');
- const eventKinds=new Set(analyticsRequests.flatMap(b=>(b.events||[]).map(e=>e.event)));assert.ok(eventKinds.has('page_enter')&&eventKinds.has('page_exit')&&eventKinds.has('click')&&eventKinds.has('ai_wait'));
+ const analyticsRoot=path.join(root,'.career-ops-web','analytics');const eventFiles=fs.existsSync(analyticsRoot)?fs.readdirSync(analyticsRoot,{withFileTypes:true}).filter(entry=>entry.isDirectory()).map(entry=>path.join(analyticsRoot,entry.name,'events.json')).filter(file=>fs.existsSync(file)):[];
+ const persistedEvents=eventFiles.flatMap(file=>JSON.parse(fs.readFileSync(file,'utf8')).events||[]);const eventKinds=new Set(persistedEvents.map(event=>event.event));assert.ok(analyticsRequests.length>0,'Browser must POST analytics events');
+ for(const required of ['page_enter','page_exit','page_heartbeat','scroll','click','funnel','ai_wait'])assert.ok(eventKinds.has(required),`Persisted Analytics must include ${required}`);
+ assert.ok(analytics.pages.some(p=>p.visibleDurationMs>0),'Persisted analytics must include visible residence');assert.ok(analytics.clicks.length>0,'Persisted analytics must include clicks');assert.ok(Object.values(analytics.aiWaits).some(value=>value.segments>0),'Persisted analytics must include AI waits');
  const body=JSON.stringify({analyticsRequests,analytics});assert.doesNotMatch(body,/SYNTHETIC PRIVATE|Amina|onward-synthetic@|REST API/);
+ const manifestResponse=await context.request.get(base+'/manifest.webmanifest');assert.equal(manifestResponse.status(),200);const manifest=await manifestResponse.json();assert.equal(manifest.name,'Onward');assert.equal(manifest.short_name,'Onward');assert.equal(manifest.display,'standalone');assert.equal(manifest.start_url,'/');assert.ok(manifest.icons?.some(icon=>icon.sizes==='192x192')&&manifest.icons?.some(icon=>icon.sizes==='512x512'));
+ const viewports=[[375,812],[390,844],[393,852],[430,932],[360,800],[384,854],[412,915]];
+ const tabPages=[['home','home-page'],['offers','offers-page'],['profile','profile-page']];
+ await page.goto(base+'/?tab=home',{waitUntil:'domcontentloaded'});await page.getByTestId('home-page').waitFor();
+ for(const [width,height] of viewports){
+  await page.setViewportSize({width,height});
+  for(const [tab,testId] of tabPages){
+   await page.getByTestId('nav-'+tab).click();await page.getByTestId(testId).waitFor();
+   const layout=await page.evaluate(()=>({innerWidth,scrollWidth:document.documentElement.scrollWidth,bodyScrollWidth:document.body.scrollWidth}));assert.ok(layout.scrollWidth<=layout.innerWidth+1&&layout.bodyScrollWidth<=layout.innerWidth+1,`horizontal overflow at ${width}x${height} ${tab}`);
+   const phone=await page.getByTestId('jobpilot-phone').boundingBox();assert.ok(phone);assert.ok(Math.abs(phone.width-width)<1.5,`phone width mismatch at ${width}x${height}`);
+   const nav=await page.locator('.jp-nav').boundingBox();assert.ok(nav&&nav.y+nav.height<=height+1.5,`bottom nav clipped at ${width}x${height}`);
+   const navTargets=await page.locator('.jp-nav button').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return [r.width,r.height];}));assert.ok(navTargets.every(([,h])=>h>=44),`small nav target at ${width}x${height}`);
+  }
+ }
+ await page.goto(base+'/?tab=offers&view=job&job='+job.id+'&jobTab=0',{waitUntil:'domcontentloaded'});await page.getByTestId('job-tab-0').waitFor();await page.waitForTimeout(500);
+ for(const [width,height] of viewports){
+  await page.setViewportSize({width,height});
+  const sheet=await page.locator('.jp-sheet').boundingBox();assert.ok(sheet&&sheet.x>=-1&&sheet.x+sheet.width<=width+1.5&&sheet.y>=-1&&sheet.y+sheet.height<=height+1.5,`job sheet outside viewport at ${width}x${height}`);
+  const tabs=await page.locator('[data-testid^="job-tab-"]').evaluateAll(nodes=>nodes.map(node=>node.getBoundingClientRect().height));assert.ok(tabs.every(h=>h>=44),`small job tab target at ${width}x${height}`);
+ }
+ const webkitCancellations=errors.filter(webkitNavigationCancellation);assert.deepEqual(errors.filter(error=>!webkitNavigationCancellation(error)),[],'Product journey must not emit unexpected page errors before the intentional page close');await page.close();errors.length=0;page=await context.newPage();page.setDefaultTimeout(35000);page.on('pageerror',e=>errors.push(e.message));page.on('request',req=>{if(req.url().endsWith('/api/analytics')&&req.method()==='POST')try{analyticsRequests.push(req.postDataJSON());}catch{}});
+ await page.goto(base+'/?tab=home',{waitUntil:'domcontentloaded'});await page.getByTestId('home-page').waitFor();assert.equal(await page.getByTestId('v1-first-run').count(),0);const reopened=await(await context.request.get(base+'/api/v1/session')).json();assert.equal(reopened.profileId,session.profileId);
+ assert.deepEqual(errors.filter(error=>!webkitNavigationCancellation(error)),[],'Normal user pages must remain free of unexpected page errors');webkitCancellations.push(...errors.filter(webkitNavigationCancellation));await page.close();page=null;
  const context2=await browser.newContext({viewport:{width:430,height:932},locale:'en-US'});
  await context2.request.post(base+'/api/v1/session',{data:{action:'login',email:'onward-other@example.com'}});
  assert.equal((await context2.request.get(base+'/api/mobile?profileId='+session.profileId)).status(),403);
  assert.equal((await context2.request.get(base+'/api/analytics?profileId='+session.profileId)).status(),403);const other=await(await context2.request.get(base+'/api/analytics')).json();assert.equal(other.events,0);
- assert.deepEqual(errors,[]);
- Object.assign(result,{ok:true,modelCalls,modelKinds,autoLanguage:true,realGeneratedPdf:true,browserPdfRendered:!process.env.QA_SKIP_PDF,preparedContentReused:true,score:82,trackingSaved:true,funnel:[...observed],analytics,analyticsHasNoContent:true,profileIsolation:true,errors});
- console.log('ONWARD_QA_OK',JSON.stringify({artifacts,modelCalls,funnel:[...observed]}));
+ Object.assign(result,{ok:true,engine,modelCalls,modelKinds,autoLanguage:true,realGeneratedPdf:true,browserPdfRendered:!process.env.QA_SKIP_PDF,preparedContentReused:true,score:82,trackingSaved:true,refreshRecovery:true,reopenRecovery:true,viewports:viewports.map(([width,height])=>`${width}x${height}`),pwa:true,funnel:[...observed],analytics,analyticsHasNoContent:true,profileIsolation:true,webkitNavigationCancellations:webkitCancellations.length,errors:errors.filter(error=>!webkitNavigationCancellation(error))});
+ console.log('ONWARD_QA_OK',JSON.stringify({engine,artifacts,modelCalls,viewports:result.viewports,funnel:[...observed]}));
  }
 } catch(error) {result.error=String(error);if(page){await page.screenshot({path:path.join(artifacts,'failure.png')}).catch(()=>{});fs.writeFileSync(path.join(artifacts,'failure-dom.txt'),await page.locator('body').innerText().catch(()=>''));}throw error;}
 finally {fs.writeFileSync(path.join(artifacts,'result.json'),JSON.stringify(result,null,2));fs.writeFileSync(path.join(artifacts,'server.log'),log);await browser?.close();app.kill();model.closeAllConnections();model.close();}

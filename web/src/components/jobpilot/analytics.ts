@@ -20,16 +20,27 @@ export function createAnalytics(profile:string) {
     queue.push({id:crypto.randomUUID(),sessionId,timestamp:Date.now(),event,page:page||"onboarding_email",...(contextId?{contextId}:{}),...fields});
     if(queue.length>200)queue.shift();
   };
-  const flush=async()=>{
-    if(sending||!queue.length||!profile)return;
-    sending=true;
+  const flush=async(force=false)=>{
+    if((sending&&!force)||!queue.length||!profile)return;
+    if(!force)sending=true;
     const batch=queue.slice(0,50);
     try {
       const response=await fetch("/api/analytics",{method:"POST",credentials:"same-origin",keepalive:true,
         headers:{"Content-Type":"application/json","X-JobPilot-Profile":profile},body:JSON.stringify({events:batch})});
       if(response.ok)queue=queue.filter(e=>!batch.includes(e));
     }catch{/* Analytics never blocks a product action. */}
-    finally{sending=false;}
+    finally{if(!force)sending=false;}
+  };
+  const flushCritical=()=>{
+    if(!queue.length||!profile)return;
+    const batch=queue.slice(0,50);
+    try{
+      if(typeof navigator!=="undefined"&&typeof navigator.sendBeacon==="function"){
+        const sent=navigator.sendBeacon("/api/analytics",new Blob([JSON.stringify({events:batch})],{type:"application/json"}));
+        if(sent){queue=queue.filter(e=>!batch.includes(e));return;}
+      }
+    }catch{/* Fall through to keepalive fetch. */}
+    void flush(true);
   };
   const endWaits=()=>{
     for(const value of waits.values())emit("ai_wait",{kind:value.kind,status:"abandoned",durationMs:Math.round(performance.now()-value.start)});
@@ -38,7 +49,7 @@ export function createAnalytics(profile:string) {
   const heartbeat=()=>{if(started){emit("page_heartbeat",{durationMs:Math.round(performance.now()-started),scrollDepth:depth});started=performance.now();}};
   const leave=()=>{
     if(started)emit("page_exit",{durationMs:Math.round(performance.now()-started),scrollDepth:depth});
-    started=0;endWaits();void flush();
+    started=0;endWaits();flushCritical();
   };
   const enter=(next:string,nextContext="")=>{
     if(page===next&&contextId===nextContext&&started)return;
@@ -46,7 +57,11 @@ export function createAnalytics(profile:string) {
     started=0;page=next;contextId=nextContext;depth=0;
     if(!document.hidden){started=performance.now();emit("page_enter");}
   };
-  const step=(step:string)=>emit("funnel",{step});
+  // Funnel milestones are small and business-critical for V1 testing. Allow a
+  // concurrent keepalive POST when another analytics batch is already in
+  // flight, so a Safari reload immediately after a tap cannot strand the new
+  // milestone in the old document's memory queue. Event ids make retries safe.
+  const step=(step:string)=>{emit("funnel",{step});flushCritical();};
   const tasks=(values:Task[])=>{
     if(document.hidden)return;
     for(const task of values){
@@ -93,7 +108,7 @@ export function createAnalytics(profile:string) {
   const timer=setInterval(()=>{if(++ticks%3===0)heartbeat();void flush();},5000);
   document.addEventListener("click",click,true);document.addEventListener("scroll",scroll,true);
   document.addEventListener("visibilitychange",visible);window.addEventListener("pagehide",leave);
-  return {emit,step,enter,tasks,begin,bind,flush,dispose:()=>{
+  return {sessionId,emit,step,enter,tasks,begin,bind,flush,dispose:()=>{
     leave();disposed=true;clearInterval(timer);document.removeEventListener("click",click,true);document.removeEventListener("scroll",scroll,true);
     document.removeEventListener("visibilitychange",visible);window.removeEventListener("pagehide",leave);
   }};

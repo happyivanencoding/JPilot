@@ -31,7 +31,7 @@ test('same email reuses a persisted profile across logout and another browser',a
   const second=await createPreviewSession(root,' STUDENT@EXAMPLE.COM ');
   assert.equal(second.profileId,first.profileId);assert.notEqual(second.token,first.token);
   assert.equal(second.isNew,false);assert.equal(second.needsOnboarding,false);
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(mobile,'journey.json'),'utf8')),{query:'logistics junior',ingestTaskId:'existing-import',completed:true});
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(mobile,'journey.json'),'utf8')),{query:'logistics junior',ingestTaskId:'existing-import',completed:false});
   assert.equal(fs.readFileSync(cvFile,'utf8'),'Synthetic Student\nMaster logistics.');
   const accounts=JSON.parse(fs.readFileSync(path.join(root,'.career-ops-web','v1-accounts.json'),'utf8'));
   assert.equal(accounts.accounts.length,1);assert.equal(accounts.accounts[0].email,'student@example.com');

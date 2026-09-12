@@ -12,9 +12,18 @@ import { checkRequest, parseAllowedHosts } from "@/lib/request-origin.mjs";
 // Opt in to extra hosts (e.g. a trusted LAN box) with a comma/space separated
 // CAREER_OPS_WEB_ALLOWED_HOSTS; unset means loopback only.
 export function proxy(req: NextRequest) {
+  // Opening the public V1 from a QR code, WhatsApp, email, or an Android
+  // ACTION_VIEW intent is a cross-site *document navigation*. That must be
+  // allowed for the public root page; the strict origin guard still applies
+  // to every API request and to non-navigation requests.
+  const publicDocumentNavigation =
+    req.nextUrl.pathname === "/" &&
+    (req.method === "GET" || req.method === "HEAD") &&
+    req.headers.get("sec-fetch-mode") === "navigate" &&
+    (req.headers.get("sec-fetch-dest") || "document") === "document";
   const decision = checkRequest({
-    secFetchSite: req.headers.get("sec-fetch-site"),
-    origin: req.headers.get("origin"),
+    secFetchSite: publicDocumentNavigation ? null : req.headers.get("sec-fetch-site"),
+    origin: publicDocumentNavigation ? null : req.headers.get("origin"),
     host: req.headers.get("host"),
     allowedHosts: parseAllowedHosts(process.env.CAREER_OPS_WEB_ALLOWED_HOSTS),
   });

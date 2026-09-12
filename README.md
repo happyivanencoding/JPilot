@@ -1,11 +1,11 @@
 # JobPilot
 
-JobPilot is an Android-first, local-first job-search application. It imports and analyzes a CV, discovers opportunities, evaluates individual roles, prepares a user-confirmed tailored CV, supports interview practice and tracks applications. The Web client mirrors the native Android product in a phone-sized interface; there is no separate legacy dashboard.
+JobPilot / Onward is a local-first job-search application. It imports and analyzes a CV, discovers opportunities, evaluates individual roles, prepares a user-confirmed tailored CV and tracks applications. **For the isolated V1 tester release on `feature/v1-mobile-web-only-20260912`, the phone-first Web client is the only official tester client.** Testers open one link in iPhone Safari or Android Chrome; no APK, TestFlight or native install is required. The existing Android source is retained but frozen for this V1 branch, and no iOS client is being developed.
 
 ## Product and code
 
-- `android/` — native Kotlin/Compose client, the interaction and design reference.
-- `web/src/components/jobpilot/` — equivalent phone-first Web interface.
+- `android/` — retained native Kotlin/Compose client; frozen for the V1 Mobile Web-only tester branch.
+- `web/src/components/jobpilot/` — canonical V1 phone-first tester interface.
 - `web/src/app/api/` — shared product API used by both clients.
 - `web/src/lib/backend/` — JobPilot's own data ledger, inbox, atomic document writes and CV/PDF rendering.
 - `web/src/lib/job-search/` — structured discovery, ranking and public-source adapters.
@@ -38,7 +38,7 @@ The hosted installation uses the authenticated gateway in `web/scripts/mobile-ga
 
 ## Collaboration
 
-The development repository is `happyivanencoding/JPilot`. `main` is the integrated product branch; `Yifeng` is the collaborator's development branch. Successful `Yifeng` CI maintains a review PR, but does not merge it automatically. Product changes must preserve Android/Web parity and update the handoff documents. Repository rules are in [AGENTS.md](AGENTS.md).
+The development repository is `happyivanencoding/JPilot`. `main` is the integrated product branch; `Yifeng` is the collaborator's development branch. This V1 Mobile Web release remains isolated on `feature/v1-mobile-web-only-20260912` and is not merged to either branch. The branch-specific Web-only rule and handoff requirements are in [AGENTS.md](AGENTS.md).
 
 Real CVs, profile details, generated reports/PDFs, application history, credentials, sessions and QA transcripts do not belong in Git. Rewriting code is never permission to delete or overwrite that data.
 

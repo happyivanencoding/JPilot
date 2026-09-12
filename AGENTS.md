@@ -16,7 +16,18 @@ The only development repository is:
 
 Local `origin` must point to that repository. `santifer/career-ops` is historical provenance only. Do **not** pull, apply, or reintroduce upstream Career-Ops updates as product changes. The inherited updater is not a JPilot development workflow.
 
-## 3. Android-first product rule
+## 3. V1 Mobile Web-only override (2026-09-12)
+
+On `feature/v1-mobile-web-only-20260912`, **Onward V1 has one official tester client: the phone-first Web application**. This branch intentionally overrides the older Android-first parity rule below for V1 testing.
+
+- Tester entrypoint: `https://jobs-v1.thegreatnovel.com/` in iPhone Safari or Android Chrome.
+- `web/` is the V1 interaction, layout and release authority on this branch.
+- Keep `android/` in the repository, but freeze the native V1 UI and do not mirror new Web work back to it.
+- Do not create an iOS client. Safari/PWA is the only iPhone path for V1.
+- Desktop may render the same mobile product surface, but must not restore a dashboard/Classic UI.
+- No install prompt may interrupt first use; Add to Home Screen remains optional.
+
+## 3.1 Default product rule outside this V1 branch
 
 JPilot is Android-first.
 
@@ -57,6 +68,8 @@ Never commit or casually rewrite real Candidate CVs, profile data, application h
 Do not reset/clean/stash or overwrite parallel work. Do not run destructive Git commands.
 
 **Automatic delivery rule:** every task that modifies product/source code is incomplete until its relevant checks have run, the task-scoped code/docs changes are committed, and the commit is pushed to `origin/main`. Do this automatically without waiting for a separate “push” request, unless the user explicitly says not to push. Never sweep unrelated parallel dirty work into that commit; if a push is blocked, report the concrete blocker rather than silently leaving code only on the PC.
+
+For this V1 Mobile Web-only branch, the user explicitly requires commit/push to `origin/feature/v1-mobile-web-only-20260912` and **no merge/push to `main`** until separately authorized.
 
 ## 7. Language contract
 

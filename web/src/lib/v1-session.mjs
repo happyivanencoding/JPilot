@@ -60,14 +60,9 @@ export async function createPreviewSession(root, emailValue) {
     writeJson(path.join(sessions(root), token + '.json'), session);
     return {token, profileId:id, profiles:[id], email, isNew:true, needsOnboarding:true};
   });
-  if (!result.needsOnboarding) {
-    // Preserve pending analysis and search state while skipping repeat onboarding.
-    const mobile = path.join(root, '.career-ops-web', 'profiles', result.profileId, 'mobile');
-    await withProfileLock(mobile, () => {
-      const file = path.join(mobile, 'journey.json');
-      writeJson(file, {...(readJson(file) || {}), completed:true});
-    });
-  }
+  // Re-authentication must never advance the product journey. A returning user
+  // resumes the exact persisted analysis/search/onboarding state; only the
+  // explicit finishOnboarding action may mark the journey completed.
   return result;
 }
 export function revokePreviewSession(root, token) {

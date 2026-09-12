@@ -24,6 +24,8 @@ export function OfferSheet({offer}:{offer:Json}) {
 export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
   const { route, data, tr, product, navigate, startTask,tailorOffer,busy,error } = usePilot();
   const tab = Math.min(2, Math.max(0, Number(route.jobTab) || 0));
+  const content=useRef<HTMLDivElement>(null);
+  useEffect(()=>{if(content.current)content.current.scrollTop=0;},[tab,job.id]);
   const cv = job.cv || {}, cvDraft = job.cvDraft || null;
   const hasCv=roleCvIsReady(job),detailScore=job.v1Match?.displayScore ?? job.v1Match?.currentScore ?? job.score;
   const deep=job.v1Match?.deepMatch || {},scoreRows=rows(deep.scoreBreakdown);
@@ -38,7 +40,7 @@ export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
       {job.v1Match&&<AnimatedMatchScore value={detailScore}/>}
     </div>
     <Tabs labels={[tr("匹配", "Match", "Fit"), "CV", tr("跟踪", "Suivi", "Tracking")]} selected={tab} prefix="job-tab" muted={hasCv?[]:[1]} onChange={i => navigate({ ...route, jobTab: String(i) }, true)} />
-    <div className="jp-sheet-content" data-testid="job-content"><Localization value={job.localization} />
+    <div className="jp-sheet-content" data-testid="job-content" ref={content}><Localization value={job.localization} />
       {tab===0&&job.localization?.pending&&<Loading/>}
       {tab===0&&!job.localization?.pending&&job.v1Match&&<>
         <section className="onward-match-summary"><div><h3>{tr("你的匹配","Votre correspondance","Your match")}</h3><p>{job.v1Match.deepMatch?.roleSummary||tr("基于你当前简历中的真实经历。","À partir des éléments réels de votre CV.","Based on evidence already present in your CV.")}</p></div><CvOutcome value={job} detail/></section>
