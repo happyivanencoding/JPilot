@@ -365,5 +365,25 @@
   "Présentez votre parcours et votre motivation pour ce poste.": {
     "zh": "请介绍你的经历，以及为什么申请这个岗位。",
     "en": "Introduce your experience and motivation for this role."
+  },
+  "Please read and accept the CV information notice before uploading.": {
+    "zh": "上传简历前，请先阅读并同意简历信息使用说明。",
+    "fr": "Avant d’importer votre CV, veuillez lire et accepter la notice relative à l’utilisation des informations du CV.",
+    "en": "Please read and accept the CV information notice before uploading."
+  },
+  "Please read and accept the current CV information notice.": {
+    "zh": "请阅读并同意当前版本的简历信息使用说明。",
+    "fr": "Veuillez lire et accepter la version actuelle de la notice relative à l’utilisation des informations du CV.",
+    "en": "Please read and accept the current CV information notice."
+  },
+  "Consent withdrawn. New CV uploads and AI tasks are stopped.": {
+    "zh": "同意已撤回，新的简历上传和 AI 任务已停止。",
+    "fr": "Votre accord a été retiré. Les nouveaux imports de CV et les nouvelles tâches IA sont bloqués.",
+    "en": "Consent withdrawn. New CV uploads and AI tasks are stopped."
+  },
+  "Your withdrawal/deletion request is pending. Contact your test organizer.": {
+    "zh": "你的撤回／删除申请正在处理中，请联系测试组织者。",
+    "fr": "Votre demande de retrait ou de suppression est en cours. Contactez l’organisateur du test.",
+    "en": "Your withdrawal/deletion request is pending. Contact your test organizer."
   }
 }

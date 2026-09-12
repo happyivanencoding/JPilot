@@ -41,6 +41,14 @@ test('short all-Chinese output is rejected for French and English display caches
   assert.equal(translationLooksLikeTarget('数据驱动管理','fr'),false);
   assert.equal(translationLooksLikeTarget('物流协调','en'),false);
 });
+test('CV privacy server errors have user-facing French and Chinese projections',()=>{
+  const dictionary=JSON.parse(fs.readFileSync(new URL('../shared/jobpilot-i18n.json',import.meta.url),'utf8'));
+  const required='Please read and accept the CV information notice before uploading.';
+  const withdrawn='Consent withdrawn. New CV uploads and AI tasks are stopped.';
+  assert.match(dictionary[required].fr,/Avant d’importer votre CV/);
+  assert.match(dictionary[required].zh,/上传简历前/);
+  assert.match(dictionary[withdrawn].fr,/Votre accord a été retiré/);
+});
 test('Chinese analysis explicitly requires English CV fragments and preserves original evidence',()=>{
   const prompt=cvAnalysisPrompt({candidate:candidate(),language:'zh'});
   assert.match(prompt,/USER-FACING EXPLANATION LANGUAGE: Simplified Chinese/);
