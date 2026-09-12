@@ -26,4 +26,15 @@ The Project OS JobPilot project displays an Analytics tab. A Dashboard version s
 - Android `assembleDebug`
 - Project OS dedicated server-to-server tests + TypeScript/Vite build
 
+## Live delivery
+
+The isolated V1 Web is live at product SHA `efddea2872a5290b4e62251130f3cf32a0c663e6`. The existing V1-only root deploy returned `V1_DEPLOY_OK` after Docker production build, V1 session/Profile isolation + logout, model-key gate, search-provider gate, and the new internal Analytics gate. The Analytics gate verifies unauthenticated access returns 401 and the private service bearer returns a V1 aggregate. Public `https://jobs-v1.thegreatnovel.com/` returns 200. Production and Yifeng Web/gateway/tunnel container IDs and StartedAt values remained unchanged.
+
+The first deploy attempt exposed VPS disk pressure rather than an application defect: `/` had only 576 MB free and Docker held many unused historical V1 images. Only unused old `jobpilot-v1` images were removed; current V1 rollback images, production/Yifeng images, Candidate data and backups were not touched. Free space recovered to about 16 GB before the successful deploy. The next gate caught a real secret file ownership mismatch and rolled back; ownership was aligned to the existing V1 secret convention before the final successful deploy. A further gate caught the preview session middleware blocking the internal Analytics route; the route is now the sole session exception and still enforces its own private bearer.
+
+Project OS source commit is `bc9c7a7` (`feat: add JobPilot V1 analytics dashboard`). Its source backend was restarted through the existing safe restart script and then loaded the real V1 feed through `/api/projects/<JobPilot>/analytics?dashboard=v1`. Browser acceptance opened `JobPilot → Analytics`, displayed the Dashboard-version selector with `V1 · 第一轮商业验证`, V1 Overview, Core Funnel, AI Performance and Anonymous User Journeys with no console errors.
+
+Current retained telemetry contains 8 pre-release pseudonymous users from development/acceptance. The strict server-backed `cv_ready` boundary is intentionally not fabricated for history, so those old users currently show zero in the new ordered commercial funnel unless they create a real post-release CV Ready milestone. Treat them as a pre-launch baseline, not as the first commercial tester cohort.
+
+Android 0.6.5/code33 was compiled successfully in this task; no physical-device installation is claimed here.
 No paid model call is required by this release.

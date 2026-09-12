@@ -74,6 +74,11 @@ Android / Web 新产生的数据统一使用：
 
 输出：`eligibleD0Users`, `d1ReturnedUsers`, `rate`。
 
+## 历史数据边界
+
+`cv_ready` / `cv_completed` / `cv_failed` 是本轮开始记录的真实服务端 product milestones，**不对旧 telemetry 伪造回填**。上线前已经存在的匿名测试用户仍保留 page/funnel/journey 历史，但只有上线后真正跨过对应 backend boundary 才进入新的核心 Funnel。这样牺牲旧数据的表面完整性，换取下周正式 tester 的指标口径可信。
+
+Project OS 当前真实读取时可见 8 个上线前 pseudonymous users；它们应视为 pre-launch baseline，而不是第一轮商业 tester cohort。正式测试开始后应以新的 CV Ready 样本增长作为核心 Funnel 起点。
 ## Time to Value
 
 只输出 p50 / p90，不用 average 掩盖长尾：
