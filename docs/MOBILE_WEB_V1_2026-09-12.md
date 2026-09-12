@@ -59,7 +59,7 @@ Both encode `https://jobs-v1.thegreatnovel.com/` and display:
 > Scan to try Onward  
 > No app installation required.
 
-The PNG has been visually inspected and machine-decoded back to the canonical URL.
+The PNG has been visually inspected and machine-decoded back to `https://jobs-v1.thegreatnovel.com/`; both files are generated directly from the canonical URL.
 
 ## Browser acceptance
 
@@ -81,11 +81,13 @@ Automated real-browser production QA: **PASS**. It covers the full synthetic V1 
 
 ### Android Chrome physical device
 
-Not physically validated in this task because ADB reported no connected device. No APK was installed or modified. Chromium mobile/touch QA is PASS; a real Samsung Chrome pass remains a device-level follow-up when the phone is connected.
+Samsung `SM-S928U1 / R5CXB0BSTVD` is **physical-device PASS against the deployed VPS**. Before rollout, opening the old public V1 from Android Chrome exposed a real P0: top-level external navigation carried `Sec-Fetch-Site: cross-site` and the old root middleware returned `{"error":"cross-origin request refused ..."}` instead of Onward. The Mobile Web branch now allows only `GET/HEAD` document navigation to `/` while keeping the strict origin guard on API/non-navigation requests. After deployment, the same public external-navigation contract returns **200**, while a cross-site `/api/v1/session` request remains **403**.
+
+On the real Samsung Chrome session, `https://jobs-v1.thegreatnovel.com/` restored the existing Youness workspace after a cold browser restart. Actual viewport metrics were `384×741` CSS px at DPR `3.75`; root/body widths were both `384`, and the three bottom-nav targets measured about `122.7×55.2` CSS px. Opportunities rendered without horizontal overflow; focusing the role search field opened Gboard, shrank `visualViewport` to about `356px`, applied `jp-keyboard` and hid the Onward bottom navigation. A read-only existing `Consultant FinOps - CDI (H/F)` result was opened through the live DOM; its sheet remained within the viewport, exposed `Match / CV / Suivi`, switched to CV, then opened its already-generated targeted CV. The public PDF.js renderer displayed **1 rendered page**, with two original/targeted compare controls and no horizontal overflow. Tracking opened read-only and remained on `jobTab=2` after a real page refresh. No APK was installed or modified, no AI task was started, and no CV/Tracking data was changed.
 
 ### Soft keyboard boundary
 
-The Web uses `interactive-widget=resizes-content`, modern dynamic viewport units and `visualViewport` only to detect an actual focused-input height reduction and hide the bottom nav when appropriate. Browser layout/viewport QA passes, but a physical iOS/Android soft keyboard was not available, so physical keyboard behavior is not claimed as device-PASS.
+The Web uses `interactive-widget=resizes-content`, modern dynamic viewport units and `visualViewport` only to detect an actual focused-input height reduction and hide the bottom nav when appropriate. Mobile inputs are forced to a computed 16px to avoid Safari focus zoom. The deployed VPS version passed the physical Samsung Chrome/Gboard check. Physical iOS keyboard behavior remains untested.
 
 ## Analytics
 
@@ -96,11 +98,12 @@ The Safari/WebKit acceptance exposed and fixed an actual upload milestone race: 
 ## Known limitations
 
 - Physical iPhone Safari has not been run in this environment; current Safari evidence is Playwright WebKit only.
-- Physical Android Chrome has not been run because no ADB device was connected.
-- System Files/iCloud Drive/Google Drive provider pickers cannot be faithfully automated from desktop Playwright; the browser file-input path is verified, but those OS picker surfaces remain physical-device checks.
+- System Files/iCloud Drive/Google Drive provider pickers cannot be faithfully automated from desktop Playwright. The browser file-input/upload path is verified end-to-end, but no physical provider file was selected on the connected Samsung because doing so would overwrite the user's current Youness master CV; that provider-selection surface remains the only Android upload-device limitation.
 - Add to Home Screen metadata is present, but no offline service worker is provided or promised.
 - Android source remains in-tree for history/compatibility; it is not the V1 tester release target and receives no new UI parity work on this branch.
 
 ## Deployment
 
-Deployment is intentionally performed only after the Mobile Web branch is committed and pushed. It must use the existing isolated V1 deploy channel, replace only the current `jobpilot-v1` Web release behind `jobs-v1.thegreatnovel.com`, and verify production/Yifeng containers are unchanged. Final deployed SHA and live verification are appended after rollout.
+The V1-only deployment channel now tracks `feature/v1-mobile-web-only-20260912`. Product commit **`60569cfd39aa35fc3bc5b9fcb51428ea400275f1`** is deployed on the isolated `jobpilot-v1` stack and the Web container is healthy. Public root normal navigation is **200**; simulated external document navigation (`Sec-Fetch-Site: cross-site`, `mode=navigate`, `dest=document`) is also **200**; cross-site API access remains **403**. `manifest.webmanifest` and the public QR PNG are **200**.
+
+Production and Yifeng were not rebuilt. Their five Web/gateway/tunnel container IDs and `StartedAt` values exactly match the pre-rollout baseline; only the V1 Web/tunnel were recreated. Current V1 Web image: `jobpilot-v1:60569cfd39aa35fc3bc5b9fcb51428ea400275f1`.
