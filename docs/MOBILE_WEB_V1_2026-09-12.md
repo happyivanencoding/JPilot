@@ -1,6 +1,6 @@
 # Onward V1 — Mobile Web Only handoff (2026-09-12)
 
-## 2026-09-13 Application-CV language authority — implementation complete, rollout pending
+## 2026-09-13 Application-CV language authority — deployed fa98efe
 
 `求职简历 / CV de candidature / Application CV` is now the sole target-language setting for newly generated role-specific CVs. The choice is intentionally limited to **Français / English**. It is independent from the visible app/analysis language and is not added to job-search criteria. Both first-run upload and Profile explain the same rule: selecting a language only controls future generated CVs; it never narrows the jobs retrieved.
 
@@ -10,7 +10,7 @@ Role-CV rendering now treats that selected application language as the final doc
 
 The final PDF guard remains strict rather than silently accepting a mixed-language document. For French/English role CVs it now rejects residual Chinese/Japanese/Korean/Cyrillic/Arabic/Hebrew/Thai/Devanagari script, not only Han. The user-facing failure no longer tells the user to “check the material language”; it states that conversion to the selected target language did not finish and invites a retry while preserving the original CV.
 
-Focused regression evidence before rollout: language/search/CV/UI suites **51/51 PASS**, V1 journey **11/11 PASS**, Web TypeScript **PASS**, production `npm run build` **PASS**, and `git diff --check` **PASS**. This section does not claim public deployment until a V1-only deploy receipt is recorded.
+Focused regression evidence before rollout: language/search/CV/UI suites **51/51 PASS**, V1 journey **11/11 PASS**, Web TypeScript **PASS**, production `npm run build` **PASS**, and `git diff --check` **PASS**. Product commit **`fa98efe75b45e0114163183946998fb084e01370`** was pushed to `origin/feature/v1-mobile-web-only-20260912` and deployed through the authoritative `/srv/server-infra/scripts/jobpilot-v1-deploy-root.sh`. Server Docker production build/TypeScript plus session/Profile isolation + logout, model-key, search-provider and internal-analytics gates all passed, returning **`V1_DEPLOY_OK fa98efe75b45e0114163183946998fb084e01370`**. Post-deploy status reads the same SHA, `jobpilot-v1-web-1` is healthy and the public root returns **HTTP 200**. Production and Yifeng Web/gateway/tunnel container IDs and `StartedAt` values are unchanged from the pre-deploy baseline; only the isolated V1 Web/tunnel were recreated.
 
 ## 2026-09-13 Home / Opportunities / Job / CV phone refinement — deployed 4d65c6c
 
