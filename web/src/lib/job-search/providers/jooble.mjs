@@ -22,9 +22,10 @@ export async function searchJooble(input,options={}) {
   const offers=successful.flatMap(r=>r.value).flatMap(job=>{
     const url=clean(job.link,2000),title=clean(job.title,300),company=clean(job.company,300);
     if(!/^https?:\/\//i.test(url)||!title||!company)return [];
+    const titleContract=/\b(?:alternan\w*|apprenti\w*|apprenticeship)\b/i.test(title)?'Alternance':/\b(?:stage|stagiaire|internship|intern)\b/i.test(title)?'Stage':null;
     return [{url,title,company,location:clean(job.location,300),country:'France',
       description:clean(load(String(job.snippet||'')).text(),12000),
-      contractType:/^(stage|internship)$/i.test(job.type)?'Stage':/^(cdi|permanent)$/i.test(job.type)?'CDI':'unknown',
+      contractType:titleContract || (/^(stage|internship)$/i.test(job.type)?'Stage':/^(cdi|permanent)$/i.test(job.type)?'CDI':'unknown'),
       postedAt:job.updated&&Number.isFinite(Date.parse(job.updated))?new Date(job.updated).toISOString():null,
       source:'jooble',sourceLabel:clean(job.source?`Jooble · ${job.source}`:'Jooble',160),direct:false,
       providerJobId:clean(job.id,100),verification:'unconfirmed'}];

@@ -47,7 +47,7 @@ test('Jooble uses the French market endpoint and keeps successful queries on par
     return response({jobs:[{id:2,title:'Credit Risk Analyst (Internship)',link:'https://fr.jooble.org/jdp/2',location:'Paris',company:'Bank',type:'Full-time',snippet:'<p>Stage analyse crédit</p>',updated:'2026-09-12T00:00:00Z'}]});
   };
   const r=await searchJooble(input,{apiKey:'test-key',fetchImpl});
-  assert.equal(r.status,'partial');assert.equal(r.offers.length,1);assert.equal(r.offers[0].contractType,'unknown');
+  assert.equal(r.status,'partial');assert.equal(r.offers.length,1);assert.equal(r.offers[0].contractType,'Stage');
   assert.equal(r.offers[0].description,'Stage analyse crédit');
 });
 
@@ -71,4 +71,9 @@ test('search version invalidates the lower task cache as well as the direction c
  const old=operationKey('search',{...base,searchRevision:'v13-ai-market-search'},version,[],'2026-09-12');
  const next=operationKey('search',{...base,searchRevision:'v14-multi-source-ai-search'},version,[],'2026-09-12');
  assert.notEqual(old,next);assert.equal(reusableTask([{kind:'search',status:'completed',operationKey:old}],next),null);
+});
+
+test('Jooble apprenticeship title overrides contradictory internship metadata',async()=>{
+ const r=await searchJooble({...input,franceTravailQueries:['risque']},{apiKey:'test',fetchImpl:async()=>response({jobs:[{id:1,title:'Alternant.e qualité gestion des risques (H/F)',type:'internship',company:'Example',location:'Paris',link:'https://fr.jooble.org/jdp/1'}]})});
+ assert.equal(r.offers[0].contractType,'Alternance');
 });

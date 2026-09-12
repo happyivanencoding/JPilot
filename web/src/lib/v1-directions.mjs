@@ -2,7 +2,7 @@
 // common bilingual job titles, and specialisms are never discarded when merging.
 export const V1_NEW_SEARCHES_PER_DAY=6;
 export const V1_SEARCH_CACHE_MS=24*60*60*1000;
-export const V1_SEARCH_REVISION='v14-multi-source-ai-search';
+export const V1_SEARCH_REVISION='v15-source-contract-evidence';
 const norm=value=>String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[’']/g,' ').replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 const families=[
  ['export-sales',/\bexport\b|出口/,['Export sales support','Support commercial export','出口销售支持'],'assistant commercial export junior'],
