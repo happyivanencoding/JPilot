@@ -49,7 +49,7 @@ export async function prepareV1Display(profileId:string, locale:string, snapshot
   }
   const importTask=tasks.find(t=>t.kind==='ingest' && t.id===journey.ingestTaskId);
   const searchTask=tasks.find(t=>t.kind==='search' && t.id===journey.searchTaskId);
-  const searchIncomplete=searchTask?.status==='completed' && (searchTask.result?.searchMetrics?.providers || []).some((r:any)=>['jsearch','france-travail'].includes(r.id)&&['error','partial','unconfigured'].includes(r.status));
+  const searchIncomplete=searchTask?.status==='completed' && (searchTask.result?.searchMetrics?.providers || []).some((r:any)=>!['arbeitnow-dev','tracked-ats'].includes(r.id)&&['error','partial'].includes(r.status));
   const sourceNotice=searchIncomplete ? (uiLocale==='fr'?'Certaines sources sont temporairement indisponibles. Les résultats sont incomplets ; réessayez plus tard.':uiLocale==='zh'?'部分职位来源暂不可用，当前结果不完整，请稍后重试。':'Some job sources are temporarily unavailable. Results are incomplete; please retry later.') : '';
   const activeImport=importTask && ['queued','running','reconciling'].includes(importTask.status);
   const failed=['failed','interrupted'].includes(importTask?.status) || ['failed','interrupted'].includes(snapshot.v1.analysisState) || searchTask?.status==='failed' || current.failed || !!analysis?.localization?.failed;

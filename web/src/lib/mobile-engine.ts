@@ -291,6 +291,7 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
         trackedAts: { dataRoot: workspaceRoot(), enabled: process.env.JOBPILOT_SEARCH_ENABLE_TRACKED_ATS === "1" },
         includeDevelopmentSource: process.env.JOBPILOT_SEARCH_ENABLE_DEV_SOURCE === "1",
         limit: 24,
+        additionalSources:true,
         classifyOffers:async(raw:any[])=>{
           task.phase="Vérification de la pertinence des offres";saveTask(task);
           const unique=[...new Map(raw.map(offer=>[offer.url,offer])).values()];
@@ -304,7 +305,7 @@ async function executeTask(task: MobileTask, uploadPath?: string) {
         },
       });
       const providerRuns=structured.providerRuns || [];
-      const liveProviderReady=providerRuns.some((run:any)=>["france-travail","jsearch"].includes(String(run.id))&&["ok","partial"].includes(String(run.status)));
+      const liveProviderReady=structured.productionProviderSucceeded;
       if(!liveProviderReady && !(structured.offers || []).length) throw new Error("Les sources d’offres sont temporairement indisponibles. Réessayez plus tard.");
       const fallbackMetrics: Record<string, any> | null = null;
       const offers = enrichOffersWithFastMatch(version,config,structured.offers);

@@ -1,3 +1,7 @@
+import {searchJobicy} from './providers/jobicy.mjs';
+import {searchAdzuna} from './providers/adzuna.mjs';
+import {searchJooble} from './providers/jooble.mjs';
+import {searchSmartRecruiters} from './providers/smartrecruiters.mjs';
 import {offerInSearchArea} from '../search-area.mjs';
 import {bilingualRoleQueries,bilingualRoleRelevance} from "./role-vocabulary.mjs";
 import {candidateConstraints} from './candidate-constraints.mjs';
@@ -423,10 +427,20 @@ export async function searchStructuredOffers(request, options = {}) {
     safely('tracked-ats', 'ATS directs', () => searchTrackedAts(input, options.trackedAts)),
     safely('france-travail', 'France Travail', () => searchFranceTravail(input, options.franceTravail)),
     safely('jsearch', 'JSearch', () => searchJSearch(input, options.jsearch)),
+    safely('smartrecruiters', 'SmartRecruiters', () => searchSmartRecruiters(input, {enabled:options.additionalSources===true,...options.smartrecruiters})),
+    safely('jobicy', 'Jobicy', () => searchJobicy(input, {enabled:false,...options.jobicy})),
+    safely('adzuna', 'Adzuna', () => searchAdzuna(input, options.adzuna)),
+    safely('jooble', 'Jooble', () => searchJooble(input, options.jooble)),
     safely('arbeitnow-dev', 'Arbeitnow (dev)', () => searchArbeitnow(input, { ...options.arbeitnow, enabled: options.includeDevelopmentSource === true })),
   ]);
   const raw=runs.flatMap(run=>run.offers || []);
-  const semanticRelevance=options.classifyOffers ? await options.classifyOffers(raw) : null;
+  const semanticRelevance=options.classifyOffers ? await options.classifyOffers(raw.filter(offer=>{
+    const contract=inferredContractType(offer,input.contractTypes);
+    if(input.searchArea&&!offerInSearchArea(offer,input.searchArea))return false;
+    if(input.contractTypes.length&&contract!=='unknown'&&!input.contractTypes.includes(contract))return false;
+    if(input.strictContract&&input.contractTypes.length&&contract==='unknown'&&!input.contractTypes.includes('CDI'))return false;
+    return true;
+  })) : null;
   return rankSearchResults(request,raw,runs,{...options,semanticRelevance,started});
 }
 
