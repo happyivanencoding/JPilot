@@ -67,8 +67,6 @@ export function OffersPage() {
   return <div className="jp-page onward-opportunities" data-testid="offers-page">
     <Title sub={tr("根据你的经历挑选的岗位。","Des postes choisis à partir de votre parcours.","Roles selected from your experience.")}>{tr("机会", "Opportunités", "Opportunities")}</Title>
     <section className="onward-opportunity-search"><Input label={tr("搜索职位或公司","Rechercher un poste, une entreprise…","Search a role or company…")} value={query} onChange={e=>setQuery(e.target.value)}/><AiProgressButton taskKind="search" data-testid="search-offers" disabled={!query.trim()} onClick={()=>startTask({kind:"search",query:directions.find(d=>d.title===query)?.searchQuery || query,silent:true})}>{tr("搜索","Rechercher","Search")}</AiProgressButton></section>
-    <div className="onward-results-head"><span>{tr(`${offers.length} 个为你挑选的机会`,`${offers.length} opportunités sélectionnées pour vous`,`${offers.length} opportunities selected for you`)}</span></div>
-    {!!directions.length&&<div className="jp-chips onward-filter-strip">{directions.slice(0,8).map((d,i)=><Chip key={i} selected={query===d.title} onClick={()=>{setQuery(String(d.title));void startTask({kind:"search",query:d.searchQuery,silent:true});}}>{d.title}</Chip>)}</div>}
     {!offers.length&&<section className="jp-stack onward-empty-actions">{(data.v1?.presentationFailed||data.v1?.searchIncomplete)&&<Button onClick={()=>retryV1()}>{tr("重试","Réessayer","Retry")}</Button>}</section>}
     {!!offers.length&&data.v1?.searchProgress?.status==="failed"&&<Button kind="text" onClick={()=>retryV1()}>{tr("重试搜索","Réessayer","Retry search")}</Button>}
     <div className="onward-job-list">{offers.map((offer,index)=><OfferCard key={offer.url} offer={offer} index={index}/>)}</div>

@@ -206,7 +206,7 @@ function useController(profileId: string, preview: boolean) {
   const selectedOffer = discoveryOffers.find(offer => String(offer.url) === String(route.offer || ""));
   const analyticsPage=preview&&data.v1?.journey?.completed!==true
     ? (!profileId?"onboarding_email":!data.cv?"onboarding_upload":!data.v1?.analysisReady?"onboarding_analysis":!data.v1?.journey?.query?"onboarding_direction":!data.v1?.offersReady?"onboarding_search":"onboarding_results")
-    : route.view==="job"||route.view==="offer" ? ["job_match","job_cv","job_tracking"][Number(route.jobTab)||0] : route.view||route.tab;
+    : route.view==="job"||route.view==="offer" ? (Number(route.jobTab)===1?"job_cv":"job_match") : route.view||route.tab;
   useEffect(()=>{
     if(!ready || loading&&!data.profile?.id)return;
     let live=true;

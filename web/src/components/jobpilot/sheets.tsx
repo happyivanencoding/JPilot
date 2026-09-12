@@ -22,12 +22,12 @@ export function OfferSheet({offer}:{offer:Json}) {
   return <JobSheet job={roleDetailForOffer(offer,rows(data.jobs))} offer={offer}/>;
 }
 export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
-  const { route, data, tr, product, navigate, startTask,act,busy,error } = usePilot();
+  const { route, data, tr, product, navigate, startTask,act,busy,error,queueTracking } = usePilot();
   const requestedTab=Math.max(0,Number(route.jobTab)||0),tab=requestedTab===1?1:0;
-  const [trackingOpen,setTrackingOpen]=useState(requestedTab===2);
+  const [applicationStage,setApplicationStage]=useState(String(job.status||"À candidater"));
   const content=useRef<HTMLDivElement>(null);
   useEffect(()=>{if(content.current)content.current.scrollTop=0;},[tab,job.id]);
-  useEffect(()=>{setTrackingOpen(requestedTab===2);},[requestedTab,job.id]);
+  useEffect(()=>{setApplicationStage(String(job.status||"À candidater"));},[job.id,job.status]);
   const cv = job.cv || {}, cvDraft = job.cvDraft || null;
   const guidance=job.cvGuidance || {};
   const [guidanceFacts,setGuidanceFacts]=useState(String(guidance.facts||"")),[guidancePreferences,setGuidancePreferences]=useState(String(guidance.preferences||"")),[guidanceConfirmed,setGuidanceConfirmed]=useState(Boolean(guidance.confirmedAt));
@@ -58,9 +58,8 @@ export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
     <div className="onward-job-hero">
       <OnwardArcMotif className="job"/><CompanyMark company={String(job.company||"")}/>
       <div className="onward-job-hero-copy"><span className="jp-company">{job.company}</span><h1>{job.role}</h1><MetaRow location={String(job.location||"")} contract={job.contract?product(job.contract):undefined}/></div>
-      {job.v1Match&&<AnimatedMatchScore value={detailScore}/>}<div className="onward-job-hero-actions"><div className="jp-chips">{job.contract&&<Pill>{product(job.contract)}</Pill>}{job.workMode&&<Pill>{product(job.workMode)}</Pill>}</div><Button kind="text" data-testid="toggle-job-tracking" onClick={()=>setTrackingOpen(value=>!value)}>{trackingOpen?tr("收起跟踪","Réduire le suivi","Hide tracking"):tr("跟踪投递","Suivre la candidature","Track application")}</Button></div>
+      {job.v1Match&&<AnimatedMatchScore value={detailScore}/>}<div className="onward-job-hero-actions"><div className="jp-chips">{job.contract&&<Pill>{product(job.contract)}</Pill>}{job.workMode&&<Pill>{product(job.workMode)}</Pill>}</div><label className="onward-application-stage"><span>{tr("跟踪投递","Suivre la candidature","Track application")}</span><select data-testid="job-tracking-stage" aria-label={tr("跟踪投递","Suivre la candidature","Track application")} value={applicationStage} onChange={e=>{const value=e.target.value;setApplicationStage(value);queueTracking(job,offer,{status:value},true);}}>{texts(data.statuses).map(s=><option key={s} value={s}>{product(s)}</option>)}</select></label></div>
     </div>
-    {trackingOpen&&<div className="onward-inline-tracking" data-testid="inline-job-tracking"><Tracking key={job.url||job.id} job={job} offer={offer}/></div>}
     <Tabs labels={[tr("匹配", "Match", "Fit"), "CV"]} selected={tab} prefix="job-tab" muted={hasCv?[]:[1]} onChange={i => navigate({ ...route, jobTab: String(i) }, true)} />
     <div className="jp-sheet-content" data-testid="job-content" ref={content}><Localization value={job.localization} />
       {tab===0&&job.localization?.pending&&<div className="jp-stack"><Loading/><Hint>{tr("正在翻译岗位分析…","Traduction de l’analyse du poste…","Translating role analysis…")}</Hint></div>}
@@ -124,22 +123,6 @@ function TailoredCvDraftPanel({ job }: { job: Json }) {
     {pending && !editing && <div className="jp-stack"><Button data-testid="preview-tailored-draft" kind="outline" onClick={()=>navigate({view:'pdf',job:job.id,draft:draft.id})}>{tr("预览真实 PDF","Prévisualiser le PDF réel","Preview actual PDF")}</Button><Button kind="outline" onClick={()=>setEditing(true)}>{tr("手动修改这个版本","Modifier manuellement cette version","Edit this version manually")}</Button>{assessment.revision!==draft.revision&&<Hint>{tr("正在后台重新计算修改后的呈现分，你不需要再点一次评估。","Le score de présentation est recalculé automatiquement en arrière-plan.","The presentation score is recalculating automatically in the background; no extra evaluation click is needed.")}</Hint>}{rejecting?<div className="jp-stack"><TextArea data-testid="reject-tailored-reason" label={tr("哪里需要改（可选）","Que faut-il modifier ? (facultatif)","What should change? (optional)")} rows={3} value={rejectReason} onChange={e=>setRejectReason(e.target.value)} placeholder={tr("例如：不要删掉某段经历；摘要太泛；项目顺序不合适。","Ex. : ne pas supprimer telle expérience ; résumé trop générique ; ordre des projets à revoir.","For example: keep a specific experience; summary is too generic; project order needs changing.")}/><div className="jp-row"><Button kind="outline" data-testid="confirm-reject-tailored-draft" disabled={busy} onClick={()=>act({action:'decideTailoredCvDraft',draftId:draft.id,decision:'reject',reason:rejectReason})}>{tr("确认不要这个版本","Confirmer le refus","Reject this version")}</Button><Button kind="text" onClick={()=>setRejecting(false)}>{tr("返回","Retour","Back")}</Button></div></div>:<div className="jp-row"><Button data-testid="accept-tailored-draft" disabled={busy||assessment.revision!==draft.revision} onClick={()=>act({action:'decideTailoredCvDraft',draftId:draft.id,decision:'accept'})}>{tr("保留这个版本","Conserver cette version","Keep this version")}</Button><Button kind="outline" data-testid="reject-tailored-draft" disabled={busy} onClick={()=>setRejecting(true)}>{tr("不要这个版本","Refuser cette version","Reject this version")}</Button></div>}</div>}
     {draft.status==='rejected'&&draft.rejectionReason&&<Hint>{tr(`你的反馈：${draft.rejectionReason}`,`Votre retour : ${draft.rejectionReason}`,`Your feedback: ${draft.rejectionReason}`)}</Hint>}
   </section>;
-}
-
-function Tracking({ job,offer }: { job: Json;offer?:Json }) {
-  const { data, tr, product, act,trackingKey,trackingStates,queueTracking,flushTracking } = usePilot();
-  const [status, setStatus] = useState(job.status || "À candidater"), [next, setNext] = useState(job.followup?.nextActionSource==='user'?job.followup.nextAction:""), [date, setDate] = useState(job.followup?.dueDate || ""), [note, setNote] = useState(job.followup?.note || "");
-  const editedNext = useRef(false);
-  const [reply, setReply] = useState(job.followup?.replyNote || ""), [replyKind, setReplyKind] = useState("Recruteur");
-  const key=trackingKey(job,offer),saveState=trackingStates[key];
-  const save=(patch:Json,immediate=false)=>queueTracking(job,offer,patch,immediate);
-  useEffect(()=>()=>{void flushTracking(key);},[key]);
-  return <>
-    <Card><h3>{tr("投递状态", "Statut de candidature", "Application status")}</h3><Select label={tr("当前阶段", "Étape actuelle", "Current stage")} value={status} onChange={value=>{setStatus(value);save({status:value},true);}}>{texts(data.statuses).map(s => <option key={s} value={s}>{product(s)}</option>)}</Select><Input data-analytics="tracking_next_action" label={tr("下一步行动", "Prochaine action", "Next action")} value={next} maxLength={12000} onChange={e => { setNext(e.target.value); editedNext.current = true;save({nextAction:e.target.value}); }} /><Input data-analytics="tracking_due_date" type="date" label={tr("跟进日期", "Date de relance", "Follow-up date")} value={date} onChange={e => {setDate(e.target.value);save({dueDate:e.target.value},true);}} /><TextArea data-analytics="tracking_note" label={tr("我的备注", "Mes notes", "My notes")} value={note} rows={3} maxLength={12000} onChange={e => {setNote(e.target.value);save({note:e.target.value});}} onBlur={()=>void flushTracking(key)} /><div data-testid="tracking-save-state" role="status"><Hint>{saveState==='saving'?tr('保存中…','Enregistrement…','Saving…'):saveState==='failed'?tr('未保存，请重试','Non enregistré, réessayez','Not saved. Please retry'):saveState==='saved'?tr('已自动保存','Enregistré automatiquement','Saved automatically'):tr('改动会自动保存','Modifications enregistrées automatiquement','Changes save automatically')}</Hint>{saveState==='failed'&&<Button kind="text" onClick={()=>void flushTracking(key)}>{tr('重试保存','Réessayer','Retry save')}</Button>}</div></Card>
-    <Card><h3>{tr("收到的回复","Réponse reçue","Employer reply")}</h3><TextArea data-analytics="tracking_reply" label={tr("粘贴或概括收到的回复","Coller ou résumer la réponse","Paste or summarize the reply")} value={reply} rows={4} maxLength={12000} onChange={e=>{setReply(e.target.value);save({replyNote:e.target.value});}} onBlur={()=>void flushTracking(key)}/></Card>
-    {rows(job.replies).slice().reverse().map((r, i) => <Card key={i}><div className="jp-row spread"><Pill warm>{product(r.kind)}</Pill><Hint>{r.at?.slice(0, 10)}</Hint></div><p>{r.text}</p></Card>)}
-    {!!rows(job.statusHistory).length && <Card><h3>{tr("状态时间线", "Historique des étapes", "Stage history")}</h3>{rows(job.statusHistory).slice().reverse().map((h, i) => <Hint key={i}>{h.at?.slice(0, 10)} · {product(h.status)}</Hint>)}</Card>}
-  </>;
 }
 
 export function AnalysisSheet() {
