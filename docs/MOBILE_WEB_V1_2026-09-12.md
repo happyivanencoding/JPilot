@@ -159,3 +159,12 @@ Final deployed product SHA: `2c2942c9a4227b32b17323ceb405a345a75d6c3d`; root dep
 The final page replay rendered iBanFirst Credit Risk Analyst (Internship), but also exposed a Jooble title/metadata conflict: an Alternant.e posting was labelled internship by the provider. Jooble normalization now gives an explicit apprenticeship/internship title precedence over contradictory generic source metadata; regression passes. Revision v15-source-contract-evidence prevents reuse of that misleading batch. This corrects the earlier three-offer intermediate acceptance count.
 
 Final release is `dcb11df5256f05dce4e9a735dce7a8529d11eac9` (`V1_DEPLOY_OK`). The fresh v15 public search completed with exactly two eligible Stage entries: Jooble/iBanFirst Credit Risk Analyst (Internship) and the France Travail ALM internship. The contradictory apprenticeship is excluded. No new provider-logo/source-link UI was shipped.
+
+
+## Test-code gate and verified Google login — 2026-09-12
+
+Initial and logged-out users first enter a server-verified test code. ONWARDV1 enables the existing Google Identity Services flow, with server verification adapted from the main gateway (RS256/JWKS, issuer/audience/expiry, verified email, Google subject), now bound to a one-time random gate nonce. ANSHUN enables arbitrary non-empty test IDs, without email syntax validation. Both require a short-lived HttpOnly gate cookie; unauthenticated API requests and attempts to use a Google gate for manual-ID login are denied. Logout revokes both session and gate. Codes can be overridden by JOBPILOT_V1_TEST_CODE and JOBPILOT_V1_ADMIN_CODE. The Google client ID uses JOBPILOT_GOOGLE_CLIENT_ID.
+
+Google profiles are keyed by verified subject and kept separate from admin/legacy unverified IDs. Admin mode can reopen legacy test-email spaces; neither mode clears CV or journey data. New identities reach the full-screen CV upload. Existing identities retain their saved journey. Old pre-gate cookies require reauthentication (session authVersion 2); no account/CV files are deleted.
+
+User approved adding https://jobs-v1.thegreatnovel.com to the existing Google Web client's authorized JavaScript origins; Google Cloud displayed OAuth client saved. Existing production origin retained. No OAuth scopes or client secrets were added. Local checks include generated RSA token fixtures and actual HTTP tests against the built Web server for mode separation, forged credentials, arbitrary IDs, logout, profile isolation and cross-site refusal. Public Google/browser acceptance follows deployment.

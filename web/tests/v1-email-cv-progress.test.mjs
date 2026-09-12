@@ -95,3 +95,18 @@ test('water estimate slows near 80–90%, caps below 100%, and completes only on
   assert.equal(estimatedProgress(1,'completed',55),1);
   assert.ok(estimatedProgress(10000,'failed',55)<1);
 });
+
+test('admin arbitrary IDs persist safely and cannot collide with Google subjects',async()=>withRoot(async root=>{
+ const admin=await createPreviewSession(root,'not/an/email',{mode:'admin'});
+ const again=await createPreviewSession(root,'not/an/email',{mode:'admin'});
+ assert.equal(admin.profileId,again.profileId);
+ const old=await createPreviewSession(root,'student@gmail.com');
+ const google=await createPreviewSession(root,'student@gmail.com',{mode:'google',sub:'google-sub-1'});
+ assert.notEqual(google.profileId,old.profileId);
+ const googleAgain=await createPreviewSession(root,'renamed@gmail.com',{mode:'google',sub:'google-sub-1'});
+ assert.equal(google.profileId,googleAgain.profileId);
+ await assert.rejects(createPreviewSession(root,'',{mode:'admin'}));
+ const file=path.join(root,'.career-ops-web','v1-sessions',old.token+'.json');
+ const value=JSON.parse(fs.readFileSync(file,'utf8'));delete value.authVersion;fs.writeFileSync(file,JSON.stringify(value));
+ assert.equal(readPreviewSession(root,old.token),null,'old unverified cookies cannot skip the new gate');
+}));
