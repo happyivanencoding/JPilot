@@ -77,3 +77,9 @@ For V1 uploads, the uploaded source file and the processed Candidate representat
 - PDF originals are displayed directly from the exact uploaded bytes. DOCX/TXT/MD originals remain exact files for download/share rather than being mislabeled as an unchanged PDF preview.
 
 This source-file rule is presentation/data provenance. It does not authorize rewriting Candidate facts and does not change the keep/reject contract for generated CV drafts.
+
+## V1 Candidate Version / search-history authority (2026-09-12)
+
+Search output belongs to the frozen Candidate Version that produced it. Updating or re-uploading a CV creates a new Candidate evidence version but does not delete earlier search history. Historical groups remain visible with their CV-version identity; scores from an older Candidate Version must not be projected as if they were scores for the current CV. The per-day new-direction budget is also scoped to the current Candidate Version. Presentation locale does not create another search identity. Explicit refresh may create a fresh search operation for the same direction without consuming another distinct-direction slot.
+
+Fast Match search results are a usable product result on their own. Deep Match, display localization and role-CV generation are enrichment layers and must not be required to declare the search itself complete. Failure or timeout in one enrichment layer must not remove already available offer rows or overwrite the Candidate/search provenance recorded above.
