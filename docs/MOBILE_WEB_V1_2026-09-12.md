@@ -1,5 +1,15 @@
 # Onward V1 — Mobile Web Only handoff (2026-09-12)
 
+## Exact original-upload CV viewing — 2026-09-12
+
+The V1 CV contract now separates the **immutable uploaded file** from the **processed Candidate representation**. Upload/extraction may normalize text and later Candidate revisions may be analyzed or edited for matching and role-specific generation, but “View original CV” is no longer allowed to silently rebuild that document from extracted text. When the corresponding source upload is retained, `/api/mobile/cv?original=1` returns the exact uploaded bytes, original MIME type and filename. A later explicit upload becomes the new source authority for subsequent Candidate revisions; intermediate config/notes/CV processing resolves back to the nearest upload ancestor.
+
+This change fixes the Li Ruoqing Chinese CV failure without weakening the renderer’s content-loss guard. Her PDF upload and ingest were successful; the old “original” view reconstructed an A4 document and the post-render check falsely treated CJK line/token splitting as missing text, so the preview failed even though the actual uploaded PDF was intact. The product no longer runs that reconstruction path for an available original file. PDF originals are rendered directly by the existing local PDF.js viewer from the exact source bytes. DOCX/TXT/MD originals are kept as their exact original file for download/share rather than being converted and presented as if the conversion were the original.
+
+Role-specific CVs remain newly generated documents and continue to use the processed Candidate evidence. Their “Original CV” comparison resolves to the source upload that is the ancestor of the frozen Candidate version; when that source is a PDF, comparison/highlight uses that exact PDF rather than a reconstructed baseline. Historical versions for which no source upload exists retain an explicitly labelled rendered-content fallback instead of pretending it is the original file.
+
+Targeted provenance regression tests cover exact byte preservation across later processing, replacement by a later explicit upload and non-PDF MIME preservation; **3/3 PASS**. Web TypeScript/production build also passes. No Candidate facts, draft decisions, scores or uploaded source bytes are rewritten by this change.
+
 ## Chinese CV-analysis mixed-language hotfix — deployed 9cdce18
 
 A real LinkSyde `Business Analyst - Data & Risk` tailored-CV result exposed a display-localization classification bug: an English improvement sentence contained the quoted Chinese source phrase `设计问卷`. The old `alreadyLocalized()` implementation treated the presence of any Han character as proof that the entire segment was already Chinese, so the mostly-English sentence bypassed display translation and appeared beside Chinese bullets. The persisted CV draft itself, scores and application-document language were not the cause and were not changed.

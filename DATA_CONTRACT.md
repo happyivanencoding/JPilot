@@ -65,3 +65,15 @@ JPilot 是 local-first 产品。Git 仓库保存产品代码与公开配置模�
 ## V1 preview upload consent (2026-09-11)
 
 In the isolated per-session V1 preview, choosing a CV file in the explicit upload control authorizes saving the extracted **original** text to that session's own Profile. There is no second raw-text confirmation screen. Source-language and insight-language preferences accompany that upload. This does not authorize invented/AI-rewritten facts: tailored CV drafts retain explicit keep/reject, and one Profile's upload never writes another Profile's canonical files. Preview sign-in creates empty files rather than cloning a pre-existing candidate. Legacy/production import confirmation remains unchanged until that product line is intentionally migrated.
+
+## V1 original CV file authority (2026-09-12)
+
+For V1 uploads, the uploaded source file and the processed Candidate representation have different roles:
+
+- The file selected by the user is retained as the immutable **original CV file** for that upload. “View original CV” must return those original bytes; it must not silently rebuild the document from extracted text or a later template.
+- Extracted/canonical CV text may still be normalized, analyzed or edited for matching and for generating new role-specific CVs. Those processing steps do not replace the original uploaded file.
+- A role-specific CV is a newly generated document and may use the current processed Candidate evidence. Its “Original CV” comparison should use the upload that is the ancestor of that Candidate version when the original is a PDF.
+- A later explicit CV upload establishes a new original source for subsequent Candidate versions. Derived config/notes/CV revisions continue to point back to the nearest uploaded ancestor.
+- PDF originals are displayed directly from the exact uploaded bytes. DOCX/TXT/MD originals remain exact files for download/share rather than being mislabeled as an unchanged PDF preview.
+
+This source-file rule is presentation/data provenance. It does not authorize rewriting Candidate facts and does not change the keep/reject contract for generated CV drafts.

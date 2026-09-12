@@ -137,12 +137,41 @@ export async function decideCvDraft(profileId: string, id: string, decision: str
     return {ok:true,draft,canonicalChanged:true,cvVersion:after.cvVersion};
   });
 }
+const ORIGINAL_CV_MIME:Record<string,string>={
+  ".pdf":"application/pdf",
+  ".docx":"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".txt":"text/plain; charset=utf-8",
+  ".md":"text/markdown; charset=utf-8",
+};
+export function originalUploadedCv(profileId:string,versionId?:string) {
+  const directory=historyDirectory(profileId),taskFolder=path.join(directory,"tasks"),uploadRoot=path.resolve(directory,"uploads")+path.sep;
+  let version=versionId?loadCandidateVersion(directory,versionId):currentCandidateVersion(profileId);
+  const requestedVersionId=String(version.id);
+  const imports=fs.existsSync(taskFolder)?fs.readdirSync(taskFolder)
+    .filter(name=>name.endsWith(".json"))
+    .map(name=>readJson(path.join(taskFolder,name)))
+    .filter(task=>task?.kind==="ingest"&&task?.status==="completed"&&task.result?.imported&&task.result?.versionId&&task.uploadSource):[];
+  const byVersion=new Map<string,Record<string,any>>();
+  for(const task of imports.sort((a,b)=>Date.parse(String(b.updatedAt||b.createdAt||0))-Date.parse(String(a.updatedAt||a.createdAt||0)))) {
+    const source=path.resolve(String(task.uploadSource||""));
+    if(!source.startsWith(uploadRoot)||!fs.existsSync(source)||!fs.statSync(source).isFile())continue;
+    if(!byVersion.has(String(task.result.versionId)))byVersion.set(String(task.result.versionId),task);
+  }
+  while(version) {
+    const task=byVersion.get(String(version.id));
+    if(task) {
+      const file=path.resolve(String(task.uploadSource)),extension=path.extname(file).toLowerCase();
+      return {file,filename:path.basename(String(task.input?.filename||path.basename(file))),mime:ORIGINAL_CV_MIME[extension]||"application/octet-stream",extension,uploadVersionId:String(task.result.versionId),requestedVersionId};
+    }
+    if(!version.previousId)break;
+    version=loadCandidateVersion(directory,version.previousId);
+  }
+  return null;
+}
 export async function originalCvLayoutSource(profileId:string,version:Record<string,any>) {
-  const directory=historyDirectory(profileId),taskFolder=path.join(directory,"tasks");
-  const imports=fs.existsSync(taskFolder)?fs.readdirSync(taskFolder).filter(name=>name.endsWith(".json")).map(name=>readJson(path.join(taskFolder,name))).filter(task=>task?.kind==="ingest"&&task?.status==="completed"&&task.result?.versionId&&task.uploadSource?.endsWith(".pdf")&&fs.existsSync(task.uploadSource)):[];
-  const source=imports.find(task=>loadCandidateVersion(directory,task.result.versionId).sources.cv.text===version.sources.cv.text);
-  if(!source)return null;
-  const out=await promisify(execFile)(process.env.JOBPILOT_PYTHON || "python",[path.resolve(process.cwd(),"scripts/cv-layout.py"),source.uploadSource],{timeout:30000,encoding:"utf8",maxBuffer:1024*1024,env:{...process.env,PYTHONIOENCODING:"utf-8"}});
+  const source=originalUploadedCv(profileId,version.id);
+  if(!source||source.extension!==".pdf")return null;
+  const out=await promisify(execFile)(process.env.JOBPILOT_PYTHON || "python",[path.resolve(process.cwd(),"scripts/cv-layout.py"),source.file],{timeout:30000,encoding:"utf8",maxBuffer:1024*1024,env:{...process.env,PYTHONIOENCODING:"utf-8"}});
   return JSON.parse(out.stdout);
 }
 export async function renderCvPreview(profileId: string, draftId?: string, versionId?: string) {

@@ -14,7 +14,7 @@ import { getProfile, profileFile } from "@/lib/profile-context";
 import { runModelTransport } from "@/lib/model-transport";
 import { extractJsonObject } from "@/lib/model-json.mjs";
 import { atomicWrite } from "@/lib/backend/files.mjs";
-import { currentCandidateVersion, historyDirectory, originalCvLayoutSource, renderCvPreview } from "@/lib/mobile-history";
+import { currentCandidateVersion, historyDirectory, originalCvLayoutSource, originalUploadedCv, renderCvPreview } from "@/lib/mobile-history";
 import { withProfileLock, loadCandidateVersion, operationKey, readJson, writeJson } from "@/lib/mobile-state.mjs";
 import { FLOW_DEFAULTS } from "@/lib/ai-metrics.mjs";
 import {applicationLanguage,requestUiLocale,explanationDirective,contradictsDocumentLanguage,choose} from "@/lib/language-contract.mjs";
@@ -377,24 +377,31 @@ export async function downloadTailoredCv(req: Request) {
     const outputRoot = path.resolve(workspaceRoot(), "output") + path.sep;
     if (!abs.startsWith(outputRoot)) return new Response("invalid CV path", { status: 400 });
     const compare=url.searchParams.get("compare");
-    let output=abs;
+    let output=abs,outputMime="application/pdf",outputName=path.basename(abs);
     if(compare) {
       if(!["baseline","highlight"].includes(compare))return new Response("Invalid comparison mode",{status:400});
       const baseVersionId=draft?.baseVersionId || job?.cv?.inputVersionId;
       if(!baseVersionId)return new Response("Original CV version not found",{status:404});
-      const baseline=await renderCvPreview(profileId,undefined,baseVersionId);
-      if(compare==="baseline")output=baseline.pdf;
-      else {
-        output=abs.replace(/\.pdf$/i,`-changes-v3-single-column-r${draft?.revision || 1}.pdf`);
-        if(!fs.existsSync(output))await promisify(execFile)(process.env.JOBPILOT_PYTHON || "python",[path.resolve(process.cwd(),"scripts/cv-compare.py"),baseline.pdf,abs,output],{timeout:30000,maxBuffer:1024*1024,env:{...process.env,PYTHONIOENCODING:"utf-8"}});
+      const original=originalUploadedCv(profileId,baseVersionId);
+      const exactOriginalPdf=original?.extension===".pdf"?original.file:null;
+      if(compare==="baseline"&&original) {
+        output=original.file;outputMime=original.mime;outputName=original.filename;
+      } else {
+        const baseline=exactOriginalPdf?{pdf:exactOriginalPdf}:await renderCvPreview(profileId,undefined,baseVersionId);
+        if(compare==="baseline")output=baseline.pdf;
+        else {
+          output=abs.replace(/\.pdf$/i,`-changes-v4-original-source-r${draft?.revision || 1}.pdf`);
+          if(!fs.existsSync(output))await promisify(execFile)(process.env.JOBPILOT_PYTHON || "python",[path.resolve(process.cwd(),"scripts/cv-compare.py"),baseline.pdf,abs,output],{timeout:30000,maxBuffer:1024*1024,env:{...process.env,PYTHONIOENCODING:"utf-8"}});
+        }
       }
     }
     const bytes = fs.readFileSync(output);
     return new Response(new Uint8Array(bytes), {
       headers: {
-        "Content-Type": "application/pdf",
-        ...(url.searchParams.get("download")==="1" ? {"Content-Disposition": `attachment; filename="${path.basename(abs)}"`} : {}),
+        "Content-Type": outputMime,
+        ...(url.searchParams.get("download")==="1" ? {"Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(outputName)}`} : {}),
         "Cache-Control": "no-store",
+        ...(compare==="baseline"&&output!==abs?{"X-CV-Original":"exact"}:{}),
       },
     });
   } catch (error) {
