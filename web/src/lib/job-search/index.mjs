@@ -9,6 +9,7 @@ import { searchJSearch } from './providers/jsearch.mjs';
 import { searchFranceTravail } from './providers/france-travail.mjs';
 import { searchArbeitnow } from './providers/arbeitnow.mjs';
 import { searchTrackedAts } from './providers/tracked-ats.mjs';
+import { searchJobIndex } from './providers/job-index.mjs';
 
 const DAY_MS = 86_400_000;
 const STOPWORDS = new Set([
@@ -179,7 +180,7 @@ function textIdentityKey(offer) {
 
 function ageDays(postedAt, now) {
   const time = Date.parse(String(postedAt || ''));
-  if (!Number.isFinite(time)) return null;
+  if (!Number.isFinite(time) || time > now + DAY_MS) return null;
   return Math.max(0, Math.floor((now - time) / DAY_MS));
 }
 
@@ -423,7 +424,12 @@ export async function searchStructuredOffers(request, options = {}) {
   const started = Date.now();
   const input = buildProviderInput(request);
   if (!input.queries.length) throw new Error('Aucun intitulé de poste exploitable pour la recherche structurée.');
-  const runs = await Promise.all([
+  const indexRun = await safely('job-index', 'Onward Job Index', () => searchJobIndex(input, {limit:options.indexLimit ?? 100,...options.jobIndex}));
+  const maxIndexAgeMs = Math.max(60_000, Number(options.maxIndexAgeMs ?? 12 * 60 * 60 * 1000));
+  const indexFresh = indexRun.syncAgeMs != null && indexRun.syncAgeMs <= maxIndexAgeMs;
+  const indexMinimumRaw = Math.max(1, Number(options.indexMinimumRaw ?? 24));
+  const indexSufficient = ['ok','partial'].includes(indexRun.status) && indexFresh && indexRun.rawCount >= indexMinimumRaw;
+  const liveRuns = indexSufficient && options.forceLiveProviders !== true ? [] : await Promise.all([
     safely('tracked-ats', 'ATS directs', () => searchTrackedAts(input, options.trackedAts)),
     safely('france-travail', 'France Travail', () => searchFranceTravail(input, options.franceTravail)),
     safely('jsearch', 'JSearch', () => searchJSearch(input, options.jsearch)),
@@ -433,6 +439,7 @@ export async function searchStructuredOffers(request, options = {}) {
     safely('jooble', 'Jooble', () => searchJooble(input, options.jooble)),
     safely('arbeitnow-dev', 'Arbeitnow (dev)', () => searchArbeitnow(input, { ...options.arbeitnow, enabled: options.includeDevelopmentSource === true })),
   ]);
+  const runs = [indexRun, ...liveRuns];
   const raw=runs.flatMap(run=>run.offers || []);
   const semanticRelevance=options.classifyOffers ? await options.classifyOffers(raw.filter(offer=>{
     const contract=inferredContractType(offer,input.contractTypes);

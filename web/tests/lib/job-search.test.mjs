@@ -505,7 +505,7 @@ test('V1 operation keys invalidate pre-contract analysis and pre-provider search
   const v1SearchKey = operationKey('search', { query: '量化分析师', experience: 'v1' }, { id: 'cv-v1' }, [], '2026-09-08');
   const analysisKey = operationKey('analysis', {}, { id: 'cv-v1' }, [], '2026-09-08');
   assert.match(searchKey, /search-v6-live-providers/);
-  assert.match(v1SearchKey, /search-v11-contract-seniority/);
+  assert.match(v1SearchKey, /search-v12-candidate-lifecycle/);
   assert.match(analysisKey, /analysis-v2-v1-directions/);
   assert.notEqual(searchKey, JSON.stringify(['search', 'search-v5-soft-ranking', 'cv-v1', 'marketing Paris', '2026-09-08']));
   assert.notEqual(v1SearchKey, JSON.stringify(['search', 'search-v10-explicit-intent', 'cv-v1', '量化分析师', '2026-09-08']));

@@ -1,5 +1,17 @@
 # JobPilot search architecture
 
+## 2026-09-13 V1 authority — France Job Index first, live providers as fallback
+
+Mobile Web V1 now treats the shared France Job Index as the primary structured-retrieval layer. The raw market archive remains outside the application repository on the owner's Windows machine under `C:\dev\onward-job-data\snapshots`; V1 never reads or mutates that Raw Layer. A separately rebuildable Derived Layer canonicalizes provider records, preserves non-exclusive `contractTypes[]` (a `Stage ou Alternance` posting may carry both tags), deduplicates provider IDs and strict cross-provider duplicates, and exports search-relevant deltas to the V1 VPS.
+
+The VPS stores only the compact search projection in `/srv/apps/jobpilot-v1/job-index/france-search.sqlite`. The V1 Web container mounts that directory read-only and receives the path through `JOBPILOT_JOB_INDEX_DB`. The database uses normal SQLite indexes plus FTS5 over title/company/location/description; no raw provider snapshots or provider credentials are copied into the search database. Local sync hashes only search-relevant fields, emits gzip upserts/deletes, uploads them over the existing verified SSH channel, and the server applies the delta transactionally. A full baseline is required only once; subsequent runs transfer only changed/removed canonical jobs.
+
+`searchStructuredOffers()` now executes `Onward Job Index` first. A fresh index (default maximum sync age 12 hours) that returns at least 24 raw candidates is sufficient to skip France Travail/JSearch/ATS network calls for that search. If the index is absent, stale or too sparse, the existing live-provider fan-out remains the fallback and its results merge through the same deterministic dedupe/filter/ranking path. This keeps liveness/freshness recovery without making external API latency or rate limits part of the normal user path. Explicit `forceLiveProviders` remains available for tests/diagnostics.
+
+The index is a recall layer, not a candidate-fit oracle. The same downstream deterministic constraints and AI relevance classifier still decide what reaches Fast Match; no fit score is copied from the index. `Stage`, `Alternance`, `CDI`, `CDD` and `Intérim` are independent indexed booleans derived from authoritative `contractTypes[]`, so Stage/Alternance filtering is deliberately non-exclusive. Future-dated source mistakes are not promoted as fresh postings: publication timestamps more than one day ahead are ignored by the product freshness calculation, and the VPS sync projection also nulls dates more than two days in the future.
+
+Initial VPS benchmark on 313,848 canonical active jobs: a Paris Stage structured query returned 100 rows in about 9 ms median, a Marketing+Stage FTS query in about 5 ms median, and a broader Quant/Finance FTS query in about 20 ms median. These are database-retrieval timings on the current VPS, not end-to-end AI search latency. They replace the previous normal path where France Travail/JSearch/provider network calls commonly added hundreds of milliseconds to several seconds before relevance classification even began.
+
 ## 0.3.1 soft-ranking update — current authority
 
 The current discovery rule is **contract-first, otherwise soft ranking**. This supersedes the earlier 0.3 section immediately below where it says seniority, pure sales or non-target geography are excluded.
