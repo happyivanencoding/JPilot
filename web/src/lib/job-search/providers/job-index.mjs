@@ -55,8 +55,20 @@ export function searchJobIndex(input, options = {}) {
     if (terms.length) {
       const match = terms.map(token => `"${token.replaceAll('"','')}"`).join(' OR ');
       const parisOrder = normalize(input.city) === 'paris' ? 'j.is_paris DESC, j.is_ile_de_france DESC,' : '';
-      const sql = `SELECT j.*, bm25(jobs_fts, 8.0, 3.0, 2.0, 1.0) AS fts_rank FROM jobs_fts JOIN jobs j ON j.rowid=jobs_fts.rowid WHERE jobs_fts MATCH ? AND ${where.join(' AND ')} ORDER BY ${parisOrder} fts_rank ASC, COALESCE(j.published_at,'') DESC LIMIT ?`;
-      rows = db.prepare(sql).all(match, ...params, maxRows);
+      const candidateRows = Math.max(maxRows * 5, 300);
+      const sql = `WITH fts_candidates AS (
+        SELECT rowid AS rid, bm25(jobs_fts, 8.0, 3.0, 2.0, 1.0) AS fts_rank
+        FROM jobs_fts
+        WHERE jobs_fts MATCH ?
+        ORDER BY fts_rank ASC
+        LIMIT ?
+      )
+      SELECT j.*, f.fts_rank
+      FROM fts_candidates f JOIN jobs j ON j.rowid=f.rid
+      WHERE ${where.join(' AND ')}
+      ORDER BY ${parisOrder} f.fts_rank ASC, COALESCE(j.published_at,'') DESC
+      LIMIT ?`;
+      rows = db.prepare(sql).all(match, candidateRows, ...params, maxRows);
     } else {
       const sql = `SELECT j.*, 0 AS fts_rank FROM jobs j WHERE ${where.join(' AND ')} ORDER BY j.is_paris DESC, COALESCE(j.published_at,'') DESC LIMIT ?`;
       rows = db.prepare(sql).all(...params, maxRows);
