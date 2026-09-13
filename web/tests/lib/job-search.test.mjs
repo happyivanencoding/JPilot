@@ -512,3 +512,13 @@ test('V1 operation keys invalidate pre-contract analysis and pre-provider search
   assert.notEqual(v1SearchKey, JSON.stringify(['search', 'search-v9-onward-area', 'cv-v1', '量化分析师', '2026-09-08']));
   assert.notEqual(analysisKey, JSON.stringify(['analysis', 'cv-v1']));
 });
+
+test('default search visibility keeps 21-day roles and removes older dated history without deleting source records', () => {
+  const base={company:'Example Bank',location:'Paris, France',country:'France',source:'fixture',direct:true,remote:false,contractType:'Stage',description:'quantitative market risk research python'};
+  const within={...base,url:'https://example.com/within-21d',title:'Stage Quantitative Risk Analyst',postedAt:new Date(NOW-20*86_400_000).toISOString()};
+  const historical={...base,url:'https://example.com/older-than-21d',title:'Stage Quantitative Market Risk Analyst Historical',postedAt:new Date(NOW-22*86_400_000).toISOString()};
+  const result=rankSearchResults({query:'quantitative risk',targetRoles:['Quantitative Risk Analyst'],city:'Paris',country:'France',contractTypes:['Stage'],knownUrls:[]},[within,historical],[],{now:NOW,limit:10});
+  assert.deepEqual(result.offers.map(x=>x.url),['https://example.com/within-21d']);
+  assert.equal(result.metrics.maximumAgeDays,21);
+  assert.equal(result.metrics.staleRemoved,1);
+});

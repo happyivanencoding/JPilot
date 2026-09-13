@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
+const DAY_MS = 86_400_000;
+const SEARCH_WINDOW_DAYS = 21;
+
 const STOPWORDS = new Set(['job','jobs','role','roles','poste','postes','offre','offres','emploi','emplois','the','and','for','with','from','dans','pour','avec','des','les','une','un','de','du','et','en','paris','france','remote','hybrid','cdi','cdd','stage','internship','alternance','apprenticeship','analyst','manager','junior','senior']);
 
 function clean(value, max = 500) {
@@ -46,8 +49,11 @@ export function searchJobIndex(input, options = {}) {
   try {
     const terms = ftsTokens(input);
     const params = [];
-    const where = ['j.active=1', '(j.published_at IS NULL OR j.published_at <= ?)'];
-    params.push(new Date(Date.now() + 86_400_000).toISOString());
+    const now = Date.now();
+    const visibleSince = new Date(now - SEARCH_WINDOW_DAYS * DAY_MS).toISOString();
+    const visibleUntil = new Date(now + DAY_MS).toISOString();
+    const where = ['j.active=1', '(j.published_at IS NULL OR (j.published_at >= ? AND j.published_at <= ?))'];
+    params.push(visibleSince, visibleUntil);
     const contract = contractWhere(input.contractTypes || []);
     if (contract) where.push(contract);
     const maxRows = Math.max(24, Math.min(240, Number(options.limit || 100)));
@@ -104,6 +110,7 @@ export function searchJobIndex(input, options = {}) {
     return {
       id:'job-index', label:'Onward Job Index', status:'ok', latencyMs:Date.now()-started, rawCount:offers.length, apiCalls:0, estimatedCostUsd:0, offers,
       indexedCount:Number(meta.active_jobs || meta.job_count || 0) || null,
+      searchWindowDays:SEARCH_WINDOW_DAYS,
       syncedAt:syncedAt || null,
       syncAgeMs,
     };

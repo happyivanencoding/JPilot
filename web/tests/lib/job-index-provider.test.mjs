@@ -20,8 +20,10 @@ function fixtureDb() {
   const insert=db.prepare(`insert into jobs values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const now=new Date().toISOString();
   for(let i=0;i<30;i++) insert.run(`s${i}`,`Stage Quantitative Risk Analyst ${i}`,'Example Bank','Paris, France','Paris','Île-de-France','France',now,now,JSON.stringify(i===0?['Stage','Alternance']:['Stage']),'Stage','Full time',0,1,1,1,i===0?1:0,0,0,0,'Finance & insurance','Banking','Risk','Quant',`https://example.test/${i}`,`https://example.test/${i}`,`https://example.test/${i}`,`Python market risk quantitative finance ${i}`,JSON.stringify(['finance-official']),1);
+  const oldPublished=new Date(Date.now()-30*86_400_000).toISOString();
+  insert.run('old-history','Stage Quantitative Risk Analyst Historical','Example Bank','Paris, France','Paris','Île-de-France','France',oldPublished,oldPublished,JSON.stringify(['Stage']),'Stage','Full time',0,1,1,1,0,0,0,0,'Finance & insurance','Banking','Risk','Quant','https://example.test/old-history','https://example.test/old-history','https://example.test/old-history','Historical quantitative finance role retained for research',JSON.stringify(['finance-official']),1);
   db.prepare('insert into index_meta values(?,?)').run('synced_at',now);
-  db.prepare('insert into index_meta values(?,?)').run('active_jobs','30');
+  db.prepare('insert into index_meta values(?,?)').run('active_jobs','31');
   db.close();
   return {dir,file};
 }
@@ -33,6 +35,9 @@ test('job index preserves non-exclusive Stage + Alternance labels and searches l
     assert.equal(result.status,'ok');
     assert.equal(result.apiCalls,0);
     assert.equal(result.rawCount,30);
+    assert.equal(result.indexedCount,31);
+    assert.equal(result.searchWindowDays,21);
+    assert.equal(result.offers.some(x=>x.providerJobId==='old-history'),false);
     assert.deepEqual(result.offers[0].contractTypes.includes('Stage'),true);
     assert.ok(result.offers.some(x=>x.contractTypes.includes('Stage')&&x.contractTypes.includes('Alternance')));
   } finally { fs.rmSync(dir,{recursive:true,force:true}); }

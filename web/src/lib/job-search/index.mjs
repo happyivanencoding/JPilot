@@ -12,6 +12,7 @@ import { searchTrackedAts } from './providers/tracked-ats.mjs';
 import { searchJobIndex } from './providers/job-index.mjs';
 
 const DAY_MS = 86_400_000;
+const SEARCH_WINDOW_DAYS = 21;
 const STOPWORDS = new Set([
   'jobs','job','role','roles','poste','postes','offre','offres','emploi','emplois','open','opened','current','actuel','actuels','actuelle','actuelles',
   'find','trouver','recherche','chercher','search','according','based','selon','avec','pour','dans','from','with','the','and','des','les','une','un','de','du','et','en',
@@ -533,7 +534,7 @@ export function rankSearchResults(request, raw, runs = [], options = {}) {
     normalized.why = why(normalized) + ' ' + searchNotes.join(' ');
     return [normalized];
   }).sort((a,b) => b.rankScore - a.rankScore || (a.ageDays ?? 9999) - (b.ageDays ?? 9999));
-  const maximumAgeDays = Math.max(7, Number(options.maximumAgeDays ?? 120));
+  const maximumAgeDays = Math.max(7, Number(options.maximumAgeDays ?? SEARCH_WINDOW_DAYS));
   const currentEnough = enriched.filter(offer => offer.ageDays === null || offer.ageDays <= maximumAgeDays);
   const staleRemoved = enriched.length - currentEnough.length;
   currentEnough.sort((a,b) => (a.relevanceTier === b.relevanceTier ? 0 : a.relevanceTier === 'strong' ? -1 : 1) || b.rankScore - a.rankScore || (a.ageDays ?? 9999) - (b.ageDays ?? 9999));
