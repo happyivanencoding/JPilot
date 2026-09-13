@@ -34,7 +34,10 @@ test('Optimize CV journey has one current score, one presentation score and one 
  const before=roleCvJourney({v1Match:basis});
  assert.deepEqual([before.current,before.optimised,before.optimisedEstimated,before.capability,before.quickBoosts.length],[50,54,true,65,4]);
  const after=roleCvJourney({v1Match:basis,cvDraft:{status:'pending',matchBasis:basis,assessment:{scoringVersion:'role-fit-2-cv',baselineScore:50,draftScore:54,delta:4}}});
- assert.deepEqual([after.current,after.optimised,after.optimisedEstimated,after.capability,after.expressionGain,after.totalGain],[50,54,false,65,4,15]);
+ assert.deepEqual([after.current,after.optimised,after.optimisedEstimated,after.capability,after.expressionGain,after.totalGain],[50,54,true,65,4,15]);
+ const accepted=roleCvJourney({v1Match:basis,cvDraft:{...after,status:'accepted',matchBasis:basis},cv:{file:'role.pdf',matchBasis:basis}});
+ assert.deepEqual([accepted.current,accepted.optimised,accepted.optimisedEstimated,accepted.capability],[54,54,false,65]);
+ const loading=roleCvJourney({v1Match:basis,enrichment:{deepMatchState:'loading'}});assert.deepEqual([loading.current,loading.optimised,loading.capability],[null,null,null]);
  assert.deepEqual(after.quickBoosts.map(item=>item.kind),['confirm_existing','confirm_existing','quick_build','quick_build']);
 });
 test('deep-match identity ignores application CV language; CV generation owns that dimension',()=>{

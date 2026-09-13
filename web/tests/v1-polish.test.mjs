@@ -138,8 +138,9 @@ test('Optimize CV uses the three-step journey, quiet quick boosts and no old hel
  const journey=fs.readFileSync(new URL('../src/components/jobpilot/role-cv-journey.tsx',import.meta.url),'utf8');
  const css=fs.readFileSync(new URL('../src/components/jobpilot/onward.css',import.meta.url),'utf8');
  assert.match(sheets,/RoleCvJourney/);assert.match(journey,/step=\{1\}/);assert.match(journey,/step=\{2\}/);assert.match(journey,/step=\{3\}/);
- assert.match(journey,/当前匹配/);assert.match(journey,/优化表达后/);assert.match(journey,/快速补强后/);assert.match(journey,/role-cv-quick-boosts/);
- assert.match(journey,/可能已具备/);assert.match(journey,/可快速补齐/);assert.doesNotMatch(journey,/<button/,'quick boost rows are informational in this release');
+ assert.match(journey,/当前匹配/);assert.match(journey,/优化表达后/);assert.match(journey,/补强后/);assert.match(journey,/role-cv-quick-boosts/);
+ assert.match(journey,/可补齐/);assert.doesNotMatch(journey,/可能已具备|可快速补齐|快速补强到|快速补强后/);assert.doesNotMatch(journey,/<button/,'quick boost rows are informational in this release');
+ assert.match(journey,/正在计算/);assert.match(journey,/data-pending/);assert.match(css,/\.onward-cv-stage-pending\{/);
  assert.doesNotMatch(journey,/仅在完成或确认后记入分数/);
  assert.doesNotMatch(sheets,/根据这份岗位要求，重新组织你已有的经历。由你决定是否生成和保留。/);
  assert.doesNotMatch(sheets,/Présentez votre parcours pour cette offre\. Vous décidez de créer et de conserver le CV\./);
@@ -154,13 +155,13 @@ test('visible role score waits for Deep Match and pending analysis/translation u
  const context=fs.readFileSync(new URL('../src/components/jobpilot/pilot-context.tsx',import.meta.url),'utf8');
  const tailored=fs.readFileSync(new URL('../src/lib/tailored-cv.ts',import.meta.url),'utf8');
  const css=fs.readFileSync(new URL('../src/components/jobpilot/onward.css',import.meta.url),'utf8');
- assert.match(sheets,/deepReady\?<AnimatedMatchScore value=\{deep\.currentScore\}/);
+ assert.match(sheets,/deepReady&&Number\.isFinite\(visibleScore\)\?<AnimatedMatchScore value=\{visibleScore\}/);
  assert.match(sheets,/DetailLoadingSkeleton mode=\{translationPending\?'translation':'analysis'\}/);
  assert.doesNotMatch(catalog,/fastMatch\?\.score/,'Fast Match must not be a visible fallback score');
  assert.doesNotMatch(onboarding,/deep\.currentScore\?\?fast\.score/,'first-run cards must also wait for Deep Match');
  assert.match(onboarding,/MatchScorePending/);
  assert.match(context,/source:'v1-offer-open'/);assert.match(context,/source:'v1-saved-job-open'/);
- assert.match(sheets,/tab===1&&v1AwaitingDeep&&<DetailLoadingSkeleton/);
+ assert.doesNotMatch(sheets,/tab===1&&v1AwaitingDeep&&<DetailLoadingSkeleton/);assert.match(sheets,/job\.v1Match&&<RoleCvJourney job=\{job\}\/>/);
  assert.match(tailored,/岗位匹配还在计算中/);assert.match(tailored,/status:409/);
  assert.match(visual,/正在计算岗位匹配/);assert.match(visual,/正在翻译岗位分析/);assert.match(visual,/预计还需约/);
  assert.match(css,/\.onward-detail-loading\{[^}]*min-height:340px/);
@@ -211,7 +212,7 @@ test('final rubric understands fit independently of retrieval score without an a
  assert.deepEqual(matchScoreView({deepMatch:match}),{baseline:72,current:72,potential:80,forecast:80,reviewed:false,reviewedScore:null});
 });
 test('draft/header/card share the same baseline and capped upside; internal assessments are not rewritten',()=>{
- const job={v1Match:{currentScore:41,cvPotentialScore:49},cvDraft:{atsScore:85,assessment:{baselineScore:56,draftScore:76,delta:20}}};
+ const job={v1Match:{currentScore:41,cvPotentialScore:49,capabilityPotentialScore:49,deepMatch:{currentScore:41,cvPotentialScore:49,capabilityPotentialScore:49,quickBoosts:[]}},cvDraft:{atsScore:85,assessment:{baselineScore:56,draftScore:76,delta:20}}};
  const projected=projectV1JobScores(job);
  assert.equal(projected.matchScore.current,41);
  assert.deepEqual(projected.cvDraft.assessment,{baselineScore:41,draftScore:49,delta:8});

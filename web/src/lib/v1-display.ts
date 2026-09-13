@@ -80,7 +80,8 @@ export async function prepareV1Display(profileId:string, locale:string, snapshot
   result.discovery={...current,offers:result.v1.offersReady?current.offers:[],history:history.filter(g=>g.ready)};
   const format=(offer:any,historyStale=false)=>{
     const saved=historyStale?null:(snapshot.jobs || []).find((job:any)=>job.url===offer.url && job.v1Match);
-    const deepReady=Boolean(saved?.v1Match?.deepMatch?.currentScore!=null || offer.deepMatch?.currentScore!=null);
+    const deepState=String(offer.enrichment?.deepMatchState || '');
+    const deepReady=deepState==='ready'&&Boolean(saved?.v1Match?.deepMatch?.currentScore!=null || offer.deepMatch?.currentScore!=null);
     const match=deepReady?(saved?matchScoreView(saved):matchScoreView(offer)):{current:null,potential:null,baseline:null,forecast:null,reviewed:false,reviewedScore:null};
     const roleCv=saved?.cvDraft?.status==='pending' ? {jobId:saved.id,status:"pending",draftId:saved.cvDraft.id} : saved?.cv?.file ? {jobId:saved.id,status:"accepted"} : saved && tasks.some(t=>t.kind==='cv'&&t.input?.jobId===saved.id&&['queued','running','reconciling'].includes(t.status)) ? {jobId:saved.id,status:"generating"} : null;
     const friendly:any=friendlyOffer(offer);

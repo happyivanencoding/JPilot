@@ -10,7 +10,7 @@ import {searchRequestFromConfig} from '../src/lib/job-search/mobile-context.mjs'
 import {detectedDocumentLanguage,publicError} from '../src/lib/language-contract.mjs';
 import {professionalReferenceHtml,professionalTailoredHtml} from '../src/lib/backend/reference-template.mjs';
 import {renderTailoredCv} from '../src/lib/backend/cv-document.mjs';
-const basis={currentScore:31,cvPotentialScore:43,deepMatch:{scoringVersion:'role-fit-2',capabilityGaps:[{title:'C# experience',why:'C# projects are not in the CV'}]}};
+const basis={currentScore:31,cvPotentialScore:43,capabilityPotentialScore:43,deepMatch:{scoringVersion:'role-fit-2',currentScore:31,cvPotentialScore:43,capabilityPotentialScore:43,quickBoosts:[],capabilityGaps:[{title:'C# experience',why:'C# projects are not in the CV'}]}};
 test('a forecast of 43 does not force a reviewed draft of 39 upward',()=>{
  const review=normalizeRoleCvReview(basis,{raw_draft_score:39,improvements:['A concrete project is now in the summary'],remaining_gaps:['C# experience']});
  assert.equal(review.baselineScore,31);assert.equal(review.draftScore,39);assert.equal(review.delta,8);

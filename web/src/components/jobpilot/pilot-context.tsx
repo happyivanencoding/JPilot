@@ -357,8 +357,8 @@ function useController(profileId: string, preview: boolean) {
     navigate({ tab: routeRef.current.tab, view: "job", job:jobId, jobTab: String(jobTab) });
     const job=rows(dataRef.current.jobs).find(item=>String(item.id)===jobId);
     const fast=job?.v1Match?.fastMatch;
-    const quickBoosts=rows(job?.v1Match?.deepMatch?.quickBoosts);
-    if(job?.v1Match&&(!job.v1Match.deepMatch||quickBoosts.length<3)&&job.url&&Number.isFinite(Number(fast?.score))) {
+    const hasCurrentDeep=Array.isArray(job?.v1Match?.deepMatch?.quickBoosts);
+    if(job?.v1Match&&(!job.v1Match.deepMatch||!hasCurrentDeep)&&job.url&&Number.isFinite(Number(fast?.score))) {
       const offer={url:job.url,title:job.role,company:job.company,location:job.location,contractType:job.contract,description:job.sourceDescription||job.description||'',fastMatch:fast};
       void startTask({kind:'deep_match',url:job.url,offer,fastMatch:fast,silent:true,source:'v1-saved-job-open'});
     }
@@ -371,8 +371,8 @@ function useController(profileId: string, preview: boolean) {
     // Opening a relevant result is an explicit user action. If this result was
     // outside the background prefetch set, start its Deep Match now rather than
     // leaving the detail screen permanently scoreless.
-    const quickBoosts=rows(offer?.deepMatch?.quickBoosts);
-    if(offer&&(!offer.deepMatch||quickBoosts.length<3)&&state!=='loading'&&Number.isFinite(Number(offer.fastMatch?.score)))
+    const hasCurrentDeep=Array.isArray(offer?.deepMatch?.quickBoosts);
+    if(offer&&(!offer.deepMatch||!hasCurrentDeep)&&state!=='loading'&&Number.isFinite(Number(offer.fastMatch?.score)))
       void startTask({kind:'deep_match',url:offerUrl,offer,fastMatch:offer.fastMatch,silent:true,source:'v1-offer-open'});
   }, [navigate,startTask]);
   return { analytics, profileId, preview, locale, theme, invalidateReads, logout, retryV1, changeAnalysisLanguage, ready, data, detail, route, selectedJob, selectedOffer, loading, busy, error, expired, notice, taskLaunch,

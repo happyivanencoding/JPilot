@@ -53,7 +53,7 @@ export async function saveMobileOffer(profileId: string, raw: unknown) {
   let store = readCandidatureStore(profileId);
   const existing = store.jobs.find(j => normalizeUrl(j.url) === normalizeUrl(offer.url));
   if (existing) {
-    if(v1Match && !(existing.cvDraft?.status==='pending' && existing.cvDraft?.matchBasis) && !existing.cv?.matchBasis){existing.v1Match={...existing.v1Match,...v1Match,...(existing.cv?.presentationDelta!=null?{displayScore:Math.min(Number(v1Match.cvPotentialScore),Number(v1Match.currentScore)+Math.max(0,Number(existing.cv.presentationDelta)))}:{})};if(!existing.sourceDescription&&offer.description)existing.sourceDescription=offer.description;writeCandidatureStore(profileId,store);}
+    if(v1Match && !(existing.cvDraft?.status==='pending' && existing.cvDraft?.matchBasis) && !existing.cv?.matchBasis){existing.v1Match={...existing.v1Match,...v1Match,...(existing.cv?.file?{displayScore:Number(v1Match.cvPotentialScore)}:{})};if(!existing.sourceDescription&&offer.description)existing.sourceDescription=offer.description;writeCandidatureStore(profileId,store);}
     return existing;
   }
   // Persist through the shared writer in this runtime root, not another HTTP server.

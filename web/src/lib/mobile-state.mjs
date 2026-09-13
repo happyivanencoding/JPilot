@@ -82,13 +82,14 @@ const clean = x => String(x ?? '').trim().replace(/\s+/g, ' ');
 // Operation keys are product-contract identities, not just input hashes. When a
 // flow starts requiring new persisted output fields, bump its version so an old
 // completed task cannot masquerade as a valid result for the new UI contract.
+export const DEEP_MATCH_OPERATION_VERSION = 'role-fit-5-quick-boosts-v1';
 const ANALYSIS_OPERATION_VERSION = 'analysis-v2-v1-directions';
 const SEARCH_OPERATION_VERSION = 'search-v6-live-providers';
 export function operationKey(kind, input, version, jobs, day = new Date().toISOString().slice(0,10)) {
   const job = jobs.find(j => j.id === input.jobId);
   const evidence = j => j ? [j.id, normalizeUrl(j.url), j.reportNum || null, j.score ?? null, j.summary || '', j.match || [], j.gaps || []] : null;
   if (kind === 'evaluate') return JSON.stringify([kind, normalizeUrl(input.url)]);
-  if (kind === 'deep_match') return JSON.stringify([kind, input.experience==='v1'?'role-fit-5-quick-boosts-v1':'v1', version.id, normalizeUrl(input.url || input.offer?.url)]);
+  if (kind === 'deep_match') return JSON.stringify([kind, input.experience==='v1'?DEEP_MATCH_OPERATION_VERSION:'v1', version.id, normalizeUrl(input.url || input.offer?.url)]);
   if (kind === 'analysis') return JSON.stringify([kind, input.experience==='v1' ? 'analysis-v4-strength-examples' : ANALYSIS_OPERATION_VERSION, version.id]);
   if (kind === 'search') return JSON.stringify([kind, input.experience==='v1' ? 'search-v12-candidate-lifecycle' : SEARCH_OPERATION_VERSION, version.id, clean(input.query), day, ...(input.experience==='v1'?[input.searchRevision || 'legacy',Number(input.refreshSequence || 0)]:[])]);
   if (kind === 'cv') return JSON.stringify([kind, version.id, evidence(job), job?.cvGuidance || null, ...(input.applicationLanguage ? [input.applicationLanguage] : [])]);
@@ -125,10 +126,12 @@ export function discoveryProjection(discovery, jobs, tasks) {
     const completed = tasks.find(t => t.kind === 'evaluate' && normalizeUrl(t.input?.url) === key && t.status === 'completed' && t.result?.done);
     if (persistedJobEvaluation(job) || completed) return [];
     const task = tasks.find(t => t.kind === 'evaluate' && normalizeUrl(t.input?.url) === key && ['queued','running','reconciling'].includes(t.status));
-    const newestDeep=tasks.find(t=>t.kind==='deep_match' && normalizeUrl(t.input?.url || t.input?.offer?.url)===key);
-    const deepCompleted=tasks.find(t=>t.kind==='deep_match' && normalizeUrl(t.input?.url || t.input?.offer?.url)===key && t.status==='completed' && t.result?.deepMatch);
-    const deepActive=tasks.find(t=>t.kind==='deep_match' && normalizeUrl(t.input?.url || t.input?.offer?.url)===key && ['queued','running','reconciling'].includes(t.status));
-    const deepFailed=tasks.find(t=>t.kind==='deep_match' && normalizeUrl(t.input?.url || t.input?.offer?.url)===key && ['failed','interrupted'].includes(t.status));
+    const currentDeepResult=t=>Array.isArray(t.result?.deepMatch?.quickBoosts);
+    const currentDeepTask=t=>String(t.operationKey||'').includes(DEEP_MATCH_OPERATION_VERSION) || currentDeepResult(t);
+    const newestDeep=tasks.find(t=>t.kind==='deep_match' && currentDeepTask(t) && normalizeUrl(t.input?.url || t.input?.offer?.url)===key);
+    const deepCompleted=tasks.find(t=>t.kind==='deep_match' && currentDeepResult(t) && normalizeUrl(t.input?.url || t.input?.offer?.url)===key && t.status==='completed' && t.result?.deepMatch);
+    const deepActive=tasks.find(t=>t.kind==='deep_match' && currentDeepTask(t) && normalizeUrl(t.input?.url || t.input?.offer?.url)===key && ['queued','running','reconciling'].includes(t.status));
+    const deepFailed=tasks.find(t=>t.kind==='deep_match' && currentDeepTask(t) && normalizeUrl(t.input?.url || t.input?.offer?.url)===key && ['failed','interrupted'].includes(t.status));
     return [{ ...offer, lifecycle: task ? 'evaluating' : 'discovered', taskId: task?.id || null, jobId: job?.id || null,
       deepMatch:deepCompleted?.result?.deepMatch || null,
       deepMatchState:deepActive?'loading':newestDeep&&['failed','interrupted'].includes(newestDeep.status)?'failed':deepCompleted?'ready':deepFailed?'failed':'pending',

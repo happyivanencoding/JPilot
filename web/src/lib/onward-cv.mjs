@@ -17,6 +17,7 @@ export function roleCvOutcome(value={}) {
 }
 
 const boundedScore=value=>Math.max(0,Math.min(100,Math.round(Number(value)||0)));
+const finiteScore=value=>value!==null&&value!==undefined&&value!==''&&Number.isFinite(Number(value));
 const quickKind=item=>{
  const declared=String(item?.kind||'');
  if(['confirm_existing','quick_build'].includes(declared))return declared;
@@ -33,33 +34,37 @@ const normalizedQuickBoost=item=>({
 
 /**
  * Three-step role-CV journey used by the V1 Optimize CV surface.
- * 1) current role fit; 2) fit after better presentation of existing facts;
- * 3) estimated potential after a small set of realistic quick boosts.
+ * 1) current Deep Match; 2) fixed Deep Match estimate after better presentation;
+ * 3) estimated potential after a small set of realistic boosts.
+ *
+ * Scores stay hidden until the current Deep Match contract is ready. Accepting
+ * the generated role CV promotes the visible current score to step 2; the CV
+ * review rubric remains internal feedback and never replaces that fixed target.
  */
 export function roleCvJourney(value={}) {
  const draft=value.cvDraft;
  const match=(draft?.status==='pending'?draft.matchBasis:null)||value.cv?.matchBasis||value.v1Match||value.deepMatch||value;
  const deep=match?.deepMatch||value.v1Match?.deepMatch||value.deepMatch||{};
- const outcome=roleCvOutcome(value);
- const current=boundedScore(match?.currentScore??deep?.currentScore??outcome.baseline);
- const cvPotential=Math.max(current,boundedScore(match?.cvPotentialScore??deep?.cvPotentialScore??current));
- const optimised=outcome.ready?Math.max(current,boundedScore(outcome.score)):cvPotential;
+ const deepState=String(value.enrichment?.deepMatchState||'');
+ const currentContract=Array.isArray(deep?.quickBoosts);
+ const ready=(deepState?deepState==='ready':currentContract) && currentContract && finiteScore(deep?.currentScore??match?.currentScore);
+ if(!ready) return {current:null,optimised:null,optimisedEstimated:true,capability:null,expressionGain:null,totalGain:null,quickBoosts:[],ready:false,accepted:false};
+ const baseline=boundedScore(deep?.currentScore??match?.currentScore);
+ const optimised=finiteScore(deep?.cvPotentialScore??match?.cvPotentialScore)?Math.max(baseline,boundedScore(deep?.cvPotentialScore??match?.cvPotentialScore)):null;
+ const capability=optimised!=null&&finiteScore(deep?.capabilityPotentialScore??match?.capabilityPotentialScore)?Math.max(optimised,boundedScore(deep?.capabilityPotentialScore??match?.capabilityPotentialScore)):null;
+ const accepted=Boolean(value.cv?.file && value.cv?.matchBasis) || draft?.status==='accepted';
+ const current=accepted&&optimised!=null?optimised:baseline;
  const explicit=Array.isArray(deep?.quickBoosts)?deep.quickBoosts:[];
- const fallback=Array.isArray(deep?.capabilityGaps)?deep.capabilityGaps:[];
- const quickBoosts=(explicit.length?explicit:fallback).map(normalizedQuickBoost).filter(item=>item.title).slice(0,4);
- const rawCapability=Math.max(optimised,boundedScore(match?.capabilityPotentialScore??deep?.capabilityPotentialScore??optimised));
- // Historical Deep Match results predate quick_boosts and their capability
- // ceiling could include long-term learning. Bound those old results by the
- // concrete gap potentials until the refreshed quick-boost contract arrives.
- const fallbackLift=quickBoosts.reduce((sum,item)=>sum+item.potential,0);
- const capability=explicit.length?rawCapability:Math.max(optimised,Math.min(rawCapability,optimised+fallbackLift));
+ const quickBoosts=explicit.map(normalizedQuickBoost).filter(item=>item.title).slice(0,4);
  return {
    current,
    optimised,
-   optimisedEstimated:!outcome.ready,
+   optimisedEstimated:!accepted,
    capability,
-   expressionGain:Math.max(0,optimised-current),
-   totalGain:Math.max(0,capability-current),
+   expressionGain:optimised==null?null:Math.max(0,optimised-baseline),
+   totalGain:capability==null?null:Math.max(0,capability-baseline),
    quickBoosts,
+   ready:true,
+   accepted,
  };
 }

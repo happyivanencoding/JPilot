@@ -486,9 +486,8 @@ export async function decideTailoredCvDraft(profileId:string,draftId:string,deci
     if(v1Match && Number.isFinite(Number(v1Match.currentScore))) {
       const current=Math.max(0,Math.min(100,Math.round(Number(v1Match.currentScore))));
       const ceiling=Math.max(current,Math.min(100,Math.round(Number(v1Match.cvPotentialScore ?? current))));
-      const presentationGain=Math.max(0,Math.round(Number(draft.assessment?.delta ?? 0)));
-      v1Match.acceptedCvScore=Math.min(ceiling,current+presentationGain);
-      v1Match.displayScore=v1Match.acceptedCvScore;
+      v1Match.acceptedCvScore=ceiling;
+      v1Match.displayScore=ceiling;
       v1Match.acceptedDraftId=draft.id;
     }
     if(job.status==="À candidater")job.status="CV prêt";

@@ -235,15 +235,20 @@ export function v1CvAssessment(job, assessment={}) {
   return {...assessment,baselineScore,draftScore,delta:draftScore-baselineScore};
 }
 
+const CURRENT_DEEP_OPERATION_VERSION='role-fit-5-quick-boosts-v1';
+const currentDeepResult=deep=>Boolean(deep&&Array.isArray(deep.quickBoosts)&&deep.currentScore!=null&&Number.isFinite(Number(deep.currentScore)));
+const currentDeepTask=task=>String(task?.operationKey||'').includes(CURRENT_DEEP_OPERATION_VERSION)||currentDeepResult(task?.result?.deepMatch);
+
 export function matchScoreView(value={}) {
  const match=(value.cvDraft?.status==='pending'?value.cvDraft.matchBasis:null) || value.cv?.matchBasis || value.v1Match || value.deepMatch || value;
  const baseline=clamp(match.currentScore ?? value.fastMatch?.score);
  const forecast=clamp(Math.max(baseline,Number(match.cvPotentialScore ?? baseline)));
- const current=clamp(Math.max(baseline,Math.min(forecast,Number(value.v1Match?.displayScore ?? match.displayScore ?? baseline))));
+ const acceptedRoleCv=Boolean(value.cv?.file&&value.cv?.matchBasis);
+ const current=acceptedRoleCv?forecast:clamp(Math.max(baseline,Math.min(forecast,Number(value.v1Match?.displayScore ?? match.displayScore ?? baseline))));
  const assessment=value.cvDraft?.status!=='rejected' && value.cvDraft?.assessment?.draftScore!=null ? v1CvAssessment(value,value.cvDraft.assessment) : null;
  const reviewed=!!assessment || !!value.cv?.file && value.cv?.presentationDelta!=null;
- // The original estimate is immutable for this frozen assessment. A review is
- // a separate observation; neither a zero gain nor acceptance rewrites potential.
+ // Review scores remain internal feedback. Once the user keeps the role CV,
+ // the fixed Deep Match presentation target becomes the visible current score.
  const reviewedScore=assessment ? assessment.draftScore : reviewed ? current : null;
  return {current,potential:forecast,baseline,forecast,reviewed,reviewedScore};
 }
@@ -251,25 +256,29 @@ export function projectV1JobScores(job,tasks=[],versionId='') {
  job=repairOfferText(job);
  if(!job.v1Match)return job;
  const frozen=(job.cvDraft?.status==='pending'?job.cvDraft.matchBasis:null) || job.cv?.matchBasis;
- if(frozen) job={...job,v1Match:{...frozen,displayScore:job.v1Match.displayScore ?? frozen.currentScore}};
- const latest=tasks.find(t=>t.kind==='deep_match'&&t.status==='completed'&&t.inputVersionId===versionId&&normalizeUrl(t.input?.url)===normalizeUrl(job.url)&&t.result?.deepMatch?.scoringVersion==='role-fit-2');
- const active=tasks.find(t=>t.kind==='deep_match'&&['queued','running','reconciling'].includes(t.status)&&t.inputVersionId===versionId&&normalizeUrl(t.input?.url)===normalizeUrl(job.url));
- const failed=tasks.find(t=>t.kind==='deep_match'&&['failed','interrupted'].includes(t.status)&&t.inputVersionId===versionId&&normalizeUrl(t.input?.url)===normalizeUrl(job.url));
- if(!frozen && latest && (job.cvDraft?.status==='rejected' || !job.cvDraft?.baseVersionId || job.cvDraft.baseVersionId===versionId) && (!job.cv?.inputVersionId || job.cv.inputVersionId===versionId)) {
+ const frozenCurrent=currentDeepResult(frozen?.deepMatch);
+ const latest=tasks.find(t=>t.kind==='deep_match'&&currentDeepResult(t.result?.deepMatch)&&t.status==='completed'&&t.inputVersionId===versionId&&normalizeUrl(t.input?.url)===normalizeUrl(job.url)&&t.result?.deepMatch?.scoringVersion==='role-fit-2');
+ const active=tasks.find(t=>t.kind==='deep_match'&&currentDeepTask(t)&&['queued','running','reconciling'].includes(t.status)&&t.inputVersionId===versionId&&normalizeUrl(t.input?.url)===normalizeUrl(job.url));
+ const failed=tasks.find(t=>t.kind==='deep_match'&&currentDeepTask(t)&&['failed','interrupted'].includes(t.status)&&t.inputVersionId===versionId&&normalizeUrl(t.input?.url)===normalizeUrl(job.url));
+ if(frozen&&frozenCurrent) {
+   const accepted=Boolean(job.cv?.file&&job.cv?.matchBasis);
+   const target=Math.max(Number(frozen.currentScore||0),Number(frozen.cvPotentialScore??frozen.currentScore??0));
+   job={...job,v1Match:{...frozen,displayScore:accepted?target:(job.v1Match.displayScore ?? frozen.currentScore)}};
+ } else if(latest && (job.cvDraft?.status==='rejected' || !job.cvDraft?.baseVersionId || job.cvDraft.baseVersionId===versionId) && (!job.cv?.inputVersionId || job.cv.inputVersionId===versionId)) {
    const deep=latest.result.deepMatch;
-   const gain=Math.max(0,Number(job.cv?.presentationDelta || 0));
-   job={...job,v1Match:{...job.v1Match,currentScore:deep.currentScore,cvPotentialScore:deep.cvPotentialScore,capabilityPotentialScore:deep.capabilityPotentialScore,displayScore:Math.min(deep.cvPotentialScore,deep.currentScore+gain),deepMatch:deep}};
+   const accepted=Boolean(job.cv?.file);
+   job={...job,v1Match:{...job.v1Match,currentScore:deep.currentScore,cvPotentialScore:deep.cvPotentialScore,capabilityPotentialScore:deep.capabilityPotentialScore,displayScore:accepted?deep.cvPotentialScore:deep.currentScore,deepMatch:deep}};
  }
- const deepReady=Boolean(job.v1Match?.deepMatch?.currentScore!=null);
- const result={...job,matchScore:matchScoreView(job),cvOutcome:roleCvOutcome(job),enrichment:{...(job.enrichment||{}),
-   deepMatchState:deepReady?'ready':active?'loading':failed?'failed':'pending',
+ const deepReady=currentDeepResult(job.v1Match?.deepMatch);
+ const state=active?'loading':deepReady?'ready':failed?'failed':'pending';
+ const result={...job,matchScore:state==='ready'?matchScoreView(job):{current:null,potential:null,baseline:null,forecast:null,reviewed:false,reviewedScore:null},cvOutcome:roleCvOutcome(job),enrichment:{...(job.enrichment||{}),
+   deepMatchState:state,
    deepMatchTaskId:latest?.id || active?.id || null,
    deepMatchEstimate:active?.estimate || latest?.estimate || null,
    deepMatchStartedAt:active?.createdAt || latest?.createdAt || null}};
  if(job.cvDraft) result.cvDraft={...job.cvDraft,assessment:v1CvAssessment(job,job.cvDraft.assessment || {})};
  return result;
 }
-
 export function friendlyGapTitle(value) {
  const text=String(value || '');
  if(/(?:未|没有|尚未).*(?:证明|证实|展示|体现)|not (?:demonstrated|proven|evidenced)|non demontre|non démontré/i.test(text)) {
