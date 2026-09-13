@@ -10,7 +10,7 @@ Deep Match contract 新增 `quick_boosts[]`，每项只能是 `confirm_existing`
 
 用户额外点名要求删除的辅助句已经从 Optimize CV 页面完整移除：`根据这份岗位要求，重新组织你已有的经历。由你决定是否生成和保留。`，法语/英语对应文案也一并删除。新 UI 不再用这句话占据岗位版 CV 生成入口上方空间。
 
-Pre-deploy validation：三层/Quick Boost/localization/polish 定向套件 **52/52 PASS**，role-CV consistency + role-tab **13/13 PASS**，Web `npm run typecheck` **PASS**，production `npm run build` **PASS**。部署回执在完成 V1-only rollout 后补充到本节。
+Validation + rollout：三层/Quick Boost/localization/polish 定向套件 **52/52 PASS**，role-CV consistency + role-tab **13/13 PASS**，Web `npm run typecheck` **PASS**，production `npm run build` **PASS**，`git diff --check` **PASS**。业务提交 **`ca9da560e20543efbd2925a1a1250793214725da`** 已 push 到 `origin/feature/v1-mobile-web-only-20260912`，并通过权威 `/srv/server-infra/scripts/jobpilot-v1-deploy-root.sh` 上线；服务器 Docker production build/TypeScript、session/Profile isolation + logout、model keys、search-provider config、Job Index 和 internal analytics gates 全 PASS，Job Index gate 为 `active=314269 / stage=853 / ftsFinance=4228`，最终返回 **`V1_DEPLOY_OK ca9da560e20543efbd2925a1a1250793214725da`**。部署后 `deployed_sha` 回读同一业务 SHA，`jobpilot-v1-web-1` healthy，公网 `https://jobs-v1.thegreatnovel.com/` HTTP **200**。Production 与 Yifeng 的 Web/gateway/tunnel 容器 ID + StartedAt 与即时部署前基线完全一致；仅独立 V1 Web/tunnel 被重建，Android/main/Yifeng 源码未修改。
 
 ## 2026-09-13 Intent-first search / Deep-only visible score / active loading states
 
