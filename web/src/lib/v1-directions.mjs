@@ -2,7 +2,7 @@
 // common bilingual job titles, and specialisms are never discarded when merging.
 export const V1_NEW_SEARCHES_PER_DAY=6;
 export const V1_SEARCH_CACHE_MS=24*60*60*1000;
-export const V1_SEARCH_REVISION='v15-source-contract-evidence';
+export const V1_SEARCH_REVISION='v16-intent-first-deep-score';
 const norm=value=>String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[’']/g,' ').replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 const families=[
  ['export-sales',/\bexport\b|出口/,['Export sales support','Support commercial export','出口销售支持'],'assistant commercial export junior'],
@@ -74,8 +74,13 @@ export function compactDirectionHistory(tasks,analysis={}) {
 export function v1CandidatePriority(offer,query) {
  const requested=directionDescriptor(query).key.split(':')[0],actual=directionDescriptor(offer.title).key.split(':')[0];
  const commercial=new Set(['export-sales','business-development']);
- const affinity=requested===actual?45:commercial.has(requested)&&commercial.has(actual)?18:0;
- // Search ordering follows the candidate constraint actually inferred upstream.
- // A senior-looking title is not itself a mismatch for an experienced profile.
- return Number(offer.fastMatch?.score||0)+affinity-(offer.seniorityFit==='above-target'?28:0);
+ const affinity=requested===actual?8:commercial.has(requested)&&commercial.has(actual)?3:0;
+ const tier={strong:3,adjacent:2,closest:1}[offer.relevanceTier] || 0;
+ const search=Number(offer.rankScore ?? offer.searchRelevance ?? 0);
+ const bridge=Number(offer.fastMatch?.bridgeability ?? 60);
+ const fit=Number(offer.fastMatch?.score ?? 50);
+ const bounded=Number(offer.discoveryRank ?? Math.round(search*.82+bridge*.12+fit*.06));
+ // Reused search tasks must preserve the same intent-first semantics as fresh
+ // searches. Candidate fit only breaks ties inside the requested occupation.
+ return tier*1000+bounded+affinity;
 }

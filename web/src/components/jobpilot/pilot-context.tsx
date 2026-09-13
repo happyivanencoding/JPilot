@@ -353,8 +353,26 @@ function useController(profileId: string, preview: boolean) {
     window.location.assign("/");
   }), [execute, request]);
   const retryLocalization = useCallback(() => routeRef.current.view === "task" || routeRef.current.view === "report" ? refreshDetail(true) : refresh(true), [refresh, refreshDetail]);
-  const openJob = useCallback((job: string, jobTab = 0) => navigate({ tab: routeRef.current.tab, view: "job", job, jobTab: String(jobTab) }), [navigate]);
-  const openOffer = useCallback((offer: string) => navigate({ tab: "offers", view: "offer", offer }), [navigate]);
+  const openJob = useCallback((jobId: string, jobTab = 0) => {
+    navigate({ tab: routeRef.current.tab, view: "job", job:jobId, jobTab: String(jobTab) });
+    const job=rows(dataRef.current.jobs).find(item=>String(item.id)===jobId);
+    const fast=job?.v1Match?.fastMatch;
+    if(job?.v1Match&&!job.v1Match.deepMatch&&job.url&&Number.isFinite(Number(fast?.score))) {
+      const offer={url:job.url,title:job.role,company:job.company,location:job.location,contractType:job.contract,description:job.sourceDescription||job.description||'',fastMatch:fast};
+      void startTask({kind:'deep_match',url:job.url,offer,fastMatch:fast,silent:true,source:'v1-saved-job-open'});
+    }
+  }, [navigate,startTask]);
+  const openOffer = useCallback((offerUrl: string) => {
+    navigate({ tab: "offers", view: "offer", offer:offerUrl });
+    const discovery=dataRef.current.discovery || {};
+    const offer=[...rows(discovery.offers),...rows(discovery.history).flatMap(group=>rows(group.offers))].find(item=>String(item.url)===offerUrl);
+    const state=String(offer?.enrichment?.deepMatchState || '');
+    // Opening a relevant result is an explicit user action. If this result was
+    // outside the background prefetch set, start its Deep Match now rather than
+    // leaving the detail screen permanently scoreless.
+    if(offer&&!offer.deepMatch&&state==='pending'&&Number.isFinite(Number(offer.fastMatch?.score)))
+      void startTask({kind:'deep_match',url:offerUrl,offer,fastMatch:offer.fastMatch,silent:true,source:'v1-offer-open'});
+  }, [navigate,startTask]);
   return { analytics, profileId, preview, locale, theme, invalidateReads, logout, retryV1, changeAnalysisLanguage, ready, data, detail, route, selectedJob, selectedOffer, loading, busy, error, expired, notice, taskLaunch,
     tr, product, setLocale, setTheme, setError, setNotice, setTaskLaunch, setTrainingJob, request, documentBytes, apiUrl, fail, notify,
     navigate, close, refresh, retryLocalization, trackingKey,trackingStates,queueTracking,flushTracking, act, startTask, startTasks, saveOffers, tailorOffer, openTask, upload, switchProfile, openJob, openOffer, execute };

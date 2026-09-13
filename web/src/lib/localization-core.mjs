@@ -79,15 +79,11 @@ export function displaySlots(value,scope) {
     rows(m,'capabilityGaps',p,(r,q)=>fields(r,['title','why','nextAction'],q,mh));
     // tools are search/domain terms and remain source-language tokens.
   }
-  function fastMatch(f,p,hint='zh') {
-    if(!f)return;rows(f,'strengths',p,(r,q)=>fields(r,['title','evidence'],q,detectedDocumentLanguage(r.evidence)||hint));
-    rows(f,'gaps',p,(r,q)=>fields(r,['title','reason'],q,detectedDocumentLanguage(r.reason)||hint));
-  }
-  function offer(o,p) {fields(o,['why'],p,detectedDocumentLanguage(o.why)||'fr');deepMatch(o.deepMatch,[...p,'deepMatch']);fastMatch(o.fastMatch,[...p,'fastMatch']);}
+  function offer(o,p) {fields(o,['why'],p,detectedDocumentLanguage(o.why)||'fr');deepMatch(o.deepMatch,[...p,'deepMatch']);}
   function jobMatch(j,p=[],detail=true) {
     const hint=j.outputLocale || (/[\p{Script=Han}]/u.test(j.summary||'')?'zh':detectedDocumentLanguage(j.summary)||'fr');
     if(!detail)return;
-    if(j.v1Match){deepMatch(j.v1Match.deepMatch,[...p,'v1Match','deepMatch'],hint);fastMatch(j.v1Match.fastMatch,[...p,'v1Match','fastMatch']);return;}
+    if(j.v1Match){deepMatch(j.v1Match.deepMatch,[...p,'v1Match','deepMatch'],hint);return;}
     fields(j,['summary','angle','recommendation'],p,hint);strings(j,'strengths',p,hint);
     rows(j,'gaps',p,(r,q)=>fields(r,['title','why','positioning','severity'],q,hint));
     rows(j,'match',p,(r,q)=>fields(r,['requirement','evidence','action','fit'],q,hint));

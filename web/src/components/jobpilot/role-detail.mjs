@@ -3,11 +3,11 @@ import {roleCvOutcome} from '../../lib/onward-cv.mjs';
 export function roleDetailForOffer(offer,jobs=[]) {
  const saved=jobs.find(job=>job.url===offer.url);
  if(saved)return saved;
- const deep=offer.deepMatch || {},fast=offer.fastMatch || {},scores=offer.matchScore || {};
- const current=scores.baseline ?? deep.currentScore ?? fast.score ?? -1;
+ const deep=offer.deepMatch || null,scores=offer.matchScore || {};
+ const current=deep?.currentScore ?? null;
  return {id:'',url:offer.url,role:offer.title,company:offer.company,location:offer.location,
-   contract:offer.contractType,status:'À candidater',matchScore:scores,
-   v1Match:{currentScore:current,displayScore:scores.current ?? current,cvPotentialScore:scores.forecast ?? deep.cvPotentialScore ?? current,deepMatch:deep}};
+   contract:offer.contractType,status:'À candidater',matchScore:scores,enrichment:offer.enrichment,localization:offer.localization,
+   v1Match:{currentScore:current,displayScore:current,cvPotentialScore:deep?.cvPotentialScore ?? current,deepMatch:deep}};
 }
 export function roleCvIsReady(job) {return job.cvDraft?.status==='pending' || !!job.cv?.file;}
 

@@ -6,7 +6,7 @@ import {SearchAreaFields} from "./search-area";
 import {ensureCvConsent} from "./cv-consent";
 import { useEffect, useRef, useState } from "react";
 import {ArrowRight,FileText} from "lucide-react";
-import {DirectionMedallion} from "./onward-visual";
+import {DirectionMedallion,MatchScorePending} from "./onward-visual";
 import { Home as HomeIcon, PersonOutline as ProfileIcon, Search as OffersIcon } from "./native-icons";
 import { rows, usePilot, type Json } from "./pilot-context";
 import { AiProgressButton, Button, Hint } from "./ui";
@@ -113,10 +113,10 @@ export function V1FirstRunOverlay({onDone}:{onDone:()=>void|Promise<void>}) {
 }
 
 function FirstRunOffer({offer,onClick}:{offer:Json;onClick:()=>void}) {
-  const {tr,product}=usePilot();
-  const deep=offer.deepMatch||{},fast=offer.fastMatch||{};
-  const score=Number(deep.currentScore??fast.score);
-  const strengths=rows(deep.strengths).length?rows(deep.strengths).map(x=>x.title):rows(fast.strengths).map(x=>x.title);
-  const gaps=rows(deep.capabilityGaps).length?rows(deep.capabilityGaps).map(x=>x.title):rows(fast.gaps).map(x=>x.title);
-  return <button type="button" className="jp-v1-swipe-card" onClick={onClick}><div className="jp-row"><div className="jp-grow"><span className="jp-company">{offer.company}</span><h2>{offer.title}</h2></div><div className="jp-match100">{Number.isFinite(score)?Math.round(score):"—"}<span>/100</span></div></div><Hint>{[offer.location,offer.contractType!=="unknown"?product(offer.contractType):""].filter(Boolean).join(" · ")}</Hint><div className="jp-v1-signal-row">{strengths.slice(0,2).map((x,i)=><span className="jp-v1-plus" key={i}>+ {x}</span>)}</div><div className="jp-v1-signal-row">{gaps.slice(0,2).map((x,i)=><span className="jp-v1-minus" key={i}>− {x}</span>)}</div><CvOutcome value={offer}/></button>;
+  const {product}=usePilot();
+  const deep=offer.deepMatch||{},ready=deep.currentScore!=null&&Number.isFinite(Number(deep.currentScore));
+  const contentReady=ready&&!offer.enrichment?.localization?.pending;
+  const strengths=contentReady?rows(deep.strengths).map(x=>x.title):[];
+  const gaps=contentReady?rows(deep.capabilityGaps).map(x=>x.title):[];
+  return <button type="button" className="jp-v1-swipe-card" onClick={onClick}><div className="jp-row"><div className="jp-grow"><span className="jp-company">{offer.company}</span><h2>{offer.title}</h2></div>{ready?<div className="jp-match100">{Math.round(Number(deep.currentScore))}<span>/100</span></div>:<MatchScorePending compact estimate={offer.enrichment?.deepMatchEstimate} startedAt={offer.enrichment?.deepMatchStartedAt}/>}</div><Hint>{[offer.location,offer.contractType!=="unknown"?product(offer.contractType):""].filter(Boolean).join(" · ")}</Hint>{contentReady&&<><div className="jp-v1-signal-row">{strengths.slice(0,2).map((x,i)=><span className="jp-v1-plus" key={i}>+ {x}</span>)}</div><div className="jp-v1-signal-row">{gaps.slice(0,2).map((x,i)=><span className="jp-v1-minus" key={i}>− {x}</span>)}</div><CvOutcome value={offer}/></>}</button>;
 }

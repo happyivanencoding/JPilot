@@ -3,10 +3,11 @@ import {MATCH_METHOD,ANCHORED_INSTRUCTIONS,anchoredBreakdown} from "./match-rubr
 import {normalizeUrl} from "./posting-url.mjs";
 import {repairOfferText} from './text-repair.mjs';
 // V1 student-facing match layer. This is deliberately separate from the legacy
-// 0-5 official evaluation: fastMatch is immediate guidance, while deep_match is
-// a read-only explanation. Neither one writes an application or official report.
+// 0-5 official evaluation: Fast Fit is an internal ranking/prefetch signal, while
+// deep_match is the user-visible 0-100 fit assessment. Neither one writes an
+// application or official report.
 export const V1_DEEP_MATCH_PREFETCH_LIMIT = 5;
-export const V1_MATCH_VERSION = 'v1-student-match-2';
+export const V1_MATCH_VERSION = 'v1-fast-fit-3-intent-first';
 
 const STOP = new Set([
   'and','the','for','with','from','your','you','our','this','that','will','are','des','les','une','un','pour','avec','dans','sur','vos','votre','aux','du','de','la','le','et','en',
@@ -100,15 +101,24 @@ export function fastMatchOffer(candidate,config,offer){
   const lexical=Math.min(100,Math.round(overlap(cvTokens,jobTokens)*220));
   const toolCoverage=jobTools.length?Math.round(jobTools.filter(x=>cvTools.includes(x)).length/jobTools.length*100):Math.min(80,lexical+10);
   const domainCoverage=jobDomains.length?Math.round(jobDomains.filter(x=>cvDomains.includes(x)).length/jobDomains.length*100):Math.min(80,lexical+5);
-  const search=Number.isFinite(Number(offer?.searchRelevance))?clamp(offer.searchRelevance):55;
-  let score=Math.round(search*.38+lexical*.24+toolCoverage*.20+domainCoverage*.18);
+  // Fast Fit predicts the same four dimensions as Deep Match, but cheaply. It
+  // is intentionally NOT search relevance: an explicit career switch should
+  // still surface the occupation the user asked for even when current fit is low.
+  const rolePct=clamp(domainCoverage*.75+lexical*.25);
+  const dutiesPct=clamp(lexical);
+  const toolsPct=jobTools.length?clamp(Math.min(75,toolCoverage)):60;
+  const levelPct=offer?.seniorityFit==='above-target'?25:65;
+  const components={
+    role:Math.round(30*rolePct/100),
+    duties:Math.round(30*dutiesPct/100),
+    tools_languages:Math.round(20*toolsPct/100),
+    level:Math.round(20*levelPct/100),
+  };
+  let score=Object.values(components).reduce((sum,value)=>sum+value,0);
   const notes=[];
-  if(offer?.seniorityFit==='above-target'){score-=9;notes.push('seniority');}
-  if(offer?.roleFit==='outside-primary'){score-=7;notes.push('role');}
-  if(offer?.locationFit==='outside-europe'){score-=12;notes.push('location');}
-  else if(offer?.locationFit==='outside-target'){score-=7;notes.push('location');}
-  else if(offer?.locationFit==='europe-other'){score-=3;notes.push('location');}
-  if(offer?.relevanceTier==='closest')score-=7;
+  if(offer?.seniorityFit==='above-target')notes.push('seniority');
+  if(offer?.roleFit==='outside-primary')notes.push('role');
+  if(offer?.locationFit==='outside-europe'||offer?.locationFit==='outside-target'||offer?.locationFit==='europe-other')notes.push('location');
   score=clamp(score,18,96);
   const strengths=[];
   for(const tool of jobTools.filter(x=>cvTools.includes(x)).slice(0,3)) strengths.push({title:tool,type:'tool',evidence:`CV 中已出现 ${tool}`});
@@ -118,18 +128,38 @@ export function fastMatchOffer(candidate,config,offer){
   for(const tool of jobTools.filter(x=>!cvTools.includes(x)).slice(0,4)) gaps.push({title:tool,type:'not-demonstrated',reason:`岗位描述提到 ${tool}，当前档案未发现明确证据`});
   if(offer?.seniorityFit==='above-target')gaps.push({title:'经验年限 / seniority',type:'constraint',reason:'岗位资历可能高于当前目标'});
   if(offer?.locationFit==='outside-europe'||offer?.locationFit==='outside-target')gaps.push({title:'地点适配',type:'constraint',reason:'地点偏离当前偏好，需要确认可接受性'});
+  // Bridgeability measures whether the gap is realistically actionable. Missing
+  // tools/projects reduce it mildly; explicit seniority/leadership gaps reduce it
+  // strongly. This signal only nudges ranking inside the requested occupation.
+  let bridgeability=82;
+  bridgeability-=Math.min(20,jobTools.filter(x=>!cvTools.includes(x)).length*5);
+  if(offer?.seniorityFit==='above-target')bridgeability-=35;
+  if(offer?.roleFit==='outside-primary')bridgeability-=12;
+  bridgeability=clamp(bridgeability,20,95);
   const roleHint=titleCase(offer?.title);
   return {
     version:V1_MATCH_VERSION,score,confidence:jobText.length>500?'medium':'low',
+    bridgeability,
     roleHint, strengths:strengths.slice(0,4),gaps:gaps.slice(0,4),
-    components:{search,lexical,toolCoverage,domainCoverage},notes,
+    components,signals:{lexical,toolCoverage,domainCoverage},notes,
     disclaimer:'快速匹配用于探索，不代表录用概率。',
   };
 }
 
 export function enrichOffersWithFastMatch(candidate,config,offers){
-  return (Array.isArray(offers)?offers:[]).map(offer=>({...offer,fastMatch:fastMatchOffer(candidate,config,offer)}))
-    .sort((a,b)=>(b.fastMatch?.score||0)-(a.fastMatch?.score||0)||(b.rankScore||0)-(a.rankScore||0));
+  const tier={strong:3,adjacent:2,closest:1};
+  return (Array.isArray(offers)?offers:[]).map(offer=>{
+    const fastMatch=fastMatchOffer(candidate,config,offer);
+    // Search intent remains dominant. Fast Fit and bridgeability are bounded
+    // tie-breakers, so a career switcher's low current fit cannot replace the
+    // occupation they explicitly asked to explore.
+    const searchRank=Number.isFinite(Number(offer?.rankScore))?clamp(offer.rankScore):clamp(offer?.searchRelevance ?? 50);
+    const discoveryRank=Math.round(searchRank*.82+fastMatch.bridgeability*.12+fastMatch.score*.06);
+    return {...offer,fastMatch,discoveryRank};
+  }).sort((a,b)=>(tier[b.relevanceTier]||0)-(tier[a.relevanceTier]||0)
+    ||(b.discoveryRank||0)-(a.discoveryRank||0)
+    ||(b.rankScore||0)-(a.rankScore||0)
+    ||(a.ageDays??9999)-(b.ageDays??9999));
 }
 
 export function deepMatchPrompt({candidate,offer,fastMatch,jobIntelligence,language='en'}){
@@ -220,12 +250,19 @@ export function projectV1JobScores(job,tasks=[],versionId='') {
  const frozen=(job.cvDraft?.status==='pending'?job.cvDraft.matchBasis:null) || job.cv?.matchBasis;
  if(frozen) job={...job,v1Match:{...frozen,displayScore:job.v1Match.displayScore ?? frozen.currentScore}};
  const latest=tasks.find(t=>t.kind==='deep_match'&&t.status==='completed'&&t.inputVersionId===versionId&&normalizeUrl(t.input?.url)===normalizeUrl(job.url)&&t.result?.deepMatch?.scoringVersion==='role-fit-2');
+ const active=tasks.find(t=>t.kind==='deep_match'&&['queued','running','reconciling'].includes(t.status)&&t.inputVersionId===versionId&&normalizeUrl(t.input?.url)===normalizeUrl(job.url));
+ const failed=tasks.find(t=>t.kind==='deep_match'&&['failed','interrupted'].includes(t.status)&&t.inputVersionId===versionId&&normalizeUrl(t.input?.url)===normalizeUrl(job.url));
  if(!frozen && latest && (job.cvDraft?.status==='rejected' || !job.cvDraft?.baseVersionId || job.cvDraft.baseVersionId===versionId) && (!job.cv?.inputVersionId || job.cv.inputVersionId===versionId)) {
    const deep=latest.result.deepMatch;
    const gain=Math.max(0,Number(job.cv?.presentationDelta || 0));
    job={...job,v1Match:{...job.v1Match,currentScore:deep.currentScore,cvPotentialScore:deep.cvPotentialScore,displayScore:Math.min(deep.cvPotentialScore,deep.currentScore+gain),deepMatch:deep}};
  }
- const result={...job,matchScore:matchScoreView(job),cvOutcome:roleCvOutcome(job)};
+ const deepReady=Boolean(job.v1Match?.deepMatch?.currentScore!=null);
+ const result={...job,matchScore:matchScoreView(job),cvOutcome:roleCvOutcome(job),enrichment:{...(job.enrichment||{}),
+   deepMatchState:deepReady?'ready':active?'loading':failed?'failed':'pending',
+   deepMatchTaskId:latest?.id || active?.id || null,
+   deepMatchEstimate:active?.estimate || latest?.estimate || null,
+   deepMatchStartedAt:active?.createdAt || latest?.createdAt || null}};
  if(job.cvDraft) result.cvDraft={...job.cvDraft,assessment:v1CvAssessment(job,job.cvDraft.assessment || {})};
  return result;
 }

@@ -9,7 +9,7 @@ import { ACTIVE, destinationFor } from "./model.mjs";
 import { AiProgressButton, Button, Card, Check, Chip, Empty, External, Hint, Input, LiquidTaskProgress, Loading, Localization, Markdown, Pill, Score, Select, Sheet, Tabs, TextArea, Title, taskName } from "./ui";
 import { PracticeCard, PrepChecklist } from "./profile-prepare";
 import { Match100, SearchMetrics } from "./catalog";
-import {AnimatedMatchScore,CompanyMark,MetaRow,OnwardArcMotif,SemanticRow} from "./onward-visual";
+import {AnimatedMatchScore,CompanyMark,DetailLoadingSkeleton,MatchScorePending,MetaRow,OnwardArcMotif,SemanticRow} from "./onward-visual";
 
 export function OfferSheet({offer}:{offer:Json}) {
   const {data}=usePilot();
@@ -23,8 +23,14 @@ export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
   useEffect(()=>{if(content.current)content.current.scrollTop=0;},[tab,job.id]);
   useEffect(()=>{setApplicationStage(String(job.status||"À candidater"));},[job.id,job.status]);
   const cv = job.cv || {}, cvDraft = job.cvDraft || null;
-  const hasCv=roleCvIsReady(job),detailScore=job.v1Match?.displayScore ?? job.v1Match?.currentScore ?? job.score;
+  const hasCv=roleCvIsReady(job);
   const deep=job.v1Match?.deepMatch || {},scoreRows=rows(deep.scoreBreakdown);
+  const deepReady=deep.currentScore!=null&&Number.isFinite(Number(deep.currentScore));
+  const deepState=String(job.enrichment?.deepMatchState || (deepReady?'ready':'pending'));
+  const deepPending=!deepReady&&['pending','loading'].includes(deepState);
+  const translationPending=deepReady&&Boolean(job.localization?.pending || job.enrichment?.localization?.pending);
+  const contentPending=deepPending||translationPending;
+  const v1AwaitingDeep=Boolean(job.v1Match)&&!deepReady;
   const roleRequirements=visibleRoleRequirements(rows(deep.requirements),{location:job.location,contract:job.contract||offer?.contractType});
   const criterionTitle=(key:string,gap=false)=>key==='role'?(gap?tr("职业方向需确认","Domaine à confirmer","Role domain to clarify"):tr("职业方向直接匹配","Domaine directement aligné","Direct role fit")):key==='duties'?tr("职责覆盖","Couverture des responsabilités","Responsibility coverage"):key==='tools_languages'?tr("工具与语言","Outils et langues","Tools and languages"):key==='level'?tr("经验范围","Niveau d’expérience","Experience level"):tr("匹配依据","Élément de correspondance","Match evidence");
   const explicitStrengths=rows(deep.strengths),explicitGaps=rows(deep.capabilityGaps);
@@ -40,11 +46,12 @@ export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
     <div className="onward-job-hero">
       <OnwardArcMotif className="job"/><CompanyMark company={String(job.company||"")}/>
       <div className="onward-job-hero-copy"><span className="jp-company">{job.company}</span><h1>{job.role}</h1><MetaRow location={String(job.location||"")} contract={job.contract?product(job.contract):undefined}/></div>
-      {job.v1Match&&<AnimatedMatchScore value={detailScore}/>}<div className="onward-job-hero-actions"><div className="jp-chips">{job.contract&&<Pill>{product(job.contract)}</Pill>}{job.workMode&&<Pill>{product(job.workMode)}</Pill>}</div><label className="onward-application-stage"><select data-testid="job-tracking-stage" aria-label={tr("投递状态","Statut de candidature","Application status")} value={applicationStage} onChange={e=>{const value=e.target.value;setApplicationStage(value);queueTracking(job,offer,{status:value},true);}}>{texts(data.statuses).map(s=><option key={s} value={s}>{product(s)}</option>)}</select></label></div>
+      {deepReady?<AnimatedMatchScore value={deep.currentScore}/>:deepPending?<MatchScorePending estimate={job.enrichment?.deepMatchEstimate} startedAt={job.enrichment?.deepMatchStartedAt}/>:null}<div className="onward-job-hero-actions"><div className="jp-chips">{job.contract&&<Pill>{product(job.contract)}</Pill>}{job.workMode&&<Pill>{product(job.workMode)}</Pill>}</div><label className="onward-application-stage"><select data-testid="job-tracking-stage" aria-label={tr("投递状态","Statut de candidature","Application status")} value={applicationStage} onChange={e=>{const value=e.target.value;setApplicationStage(value);queueTracking(job,offer,{status:value},true);}}>{texts(data.statuses).map(s=><option key={s} value={s}>{product(s)}</option>)}</select></label></div>
     </div>
     <Tabs labels={[tr("匹配", "Match", "Fit"), tr("优化 CV", "Optimiser le CV", "Optimize CV")]} selected={tab} prefix="job-tab" muted={hasCv?[]:[1]} onChange={i => navigate({ ...route, jobTab: String(i) }, true)} />
     <div className="jp-sheet-content" data-testid="job-content" ref={content}>{job.localization?.failed&&<Localization value={job.localization} />}
-      {tab===0&&job.v1Match&&<>
+      {tab===0&&contentPending&&<DetailLoadingSkeleton mode={translationPending?'translation':'analysis'} estimate={deepPending?job.enrichment?.deepMatchEstimate:undefined} startedAt={deepPending?job.enrichment?.deepMatchStartedAt:job.enrichment?.localization?.startedAt || job.localization?.startedAt}/>}
+      {tab===0&&job.v1Match&&deepReady&&!contentPending&&<>
         {!!texts(deep.responsibilities).length&&<section className="onward-detail-section"><h3>{tr("主要职责","Responsabilités principales","Key responsibilities")}</h3>{texts(deep.responsibilities).map((item,i)=><SemanticRow key={i} kind="company" title={item}/>)}</section>}
         {!!roleRequirements.length&&<section className="onward-detail-section"><h3>{tr("岗位要求","Exigences du poste","Role requirements")}</h3>{roleRequirements.map((item,i)=><SemanticRow key={i} title={String(item.title)} detail={String(item.why||"")}/>)}</section>}
         {!!matchStrengths.length&&<section className="onward-detail-section"><h3>{tr("为什么这个岗位适合你","Pourquoi ce poste vous va","Why this role fits")}</h3>{matchStrengths.slice(0,5).map((item,i)=><SemanticRow key={i} title={String(item.title)} detail={String(item.evidence||"")}/>)}</section>}
@@ -61,7 +68,8 @@ export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
         {rows(job.match).map((match, i) => <Card key={i}><h4>{match.requirement}</h4><Pill>{product(match.fit)}</Pill><p>{match.evidence}</p><Hint>{match.action}</Hint></Card>)}
         {job.reportNum && <Button kind="text" data-testid="view-report" onClick={() => navigate({ view: "report", report: job.id, job: job.id })}>{tr("查看完整评估报告", "Lire le rapport complet", "Read full report")}</Button>}
       </>}
-      {tab === 1 && <>
+      {tab===1&&v1AwaitingDeep&&<DetailLoadingSkeleton mode="analysis" estimate={job.enrichment?.deepMatchEstimate} startedAt={job.enrichment?.deepMatchStartedAt}/>}
+      {tab === 1 && !v1AwaitingDeep && <>
         <Card>{!hasCv&&<LockKeyhole size={28} className="jp-cv-locked-icon"/>}<h2 style={{fontSize:22}}>{tr("岗位版简历","Votre CV pour cette offre","Your CV for this role")}</h2>{!hasCv&&<Hint>{tr("根据这份岗位要求，重新组织你已有的经历。由你决定是否生成和保留。","Présentez votre parcours pour cette offre. Vous décidez de créer et de conserver le CV.","Present your existing experience for this role. You choose whether to generate and keep it.")}</Hint>}
           {!cvDraft?.id&&!!rows(deep.presentationGaps).length&&<div className="jp-stack"><strong>{tr("这份岗位版 CV 会优先处理","Ce CV ciblera d’abord","This role CV will focus on")}</strong>{rows(deep.presentationGaps).slice(0,3).map((item,i)=><SemanticRow key={i} kind="document" title={String(item.title)} detail={String(item.why||"")}/>)}</div>}
           {cv.file&&<Button kind="outline" onClick={()=>navigate({view:"pdf",job:job.id})}>{tr("查看已保留的岗位版简历","Voir le CV ciblé conservé","View saved role CV")}</Button>}

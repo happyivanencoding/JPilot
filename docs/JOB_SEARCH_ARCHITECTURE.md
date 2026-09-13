@@ -1,5 +1,21 @@
 # JobPilot search architecture
 
+## 2026-09-13 V1 authority — Intent-first search, hidden Fast Fit, visible Deep Match
+
+For the Mobile Web V1, an explicit user search is now treated as a statement of **career intent**, not as a request for the system to redirect the user toward whatever most resembles the existing CV. This matters especially for students and career-switchers. If a candidate with an art/marketing background explicitly asks for `Investment Analyst`, the search layer must first return genuinely relevant investment-analysis roles; a low current candidate fit becomes an explanation/gap, not a reason to replace those roles with an unrelated higher-fit occupation.
+
+The pipeline therefore separates three signals:
+
+1. **Search relevance** answers “is this actually the occupation/query the user asked for?” and remains the dominant discovery/ranking signal after contract/location hard constraints.
+2. **Fast Fit** is an internal, cheap candidate-fit predictor. It no longer contains Search Relevance. Its four components deliberately mirror the Deep Match structure (`role 30 / duties 30 / tools_languages 20 / level 20`) and it also derives a bounded `bridgeability` signal for gaps that are realistically actionable. Fast Fit and bridgeability only nudge order inside an already relevant search pool and help choose which roles receive limited background Deep Match work.
+3. **Deep Match** is the user-visible 0–100 fit assessment. Search cards, first-run role cards and the Job hero no longer expose Fast Fit as a temporary percentage. Until Deep Match is ready, the score area shows an animated `计算中 / Calcul… / Calculating` placeholder with an estimated remaining time.
+
+Fresh V1 search ranking uses the existing relevance tier (`strong > adjacent > closest`) first. Within a tier, the bounded discovery rank is approximately **82% search rank + 12% bridgeability + 6% Fast Fit**, followed by the existing rank/freshness tie-breaks. The goal is not to claim these coefficients are a learned hiring model; they encode the product rule that **the user chooses the direction and Onward explains the distance**. Explicit seniority/language shortfalls are still recorded as `seniorityFit` / `languageFit` and shown by Deep Match, but they no longer apply candidate-fit search penalties to a role the user explicitly asked to explore. System-led recommendations can still use those gaps to demote unrealistic roles.
+
+`V1_SEARCH_REVISION` is now `v16-intent-first-deep-score`, so old cached searches do not silently retain the previous Fast-dominant ordering. Fast Match localization has also been removed from the visible display pipeline because those internal explanations are no longer rendered; only Deep Match/user-visible prose is translated. Opening a result that was outside the automatic Deep-Match prefetch set explicitly starts Deep Match for that role.
+
+The Job Detail reading surface now treats incomplete analysis as an active state instead of an empty page. While Deep Match is running, or while a completed Deep Match is still being translated into the UI language, the main body is covered by a large rectangular shimmer/pulse skeleton with a localized label and estimated seconds remaining. Role-CV generation for a V1 role is held until Deep Match exists so an internal Fast Fit cannot become the persisted CV comparison baseline.
+
 ## 2026-09-13 V1 authority — France Job Index first, live providers as fallback
 
 Mobile Web V1 now treats the shared France Job Index as the primary structured-retrieval layer. The raw market archive remains outside the application repository on the owner's Windows machine under `C:\dev\onward-job-data\snapshots`; V1 never reads or mutates that Raw Layer. A separately rebuildable Derived Layer canonicalizes provider records, preserves non-exclusive `contractTypes[]` (a `Stage ou Alternance` posting may carry both tags), deduplicates provider IDs and strict cross-provider duplicates, and exports search-relevant deltas to the V1 VPS.
@@ -60,7 +76,7 @@ Android search request
   -> optional compact AgentDock/Codex web fallback only when structured production sources are unavailable or return zero
 ```
 
-Search relevance is **not** candidate compatibility. Formal fit scores still come only from a persisted career-ops evaluation/report. Search must never manufacture a fit score simply because a title matches keywords.
+Search relevance is **not** candidate compatibility. In Mobile Web V1, the user-visible exploratory 0–100 candidate-fit score comes only from **Deep Match**; the legacy persisted career-ops evaluation/report remains a separate formal workflow. Internal Fast Fit is never presented as that score, and search must never manufacture candidate compatibility simply because a title matches the query.
 
 Discovery is deliberately a **ranking system, not an exact-match gate**. Exact/strong roles are shown first, genuinely adjacent roles second, and a bounded `closest` pool is available only when the stronger pool would otherwise be empty. For a flexible candidate, even a different role family, higher-seniority job or different geography can therefore survive as a clearly labelled fallback rather than being silently erased. Explicit contract mismatch remains the main hard targeting gate. Strong results always rank before adjacent/closest; dated structured rows older than 120 days are still removed by the current freshness window. Unknown contract/location/language remains uncertainty, not proof of a match.
 

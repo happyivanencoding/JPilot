@@ -180,8 +180,7 @@ test('V1 career and deep-match explanations follow UI language without translati
   assert.deepEqual(view.discovery.offers[0].deepMatch.tools,['Salesforce','Power BI']);
   const french=await finishedScope('fixture-b','fr',snapshot,'snapshot',{identity:'v1-snapshot-fr'});
   assert.equal(french.localization.pending,false);
-  assert.notEqual(french.discovery.offers[0].fastMatch.gaps[0].reason,'岗位描述提到 power bi，当前档案未发现明确证据');
-  assert.equal(translationLooksLikeTarget(french.discovery.offers[0].fastMatch.gaps[0].reason,'fr'),true);
+  assert.equal(french.discovery.offers[0].fastMatch.gaps[0].reason,'岗位描述提到 power bi，当前档案未发现明确证据','Fast Match stays internal and is not translated for display');
   assert.equal(french.analysis.careerDirections[0].searchQuery,'CRM Analyst');
   assert.deepEqual(french.analysis.searchKeywords,['CRM Analyst','Power BI']);
   assert.deepEqual(french.discovery.offers[0].deepMatch.tools,['Salesforce','Power BI']);

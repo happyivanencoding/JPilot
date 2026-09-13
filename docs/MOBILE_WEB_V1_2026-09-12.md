@@ -1,5 +1,17 @@
 # Onward V1 — Mobile Web Only handoff (2026-09-12)
 
+## 2026-09-13 Intent-first search / Deep-only visible score / active loading states
+
+V1 discovery now follows the product rule **“the user chooses the direction; Onward explains the distance.”** Explicit searches are intent-first: Search Relevance remains dominant, while the candidate's current Fast Fit and a new bounded `bridgeability` signal only refine order inside a relevant pool. Fast Fit no longer contains Search Relevance and now uses the same four conceptual dimensions as Deep Match (`role 30 / duties 30 / tools_languages 20 / level 20`). Seniority/language gaps remain visible fit evidence instead of silently pushing an explicitly requested career direction out of search. `V1_SEARCH_REVISION=v16-intent-first-deep-score` invalidates the older cached Fast-dominant ordering.
+
+Fast Fit is now internal. Home role cards, Opportunities cards, first-run role cards and the Job hero **never use Fast Fit as a temporary user-facing percentage**. The only visible 0–100 role-fit score is Deep Match. Before Deep Match completes, the score position is a small animated shimmer state (`计算中 / Calcul… / Calculating`) with a continuously updated estimated-seconds label. Opening a role that was outside the automatic prefetch group starts a silent Deep Match for that exact role rather than leaving it permanently unrated.
+
+Job Detail no longer looks empty while analysis or presentation work is active. If Deep Match is still running, the Match body shows a large rectangular shimmer/pulse skeleton approximating the final reading area, with `正在计算岗位匹配` and an estimated remaining time. If Deep Match exists but the visible-language translation is still pending, the same surface switches to `正在翻译岗位分析` and an estimated translation time. The Deep score may already be shown in the hero during translation because the score itself does not change with localization. Reduced-motion users receive the same placeholders without animation.
+
+The same Deep-ready boundary now protects role-CV generation for V1 roles. The CV tab stays in the analysis-loading state until Deep Match exists, and the server returns a localized 409 if a stale/direct request tries to generate a role CV before that point. This prevents the internal Fast Fit from becoming the persisted role-CV comparison baseline. Fast-only explanatory strings are no longer sent through display localization because they are no longer rendered.
+
+Focused validation before deployment: intent/Deep/loading/localization tests **55/55 PASS**, structured-search + role-CV consistency tests **41/41 PASS**, Web `npm run typecheck` **PASS**, and production `npm run build` **PASS**. Deployment receipt is recorded after the V1-only rollout below this section.
+
 ## 2026-09-13 Job detail CV tab label
 
 The second Job Detail tab is no longer labelled with the ambiguous bare `CV`. It now uses an explicit localized action label: **`优化 CV` / `Optimiser le CV` / `Optimize CV`**. This is a presentation-only wording change; the tab still opens the same role-specific CV generation/review surface and does not change scoring, generated document language, Candidate facts, or candidature status.

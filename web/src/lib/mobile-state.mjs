@@ -130,7 +130,11 @@ export function discoveryProjection(discovery, jobs, tasks) {
     const deepActive=tasks.find(t=>t.kind==='deep_match' && normalizeUrl(t.input?.url || t.input?.offer?.url)===key && ['queued','running','reconciling'].includes(t.status));
     const deepFailed=tasks.find(t=>t.kind==='deep_match' && normalizeUrl(t.input?.url || t.input?.offer?.url)===key && ['failed','interrupted'].includes(t.status));
     return [{ ...offer, lifecycle: task ? 'evaluating' : 'discovered', taskId: task?.id || null, jobId: job?.id || null,
-      deepMatch:deepCompleted?.result?.deepMatch || null,deepMatchState:deepActive?'loading':newestDeep&&['failed','interrupted'].includes(newestDeep.status)?'failed':deepCompleted?'ready':deepFailed?'failed':'pending',deepMatchTaskId:deepCompleted?.id || deepActive?.id || null }];
+      deepMatch:deepCompleted?.result?.deepMatch || null,
+      deepMatchState:deepActive?'loading':newestDeep&&['failed','interrupted'].includes(newestDeep.status)?'failed':deepCompleted?'ready':deepFailed?'failed':'pending',
+      deepMatchTaskId:deepCompleted?.id || deepActive?.id || null,
+      deepMatchEstimate:deepActive?.estimate || deepCompleted?.estimate || null,
+      deepMatchStartedAt:deepActive?.createdAt || deepCompleted?.createdAt || null }];
   }) };
 }
 

@@ -23,5 +23,21 @@ export function MetaRow({location,contract}:{location?:string;contract?:string})
 export function SemanticRow({kind="check",title,detail,chevron=false}:{kind?:"check"|"gap"|"document"|"company"|"book";title:string;detail?:string;chevron?:boolean}){const Icon=kind==="gap"?LineChart:kind==="document"?FileText:kind==="company"?Building2:kind==="book"?BookOpen:Check;return <div className={`onward-semantic-row ${kind}`}><span className="onward-semantic-icon"><Icon size={16}/></span><span className="onward-semantic-copy"><strong>{title}</strong>{detail&&<small>{detail}</small>}</span>{chevron&&<ChevronRight size={17} className="onward-semantic-chevron"/>}</div>}
 export function OnwardArcMotif({className=""}:{className?:string}){return <div className={`onward-arc-motif ${className}`} aria-hidden="true"><img src="/onward-symbol.svg" alt=""/></div>}
 export function AnimatedMatchScore({value}:{value:unknown}){const actual=Math.max(0,Math.min(100,Math.round(Number(value)||0)));const [shown,setShown]=useState(actual);useEffect(()=>{const reduced=window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;if(reduced){setShown(actual);return}let frame=0,start=performance.now();setShown(0);const tick=(now:number)=>{const p=Math.min(1,(now-start)/430);const eased=1-Math.pow(1-p,3);setShown(Math.round(actual*eased));if(p<1)frame=requestAnimationFrame(tick)};frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame)},[actual]);return <div className="onward-detail-score" aria-label={`${actual} / 100`}><div><strong>{shown}</strong><span>%</span></div><i><b style={{width:`${actual}%`}}/></i></div>}
+function useRemainingSeconds(estimate:any,startedAt:unknown,fallback:number){
+ const target=Math.max(4,Math.round(Number(estimate?.targetSeconds ?? estimate?.maxSeconds ?? fallback)||fallback));
+ const [now,setNow]=useState(()=>Date.now());
+ useEffect(()=>{setNow(Date.now());const timer=window.setInterval(()=>setNow(Date.now()),1000);return()=>window.clearInterval(timer)},[target,startedAt]);
+ const started=Date.parse(String(startedAt||'')),elapsed=Number.isFinite(started)?Math.max(0,Math.floor((now-started)/1000)):0;
+ return Math.max(3,target-elapsed);
+}
+export function MatchScorePending({estimate,startedAt,compact=false}:{estimate?:any;startedAt?:unknown;compact?:boolean}){
+ const {tr}=usePilot(),seconds=useRemainingSeconds(estimate,startedAt,20);
+ return <div className={`onward-match-pending${compact?' compact':''}`} role="status" aria-live="polite"><span className="onward-loading-sheen" aria-hidden="true"/><strong>{tr("计算中","Calcul…","Calculating")}</strong><small>{tr(`约 ${seconds} 秒`,`~${seconds} s`,`~${seconds}s`)}</small></div>;
+}
+export function DetailLoadingSkeleton({mode="analysis",estimate,startedAt}:{mode?:"analysis"|"translation";estimate?:any;startedAt?:unknown}){
+ const {tr}=usePilot(),seconds=useRemainingSeconds(estimate,startedAt,mode==="translation"?10:20);
+ const title=mode==="translation"?tr("正在翻译岗位分析","Traduction de l’analyse du poste","Translating role analysis"):tr("正在计算岗位匹配","Analyse du poste en cours","Calculating role match");
+ return <section className="onward-detail-loading" role="status" aria-live="polite"><div className="onward-detail-loading-copy"><strong>{title}</strong><small>{tr(`预计还需约 ${seconds} 秒`,`Encore environ ${seconds} s`,`About ${seconds}s remaining`)}</small></div><div className="onward-detail-skeleton" aria-hidden="true">{[88,71,94,63,82,74].map((width,i)=><span key={i} style={{width:`${width}%`}}/>)}</div></section>;
+}
 export function EditorialIdentity({title,detail}:{title:string;detail?:string}){return <section className="onward-identity"><h2>{title}</h2>{detail&&<p>{detail}</p>}</section>}
 export function Stagger({children,className=""}:{children:ReactNode;className?:string}){return <div className={`onward-stagger ${className}`}>{children}</div>}

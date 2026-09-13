@@ -25,7 +25,13 @@ export async function prepareV1Display(profileId:string, locale:string, snapshot
       const localized=await localizeDisplay(profileId,locale,offer,'offer',{retry,identity:`discovery:${offer.url || ''}`,preservePendingSource:true});
       pending ||= !!localized.localization?.pending;
       localizationFailed ||= !!localized.localization?.failed;
-      localizedOffers.push({...localized,enrichment:{deepMatchState:offer.deepMatchState || 'pending',localization:localized.localization}});
+      localizedOffers.push({...localized,enrichment:{
+        deepMatchState:offer.deepMatchState || 'pending',
+        deepMatchTaskId:offer.deepMatchTaskId || null,
+        deepMatchEstimate:offer.deepMatchEstimate || null,
+        deepMatchStartedAt:offer.deepMatchStartedAt || null,
+        localization:localized.localization,
+      }});
     }
     return {...group,offers:localizedOffers,ready:Boolean(group.taskId),
       localization:{locale,status:localizationFailed?'failed':pending?'translating':'ready',pending,failed:localizationFailed,retryable:localizationFailed},
@@ -74,13 +80,17 @@ export async function prepareV1Display(profileId:string, locale:string, snapshot
   result.discovery={...current,offers:result.v1.offersReady?current.offers:[],history:history.filter(g=>g.ready)};
   const format=(offer:any,historyStale=false)=>{
     const saved=historyStale?null:(snapshot.jobs || []).find((job:any)=>job.url===offer.url && job.v1Match);
-    const match=saved?matchScoreView(saved):matchScoreView(offer);
+    const deepReady=Boolean(saved?.v1Match?.deepMatch?.currentScore!=null || offer.deepMatch?.currentScore!=null);
+    const match=deepReady?(saved?matchScoreView(saved):matchScoreView(offer)):{current:null,potential:null,baseline:null,forecast:null,reviewed:false,reviewedScore:null};
     const roleCv=saved?.cvDraft?.status==='pending' ? {jobId:saved.id,status:"pending",draftId:saved.cvDraft.id} : saved?.cv?.file ? {jobId:saved.id,status:"accepted"} : saved && tasks.some(t=>t.kind==='cv'&&t.input?.jobId===saved.id&&['queued','running','reconciling'].includes(t.status)) ? {jobId:saved.id,status:"generating"} : null;
     const friendly:any=friendlyOffer(offer);
     return {...friendly,historyStale,matchScore:historyStale?{current:null,baseline:null,forecast:null}:match,cvOutcome:historyStale?null:roleCvOutcome(saved || offer),roleCv,
       deepMatch:offer.deepMatch?{...friendly.deepMatch,currentScore:match.baseline,cvPotentialScore:match.forecast}:offer.deepMatch};
   };
-  result.discovery.offers=result.discovery.offers.map((offer:any)=>format(offer,false)).sort((a:any,b:any)=>Number(b.matchScore.current||0)-Number(a.matchScore.current||0));
+  // Search order is intent-first and already decided by the retrieval/ranking
+  // pipeline. Deep Match explains fit; it must not reshuffle a user's explicit
+  // career direction after results are visible.
+  result.discovery.offers=result.discovery.offers.map((offer:any)=>format(offer,false));
   result.discovery.history=result.discovery.history.map((group:any)=>({...group,offers:group.offers.map((offer:any)=>format(offer,!!group.staleForCurrentCv))}));
   result.localization={locale,status:analysis?.localization?.status || (!snapshot.analysis?'idle':analysisReady?'ready':'translating'),pending:!analysisReady && !!snapshot.analysis,failed:!!analysis?.localization?.failed};
   return result;

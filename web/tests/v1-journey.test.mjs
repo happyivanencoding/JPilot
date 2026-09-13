@@ -100,10 +100,12 @@ test('old CV scores do not enrich a current CV and Fast Match offers publish bef
   const old={kind:'deep_match',inputVersionId:'old-cv',status:'completed',input:{url:offer.url},result:{deepMatch:offer.deepMatch}};
   const projected=discoveryProjection({offers:[{...offer,deepMatch:undefined}]},[],currentVersionTasks([old],version.id));
   assert.equal(projected.offers[0].deepMatch,null);
-  let snapshot={...base(),discovery:{taskId:'search1',offers:[{...offer,deepMatchState:'ready'},{...offer,url:offer.url+'2',deepMatchState:'loading'}],history:[]}};
+  let snapshot={...base(),discovery:{taskId:'search1',offers:[{...offer,deepMatchState:'ready'},{...offer,url:offer.url+'2',deepMatch:undefined,deepMatchState:'loading',deepMatchEstimate:{targetSeconds:20},deepMatchStartedAt:new Date().toISOString()}],history:[]}};
   let view=await prepareV1Display(a.profileId,'zh',snapshot,[],{});
   assert.equal(view.discovery.offers.length,2);assert.equal(view.v1.offersReady,true);
   assert.equal(view.discovery.offers[1].enrichment.deepMatchState,'loading');
+  assert.equal(view.discovery.offers[1].matchScore.current,null,'Fast Match stays internal until Deep Match is ready');
+  assert.equal(view.discovery.offers[1].enrichment.deepMatchEstimate.targetSeconds,20);
   snapshot.discovery.offers[1].deepMatchState='ready';
   view=await waitFor(async()=>{const x=await prepareV1Display(a.profileId,'zh',snapshot,[],{});return !x.discovery.offers[0].localization?.pending&&x;});
   assert.equal(view.discovery.offers.length,2);assert.equal(view.discovery.offers[0].deepMatch.currentScore,71);assert.equal(view.discovery.offers[0].deepMatch.cvPotentialScore,78);assert.match(view.discovery.offers[0].deepMatch.strengths[0].title,/中文/);

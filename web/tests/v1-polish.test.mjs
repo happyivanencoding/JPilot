@@ -132,6 +132,26 @@ test('deep match prompt requests more plain duties and only hard selection crite
  assert.match(prompt,/Requirements must contain only candidate qualifications or hard selection criteria/);
  assert.match(prompt,/Do NOT repeat the contract type, internship duration, work location/);
 });
+test('visible role score waits for Deep Match and pending analysis/translation use animated estimated-time skeletons',()=>{
+ const sheets=fs.readFileSync(new URL('../src/components/jobpilot/sheets.tsx',import.meta.url),'utf8');
+ const catalog=fs.readFileSync(new URL('../src/components/jobpilot/catalog.tsx',import.meta.url),'utf8');
+ const onboarding=fs.readFileSync(new URL('../src/components/jobpilot/onboarding.tsx',import.meta.url),'utf8');
+ const visual=fs.readFileSync(new URL('../src/components/jobpilot/onward-visual.tsx',import.meta.url),'utf8');
+ const context=fs.readFileSync(new URL('../src/components/jobpilot/pilot-context.tsx',import.meta.url),'utf8');
+ const tailored=fs.readFileSync(new URL('../src/lib/tailored-cv.ts',import.meta.url),'utf8');
+ const css=fs.readFileSync(new URL('../src/components/jobpilot/onward.css',import.meta.url),'utf8');
+ assert.match(sheets,/deepReady\?<AnimatedMatchScore value=\{deep\.currentScore\}/);
+ assert.match(sheets,/DetailLoadingSkeleton mode=\{translationPending\?'translation':'analysis'\}/);
+ assert.doesNotMatch(catalog,/fastMatch\?\.score/,'Fast Match must not be a visible fallback score');
+ assert.doesNotMatch(onboarding,/deep\.currentScore\?\?fast\.score/,'first-run cards must also wait for Deep Match');
+ assert.match(onboarding,/MatchScorePending/);
+ assert.match(context,/source:'v1-offer-open'/);assert.match(context,/source:'v1-saved-job-open'/);
+ assert.match(sheets,/tab===1&&v1AwaitingDeep&&<DetailLoadingSkeleton/);
+ assert.match(tailored,/岗位匹配还在计算中/);assert.match(tailored,/status:409/);
+ assert.match(visual,/正在计算岗位匹配/);assert.match(visual,/正在翻译岗位分析/);assert.match(visual,/预计还需约/);
+ assert.match(css,/\.onward-detail-loading\{[^}]*min-height:340px/);
+ assert.match(css,/@keyframes onward-loading-sheen/);assert.match(css,/@keyframes onward-skeleton-pulse/);
+});
 test('role CV review has only preview keep reject controls and no pre-generation score promise',()=>{
  const sheets=fs.readFileSync(new URL('../src/components/jobpilot/sheets.tsx',import.meta.url),'utf8');
  assert.doesNotMatch(sheets,/生成前不承诺加分|Aucun gain n’est promis avant la génération|No score gain is promised before generation/);

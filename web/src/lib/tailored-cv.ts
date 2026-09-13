@@ -575,6 +575,13 @@ export async function generateTailoredCv(req: Request, choice?: {model: any; rea
     const taskDir=path.join(historyDirectory(profileId),"tasks");
     const tasks=fs.existsSync(taskDir)?fs.readdirSync(taskDir).filter(name=>name.endsWith(".json")).map(name=>readJson(path.join(taskDir,name))).filter(Boolean).sort((a:any,b:any)=>Date.parse(b.createdAt)-Date.parse(a.createdAt)):[];
     job=projectV1JobScores(job,tasks,inputVersion.id) as Job;
+    if(!(job.v1Match as any)?.deepMatch?.currentScore && (job.v1Match as any)?.deepMatch?.currentScore!==0) {
+      const pendingLocale=requestUiLocale(req,body.uiLocale);
+      return Response.json({error:choose(pendingLocale,
+        "岗位匹配还在计算中。完成后再生成岗位版简历。",
+        "L’analyse détaillée du poste est encore en cours. Attendez sa fin avant de générer le CV ciblé.",
+        "The detailed role match is still being calculated. Wait for it to finish before generating the role CV.")},{status:409});
+    }
   }
   const locale=requestUiLocale(req,body.uiLocale);
   const material=["fr","en"].includes(String(body.applicationLanguage)) ? String(body.applicationLanguage) : profileCvOptions(profileId).language;
