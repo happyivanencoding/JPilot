@@ -2,7 +2,7 @@
 import {roleDetailForOffer,roleCvIsReady,visibleRoleRequirements} from "./role-detail.mjs";
 import {v1CvAssessment} from "@/lib/v1-match.mjs";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, LockKeyhole } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { rows, texts, usePilot, type Json } from "./pilot-context";
 import { ACTIVE, destinationFor } from "./model.mjs";
 import { AiProgressButton, Button, Card, Check, Chip, Empty, External, Hint, Input, LiquidTaskProgress, Loading, Localization, Markdown, Pill, Score, Select, Sheet, Tabs, TextArea, Title, taskName } from "./ui";
@@ -74,7 +74,7 @@ export function JobSheet({ job,offer }: { job: Json;offer?:Json }) {
       {tab===1&&<>
         {job.v1Match&&<RoleCvJourney job={job}/>}
         {!v1AwaitingDeep&&<>
-          {(!job.v1Match||!hasCv||!!cv.file||canGenerateRoleCv||!!error)&&<Card>{!hasCv&&<LockKeyhole size={28} className="jp-cv-locked-icon"/>}{!job.v1Match&&<h2 style={{fontSize:22}}>{tr("岗位版简历","Votre CV pour cette offre","Your CV for this role")}</h2>}
+          {(!job.v1Match||!!cv.file||canGenerateRoleCv||!!error)&&<Card>{!job.v1Match&&<h2 style={{fontSize:22}}>{tr("岗位版简历","Votre CV pour cette offre","Your CV for this role")}</h2>}
             {!job.v1Match&&!cvDraft?.id&&!!rows(deep.presentationGaps).length&&<div className="jp-stack"><strong>{tr("这份岗位版 CV 会优先处理","Ce CV ciblera d’abord","This role CV will focus on")}</strong>{rows(deep.presentationGaps).slice(0,3).map((item,i)=><SemanticRow key={i} kind="document" title={String(item.title)} detail={String(item.why||"")}/>)}</div>}
             {cv.file&&<Button kind="outline" onClick={()=>navigate({view:"pdf",job:job.id})}>{tr("查看已保留的岗位版简历","Voir le CV ciblé conservé","View saved role CV")}</Button>}
             {canGenerateRoleCv&&<AiProgressButton taskKind="cv" jobId={job.id||undefined} offerUrl={offer?.url} data-testid="generate-role-cv" disabled={busy} onClick={()=>void generateRoleCv()}>{cvDraft?.status==="rejected"?tr("根据反馈生成新版本","Créer une nouvelle version avec mon retour","Generate a new version from my feedback"):tr("生成我的岗位专属简历","Créer mon CV pour cette offre","Generate my role-specific CV")}</AiProgressButton>}

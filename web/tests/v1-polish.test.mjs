@@ -139,8 +139,11 @@ test('Optimize CV uses the three-step journey, quiet quick boosts and no old hel
  const css=fs.readFileSync(new URL('../src/components/jobpilot/onward.css',import.meta.url),'utf8');
  assert.match(sheets,/RoleCvJourney/);assert.match(journey,/step=\{1\}/);assert.match(journey,/step=\{2\}/);assert.match(journey,/step=\{3\}/);
  assert.match(journey,/当前匹配/);assert.match(journey,/优化表达后/);assert.match(journey,/补强后/);assert.match(journey,/role-cv-quick-boosts/);
+ assert.match(journey,/继续当前简历/);assert.match(journey,/Conserver le CV actuel/);assert.match(journey,/Keep current CV/);assert.doesNotMatch(journey,/基于当前简历与已确认事实|CV actuel et faits confirmés|Current CV and confirmed facts/);
+ assert.match(journey,/优化表达/);assert.match(journey,/Optimiser la présentation/);assert.match(journey,/Improve presentation/);assert.doesNotMatch(journey,/不增加新事实，仅优化表达|Sans nouveau fait, uniquement la présentation|No new facts, presentation only/);
  assert.match(journey,/可补齐/);assert.doesNotMatch(journey,/可能已具备|可快速补齐|快速补强到|快速补强后/);assert.doesNotMatch(journey,/<button/,'quick boost rows are informational in this release');
- assert.match(journey,/正在计算/);assert.match(journey,/data-pending/);assert.match(css,/\.onward-cv-stage-pending\{/);
+ assert.match(journey,/正在计算/);assert.match(journey,/data-pending/);assert.match(journey,/onward-cv-stage-estimate-slot[^\n]*onward-cv-estimate-chip/);assert.match(css,/\.onward-cv-stage-pending\{/);assert.match(css,/grid-template-rows:minmax\(70px,1fr\) 16px/);assert.match(css,/\.onward-cv-stage-head\{[^}]*min-height:34px/);
+ assert.doesNotMatch(sheets,/LockKeyhole|jp-cv-locked-icon/);
  assert.doesNotMatch(journey,/仅在完成或确认后记入分数/);
  assert.doesNotMatch(sheets,/根据这份岗位要求，重新组织你已有的经历。由你决定是否生成和保留。/);
  assert.doesNotMatch(sheets,/Présentez votre parcours pour cette offre\. Vous décidez de créer et de conserver le CV\./);

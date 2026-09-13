@@ -1,5 +1,15 @@
 # Onward V1 — Mobile Web Only handoff (2026-09-12)
 
+## 2026-09-13 Optimize CV 卡片文案 / 预计位置 / 底部锁图标
+
+根据真实手机截图继续收紧三层匹配卡：第一层说明由 `基于当前简历与已确认事实` 改为 **`继续当前简历 / Conserver le CV actuel / Keep current CV`**；第二层说明由 `不增加新事实，仅优化表达` 改为 **`优化表达 / Optimiser la présentation / Improve presentation`**。分数语义本身不变，仍沿用当前 Deep Match → CV 表达目标 → capability potential 的三层生命周期。
+
+第二、第三卡的 `预计 / Estimé / Est.` 徽标从标题行右侧移到卡片**底部右侧**。三张卡都保留同样高度的底部 estimate slot，第一张为空；标题区统一保留两行高度，分数/进度条与卡片之间继续保持同一纵向节奏，因此 `预计` 不再挤压标题或破坏三卡对称。pending 状态仍保留相同 slot 高度，只显示 `正在计算` 主体。
+
+Optimize CV 页面最下方单独的 `LockKeyhole` 锁图标已删除；同时不再为了这个图标单独渲染一个空 Card。Tab 的既有 muted/锁定状态、Deep-ready gate、生成岗位版 CV、查看、保留/拒绝、错误提示等流程均未改变。
+
+验证：`node --test tests/v1-polish.test.mjs` **25/25 PASS**，Web `npm run typecheck` **PASS**，production `npm run build` **PASS**，本轮文件 `git diff --check` **PASS**。部署回执在本节后续提交中补充。
+
 ## 2026-09-13 Optimize CV 三层分数生命周期稳定化 / Boost wording
 
 岗位详情 `优化 CV / Optimiser le CV / Optimize CV` 的三层分数现在只有一套稳定语义：**① 当前匹配 → ② 优化表达后 → ③ 补强后（预计）**。第一层只认当前 `role-fit-5-quick-boosts-v1` Deep Match；历史 Deep 结果即使仍在本地持久化，也不能先显示再被后台刷新替换。当前契约尚未返回时，三张小卡各自用带 shimmer 的 `正在计算 / Calcul en cours / Calculating` 遮掩代替百分比，旧分、Fast Fit 与旧 capability fallback 都不会作为临时可见分。

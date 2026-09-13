@@ -5,12 +5,15 @@ import {texts,usePilot,type Json} from "./pilot-context";
 
 function ScoreStage({step,label,score,description,tone="base",estimated=false,estimateLabel="",pending=false,pendingLabel=""}:{step:number;label:string;score:number|null;description:string;tone?:"base"|"middle"|"potential";estimated?:boolean;estimateLabel?:string;pending?:boolean;pendingLabel?:string}){
   return <div className={`onward-cv-stage ${tone}${pending?" pending":""}`} data-testid={`role-cv-stage-${step}`} data-pending={pending?"true":"false"}>
-    <div className="onward-cv-stage-head"><span className="onward-cv-stage-number">{step}</span><strong>{label}</strong>{!pending&&estimated&&<span className="onward-cv-estimate-chip">{estimateLabel}</span>}</div>
-    <div className="onward-cv-stage-body">{pending?<div className="onward-cv-stage-pending"><span className="onward-loading-sheen" aria-hidden="true"/><strong>{pendingLabel}</strong></div>:<>
-      <div className="onward-cv-stage-score"><b>{score}</b><span>%</span></div>
-      <i aria-hidden="true"><b style={{width:`${score??0}%`}}/></i>
-      <small>{description}</small>
-    </>}</div>
+    <div className="onward-cv-stage-head"><span className="onward-cv-stage-number">{step}</span><strong>{label}</strong></div>
+    <div className="onward-cv-stage-body">
+      <div className="onward-cv-stage-main">{pending?<div className="onward-cv-stage-pending"><span className="onward-loading-sheen" aria-hidden="true"/><strong>{pendingLabel}</strong></div>:<>
+        <div className="onward-cv-stage-score"><b>{score}</b><span>%</span></div>
+        <i aria-hidden="true"><b style={{width:`${score??0}%`}}/></i>
+        <small>{description}</small>
+      </>}</div>
+      <div className="onward-cv-stage-estimate-slot">{!pending&&estimated&&<span className="onward-cv-estimate-chip">{estimateLabel}</span>}</div>
+    </div>
   </div>;
 }
 
@@ -26,9 +29,9 @@ export function RoleCvJourney({job}:{job:Json}){
     <section className="onward-cv-path">
       <h3>{tr("匹配提升路径","Trajectoire d’amélioration","Match improvement path")}</h3>
       <div className="onward-cv-stage-grid">
-        <ScoreStage step={1} tone="base" pending={currentPending} pendingLabel={pendingLabel} label={tr("当前匹配","Match actuel","Current match")} score={journey.current} description={tr("基于当前简历与已确认事实","CV actuel et faits confirmés","Current CV and confirmed facts")}/>
+        <ScoreStage step={1} tone="base" pending={currentPending} pendingLabel={pendingLabel} label={tr("当前匹配","Match actuel","Current match")} score={journey.current} description={tr("继续当前简历","Conserver le CV actuel","Keep current CV")}/>
         <span className="onward-cv-stage-arrow" aria-hidden="true">→</span>
-        <ScoreStage step={2} tone="middle" pending={optimisedPending} pendingLabel={pendingLabel} estimated={journey.optimisedEstimated} estimateLabel={estimateLabel} label={tr("优化表达后","Après optimisation","After better presentation")} score={journey.optimised} description={tr("不增加新事实，仅优化表达","Sans nouveau fait, uniquement la présentation","No new facts, presentation only")}/>
+        <ScoreStage step={2} tone="middle" pending={optimisedPending} pendingLabel={pendingLabel} estimated={journey.optimisedEstimated} estimateLabel={estimateLabel} label={tr("优化表达后","Après optimisation","After better presentation")} score={journey.optimised} description={tr("优化表达","Optimiser la présentation","Improve presentation")}/>
         <span className="onward-cv-stage-arrow" aria-hidden="true">→</span>
         <ScoreStage step={3} tone="potential" pending={capabilityPending} pendingLabel={pendingLabel} estimated estimateLabel={estimateLabel} label={tr("补强后","Après renforcement","After strengthening")} score={journey.capability} description={tr("完成关键补强后","Après les renforcements prioritaires","After the priority boosts")}/>
       </div>
