@@ -1,5 +1,11 @@
 # Onward V1 — Mobile Web Only handoff (2026-09-12)
 
+## 2026-09-13 Job detail CV tab label
+
+The second Job Detail tab is no longer labelled with the ambiguous bare `CV`. It now uses an explicit localized action label: **`优化 CV` / `Optimiser le CV` / `Optimize CV`**. This is a presentation-only wording change; the tab still opens the same role-specific CV generation/review surface and does not change scoring, generated document language, Candidate facts, or candidature status.
+
+Focused validation before rollout: `node --test tests/v1-polish.test.mjs` **23/23 PASS**, `npm run typecheck` **PASS**, and production `npm run build` **PASS**. Deployment receipt is appended after the V1-only rollout succeeds.
+
 ## 2026-09-13 Profile unified jobs window / preference layout refinement
 
 The Profile job summary has been simplified again from two adjacent actions into **one** interaction. `N 个岗位 · N 个申请中` is now one button with a trailing chevron; it opens one `我的岗位 / Mes offres / My roles` surface containing the same saved/application list renderer and its status/search controls. There is no longer a separate “saved” versus “applications” popup. Selecting a row closes this Profile surface first and then opens the normal job detail, so the retired Tracking page is not reintroduced.

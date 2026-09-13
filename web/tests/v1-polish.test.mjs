@@ -98,8 +98,9 @@ test('job detail records application status from one dropdown and has no trackin
  assert.doesNotMatch(sheets,/data-testid="toggle-job-tracking"/);assert.doesNotMatch(sheets,/data-testid="inline-job-tracking"/);
  assert.doesNotMatch(sheets,/Votre correspondance|onward-match-summary/);
  assert.match(sheets,/requestedTab===1\?1:0/);
- assert.match(sheets,/labels=\{\[tr\("匹配", "Match", "Fit"\), "CV"\]\}/);
- assert.doesNotMatch(sheets,/labels=\{\[tr\("匹配", "Match", "Fit"\), "CV", tr\("跟踪"/);
+ assert.match(sheets,/labels=\{\[tr\("匹配", "Match", "Fit"\), tr\("优化 CV", "Optimiser le CV", "Optimize CV"\)\]\}/);
+ assert.doesNotMatch(sheets,/labels=\{\[tr\("匹配", "Match", "Fit"\), "CV"\]\}/);
+ assert.doesNotMatch(sheets,/labels=\{\[tr\("匹配", "Match", "Fit"\), tr\("优化 CV", "Optimiser le CV", "Optimize CV"\), tr\("跟踪"/);
  assert.doesNotMatch(sheets,/pre-generation-cv-guidance|cv-guidance-facts|cv-guidance-preferences|Ajouter un détail ou une préférence|这些补充只影响这个岗位版本/);
  assert.match(sheets,/compactHeader/);
  assert.match(css,/\.jp-sheet-header\.compact\{position:absolute/);
