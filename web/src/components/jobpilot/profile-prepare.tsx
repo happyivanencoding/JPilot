@@ -3,7 +3,8 @@ import {ensureCvConsent} from "./cv-consent";
 import {SearchAreaSettings} from "./search-area";
 import {ProfileApplications} from "./profile-applications";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { rows, texts, usePilot, type Json } from "./pilot-context";
 import { ACTIVE } from "./model.mjs";
 import { AiProgressButton, Button, Card, Check, Chip, Hint, Input, Localization, Select, Sheet, TextArea, Title } from "./ui";
@@ -28,10 +29,18 @@ function ProfileSection({title,summary,children,testId}:{title:string;summary?:s
   return <details className="onward-profile-section" data-testid={testId}><summary><span><strong>{title}</strong>{summary&&<small>{summary}</small>}</span><ChevronDown size={18}/></summary><div className="onward-profile-section-body">{children}</div></details>;
 }
 
+function ProfileJobsOverlay({jobs,onClose}:{jobs:Json[];onClose:()=>void}) {
+  const {tr}=usePilot();
+  const [host,setHost]=useState<HTMLElement|null>(null);
+  useEffect(()=>{setHost(document.querySelector<HTMLElement>(".jp-phone")||document.body);},[]);
+  if(!host)return null;
+  return createPortal(<Sheet full className="onward-profile-jobs-overlay" title={tr("我的岗位","Mes offres","My roles")} onClose={onClose} testId="profile-jobs-sheet"><div className="jp-sheet-content onward-profile-collection onward-profile-jobs-content"><ProfileApplications jobs={jobs} heading={false} openTab={0} onBeforeOpen={onClose}/></div></Sheet>,host);
+}
+
 export function ProfilePage() {
   const p = usePilot(); const { data, tr, product, act, busy, locale, theme, setLocale, setTheme, navigate, upload } = p;
   const picker = useRef<HTMLInputElement>(null);
-  const [metricSheet,setMetricSheet]=useState<0|1|2>(0);
+  const [jobsOpen,setJobsOpen]=useState(false);
   const [cvExpanded,setCvExpanded]=useState(false);
   const config = data.config || {}, contracts = texts(config.target_roles?.contract_types);
   const material:"fr"|"en" = (data.languageSettings?.applicationLanguage || config.cv?.language)==="en" ? "en" : "fr";
@@ -43,14 +52,10 @@ export function ProfilePage() {
   const preferenceSummary=[texts(config.target_roles?.primary).join(", "),searchAreaLabel,config.compensation?.location_flexibility].filter(Boolean).join(" · ")||tr("目标岗位、地点与合同类型","Rôles, lieux et types de contrat","Roles, location and contract types");
   const chooseCv=async()=>{await ensureCvConsent(p.request,locale);picker.current?.click();};
   return <div className="jp-page roomy" data-testid="profile-page">
-    {metricSheet>0&&<Sheet title={metricSheet===1?tr("申请中","Mes candidatures","Applications"):tr("已保存岗位","Offres enregistrées","Saved roles")} onClose={()=>setMetricSheet(0)} testId="profile-metric-sheet"><div className="jp-sheet-content onward-profile-collection"><ProfileApplications jobs={metricSheet===1?appliedJobs:jobs} heading={false} openTab={0}/></div></Sheet>}
+    {jobsOpen&&<ProfileJobsOverlay jobs={jobs} onClose={()=>setJobsOpen(false)}/>}
     <header className="onward-profile-head"><h1>{tr("我的职业档案","Mon profil","My profile")}</h1><p>{tr("你的资料、偏好和求职工具都集中在这里。","Vos informations, vos préférences et vos outils réunis pour aller plus loin.","Your information, preferences and career tools in one place.")}</p>{data.profile?.name&&<strong>{data.profile.name}</strong>}</header>
     <div className="onward-profile-summary" aria-label={tr("职业档案摘要","Résumé du profil","Profile summary")}>
-      <div className="onward-profile-metrics-inline">
-        <button type="button" data-testid="profile-metric-saved" onClick={()=>setMetricSheet(2)}>{tr(`${jobs.length} 个岗位`,`${jobs.length} offres`,`${jobs.length} roles`)}</button>
-        <span aria-hidden="true">·</span>
-        <button type="button" data-testid="profile-metric-applications" onClick={()=>setMetricSheet(1)}>{tr(`${appliedJobs.length} 个申请中`,`${appliedJobs.length} candidatures`,`${appliedJobs.length} applications`)}</button>
-      </div>
+      <button type="button" className="onward-profile-jobs-toggle" data-testid="profile-jobs-toggle" onClick={()=>setJobsOpen(true)}><span>{tr(`${jobs.length} 个岗位 · ${appliedJobs.length} 个申请中`,`${jobs.length} offres · ${appliedJobs.length} candidatures`,`${jobs.length} roles · ${appliedJobs.length} applications`)}</span><ChevronRight size={15}/></button>
       <button type="button" className="onward-profile-cv-toggle" data-testid="profile-cv-toggle" aria-expanded={cvExpanded} aria-controls="profile-original-cv-actions" onClick={()=>setCvExpanded(value=>!value)}>{tr("我的原始简历","CV d’origine","Original CV")}<ChevronDown size={15}/></button>
       <input ref={picker} type="file" accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" hidden data-testid="cv-upload-input" onChange={e => { const input=e.currentTarget; const file=input.files?.[0]; if(file) void upload(file,material,data.languageSettings?.analysisLanguage || locale).finally(()=>{input.value="";}); }} />
       {cvExpanded&&<div id="profile-original-cv-actions" className="onward-profile-cv-expanded"><div className="jp-row wrap onward-master-cv-actions"><Button kind="outline" data-testid="view-master-pdf" disabled={!data.cv?.trim()} onClick={() => navigate({ tab: "profile", view: "pdf" })}>{tr("查看原简历", "Voir le CV original", "View original CV")}</Button><Button data-testid="upload-cv" onClick={() => void chooseCv()}>{data.cv?.trim()?tr("更新简历","Mettre à jour le CV","Update CV"):tr("上传简历","Importer mon CV","Upload CV")}</Button><Button kind="text" onClick={() => navigate({ tab: "profile", view: "edit-cv" })}>{tr("编辑提取内容", "Modifier le contenu extrait", "Edit extracted content")}</Button></div></div>}

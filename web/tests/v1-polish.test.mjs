@@ -239,21 +239,37 @@ test('mobile V1 keeps feedback globally accessible while retiring task center an
  assert.match(survey,/rows=\{11\}/);
 });
 
-test('profile compacts saved roles, applications and original CV into one consistent summary surface',()=>{
+test('profile uses one jobs entry, one fullscreen jobs window, and stable compact preferences',()=>{
  const profile=fs.readFileSync(new URL('../src/components/jobpilot/profile-prepare.tsx',import.meta.url),'utf8');
  const applications=fs.readFileSync(new URL('../src/components/jobpilot/profile-applications.tsx',import.meta.url),'utf8');
+ const searchArea=fs.readFileSync(new URL('../src/components/jobpilot/search-area.tsx',import.meta.url),'utf8');
+ const ui=fs.readFileSync(new URL('../src/components/jobpilot/ui.tsx',import.meta.url),'utf8');
  const css=fs.readFileSync(new URL('../src/components/jobpilot/onward.css',import.meta.url),'utf8');
  assert.match(profile,/className="onward-profile-summary"/);
+ assert.match(profile,/data-testid="profile-jobs-toggle"/);
+ assert.match(profile,/ChevronRight/);
+ assert.match(profile,/createPortal\(<Sheet full className="onward-profile-jobs-overlay"/);
+ assert.match(profile,/ProfileApplications jobs=\{jobs\} heading=\{false\} openTab=\{0\} onBeforeOpen=\{onClose\}/);
+ assert.doesNotMatch(profile,/metricSheet|profile-metric-saved|profile-metric-applications/);
  assert.match(profile,/data-testid="profile-cv-toggle"/);
  assert.match(profile,/aria-expanded=\{cvExpanded\}/);
- assert.match(profile,/ProfileApplications jobs=\{metricSheet===1\?appliedJobs:jobs\} heading=\{false\} openTab=\{0\}/);
  assert.doesNotMatch(profile,/className="onward-profile-stats"/);
  assert.doesNotMatch(profile,/className="onward-profile-master-cv"/);
  assert.match(profile,/onward-master-cv-actions/);
  assert.match(applications,/openTab=2/);
- assert.match(applications,/openJob\(job\.id,openTab\)/);
+ assert.match(applications,/onBeforeOpen\?\.\(\);openJob\(job\.id,openTab\)/);
+ assert.match(ui,/className = ""/);
  assert.match(css,/\.onward-profile-summary\{display:grid;grid-template-columns:minmax\(0,1fr\) auto/);
+ assert.match(css,/\.onward-profile-jobs-overlay\{position:absolute;inset:0;padding:0!important;align-items:stretch;background:var\(--jp-bg\);overflow:hidden;animation:none!important\}/);
+ assert.match(css,/\.onward-profile-jobs-overlay \.jp-sheet\{height:100%;min-height:100%;max-height:none;border-radius:0!important;[^}]*animation:none!important/);
+ assert.match(css,/padding-bottom:calc\(36px \+ env\(safe-area-inset-bottom,0px\)\)/);
  assert.match(css,/\.onward-profile-cv-toggle\[aria-expanded="true"\] svg\{transform:rotate\(180deg\)\}/);
+ assert.match(css,/\.onward-profile-menu\{display:grid;min-width:0;max-width:100%\}/);
+ assert.doesNotMatch(css,/\.onward-profile-menu\{display:grid;border-top/);
+ assert.match(css,/\.onward-profile-section>summary svg\{flex:none;margin-left:auto/);
+ assert.match(searchArea,/onward-search-area-submit-button/);
+ assert.match(searchArea,/tr\('应用范围','Appliquer','Apply'\)/);
+ assert.match(css,/\.onward-search-area-submit-button\{width:min\(180px,72%\);min-width:0\}/);
  assert.doesNotMatch(css,/\.onward-profile-stats/);
 });
 

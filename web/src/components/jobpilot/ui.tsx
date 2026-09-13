@@ -115,7 +115,7 @@ export function taskName(kind: string, tr: (z: string, f: string, e?: string) =>
   const names: Record<string, [string, string, string]> = { ingest: ["简历导入", "Import du CV", "CV import"], search: ["岗位搜索", "Recherche d’offres", "Offer search"], evaluate: ["岗位评估", "Évaluation du poste", "Job evaluation"], cv: ["定制简历", "CV adapté", "Tailored CV"], cv_review: ["重新评估简历草稿", "Réévaluation du CV adapté", "Reassess tailored CV"], rewrite: ["简历草稿", "Brouillon du CV", "CV draft"], report: ["岗位评估报告", "Rapport d’évaluation", "Evaluation report"], analysis: ["简历与能力", "CV et compétences", "CV and skills"], plan: ["面试准备", "Préparation de l’entretien", "Interview preparation"], practice: ["面试练习反馈", "Simulation d’entretien", "Interview practice"], compare: ["岗位对比", "Comparaison des offres", "Offer comparison"] };
   return tr(...(names[kind] || ["职业建议", "Conseil de carrière", "Career advice"]));
 }
-export function Sheet({ title, children, footer, full = false, compactHeader = false, onClose, testId }: { title?: ReactNode; children: ReactNode; footer?: ReactNode; full?: boolean; compactHeader?: boolean; onClose?: () => void; testId?: string }) {
+export function Sheet({ title, children, footer, full = false, compactHeader = false, onClose, testId, className = "" }: { title?: ReactNode; children: ReactNode; footer?: ReactNode; full?: boolean; compactHeader?: boolean; onClose?: () => void; testId?: string; className?: string }) {
   const { close, tr, error, setError } = usePilot(); const dismiss = onClose || close;
   const dialog = useRef<HTMLDivElement>(null); const dismissRef = useRef(dismiss); dismissRef.current = dismiss;
   const id = useId(); const drag = useRef<number | null>(null);
@@ -124,7 +124,7 @@ export function Sheet({ title, children, footer, full = false, compactHeader = f
     dialog.current?.querySelector<HTMLButtonElement>(".jp-close")?.focus({ preventScroll: true });
     return () => { if (previous?.isConnected) previous.focus({ preventScroll: true }); };
   }, []);
-  return <div className={`jp-overlay ${full ? "full" : ""}`} onClick={e => { if (e.target === e.currentTarget) dismiss(); }}>
+  return <div className={`jp-overlay ${full ? "full" : ""} ${className}`.trim()} onClick={e => { if (e.target === e.currentTarget) dismiss(); }}>
     <div className="jp-sheet" role="dialog" aria-modal="true" aria-labelledby={id} ref={dialog} data-testid={testId} onKeyDown={e => {
       if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); dismissRef.current(); }
       if (e.key === "Tab") { const items = Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]') || []).filter(el => el.getClientRects().length > 0); const first = items[0], last = items.at(-1); if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); } }

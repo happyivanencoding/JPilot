@@ -15,6 +15,6 @@ export function SearchAreaSettings({embedded=false}:{embedded?:boolean}={}) {
  const p=usePilot(),{tr}=p;
  const stored=p.data.config?.target_roles?.search_area;
  const [value,setValue]=useState<Json>(stored||{scope:'city',city:'Paris'});
- const content=<><SearchAreaFields value={value} onChange={setValue}/><Button disabled={p.busy||value.scope==='city'&&!String(value.city||'').trim()} onClick={()=>p.act({searchArea:value},'/api/profile')}>{tr('应用搜索范围','Appliquer la zone','Apply search area')}</Button></>;
+ const content=<><SearchAreaFields value={value} onChange={setValue}/><div className="onward-search-area-submit"><Button className="onward-search-area-submit-button" disabled={p.busy||value.scope==='city'&&!String(value.city||'').trim()} onClick={()=>p.act({searchArea:value},'/api/profile')}>{tr('应用范围','Appliquer','Apply')}</Button></div></>;
  return embedded?<div className="jp-stack onward-search-area-settings">{content}</div>:<Card>{content}</Card>;
 }
