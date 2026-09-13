@@ -77,6 +77,7 @@ export function displaySlots(value,scope) {
     rows(m,'scoreBreakdown',p,(r,q)=>fields(r,['reason'],q,mh));
     rows(m,'presentationGaps',p,(r,q)=>fields(r,['title','why'],q,mh));
     rows(m,'capabilityGaps',p,(r,q)=>fields(r,['title','why','nextAction'],q,mh));
+    rows(m,'quickBoosts',p,(r,q)=>fields(r,['title','why','nextAction'],q,mh));
     // tools are search/domain terms and remain source-language tokens.
   }
   function offer(o,p) {fields(o,['why'],p,detectedDocumentLanguage(o.why)||'fr');deepMatch(o.deepMatch,[...p,'deepMatch']);}

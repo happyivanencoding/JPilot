@@ -41,11 +41,13 @@ test('explicit occupation search keeps seniority and language shortfalls as fit 
 test('V1 potential scores preserve the current score and cap presentation/capability upside',()=>{
   const deep=normalizeDeepMatch({
     current_score:10,cv_potential_score:99,capability_potential_score:99,
-    role_summary:'Analyse CRM data.',responsibilities:[],requirements:[],tools:[],strengths:[],presentation_gaps:[],capability_gaps:[],confidence:'high'
+    role_summary:'Analyse CRM data.',responsibilities:[],requirements:[],tools:[],strengths:[],presentation_gaps:[],capability_gaps:[],
+    quick_boosts:[{kind:'confirm_existing',title:'Campaign reporting',why:'The internship may include it.',next_action:'Confirm one example',potential:4},{kind:'quick_build',title:'Power BI mini-project',why:'The role uses dashboards.',next_action:'Build one small dashboard',potential:5}],confidence:'high'
   },{score:64});
   assert.equal(deep.currentScore,64);
   assert.equal(deep.cvPotentialScore,82);
   assert.equal(deep.capabilityPotentialScore,99);
+  assert.deepEqual(deep.quickBoosts.map(item=>[item.kind,item.title,item.potential]),[['confirm_existing','Campaign reporting',4],['quick_build','Power BI mini-project',5]]);
 });
 
 test('explicit user target roles take priority over inferred career directions',()=>{

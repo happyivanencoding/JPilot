@@ -7,7 +7,7 @@ export function roleDetailForOffer(offer,jobs=[]) {
  const current=deep?.currentScore ?? null;
  return {id:'',url:offer.url,role:offer.title,company:offer.company,location:offer.location,
    contract:offer.contractType,status:'À candidater',matchScore:scores,enrichment:offer.enrichment,localization:offer.localization,
-   v1Match:{currentScore:current,displayScore:current,cvPotentialScore:deep?.cvPotentialScore ?? current,deepMatch:deep}};
+   v1Match:{currentScore:current,displayScore:current,cvPotentialScore:deep?.cvPotentialScore ?? current,capabilityPotentialScore:deep?.capabilityPotentialScore ?? deep?.cvPotentialScore ?? current,deepMatch:deep}};
 }
 export function roleCvIsReady(job) {return job.cvDraft?.status==='pending' || !!job.cv?.file;}
 

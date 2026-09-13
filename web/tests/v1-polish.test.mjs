@@ -131,6 +131,20 @@ test('deep match prompt requests more plain duties and only hard selection crite
  assert.match(prompt,/Responsibilities must be 4-6 concrete duties/);
  assert.match(prompt,/Requirements must contain only candidate qualifications or hard selection criteria/);
  assert.match(prompt,/Do NOT repeat the contract type, internship duration, work location/);
+ assert.match(prompt,/3-4 quick_boosts/);assert.match(prompt,/confirm_existing/);assert.match(prompt,/capability_potential_score should reflect only these quick boosts/);
+});
+test('Optimize CV uses the three-step journey, quiet quick boosts and no old helper copy',()=>{
+ const sheets=fs.readFileSync(new URL('../src/components/jobpilot/sheets.tsx',import.meta.url),'utf8');
+ const journey=fs.readFileSync(new URL('../src/components/jobpilot/role-cv-journey.tsx',import.meta.url),'utf8');
+ const css=fs.readFileSync(new URL('../src/components/jobpilot/onward.css',import.meta.url),'utf8');
+ assert.match(sheets,/RoleCvJourney/);assert.match(journey,/step=\{1\}/);assert.match(journey,/step=\{2\}/);assert.match(journey,/step=\{3\}/);
+ assert.match(journey,/当前匹配/);assert.match(journey,/优化表达后/);assert.match(journey,/快速补强后/);assert.match(journey,/role-cv-quick-boosts/);
+ assert.match(journey,/可能已具备/);assert.match(journey,/可快速补齐/);assert.doesNotMatch(journey,/<button/,'quick boost rows are informational in this release');
+ assert.doesNotMatch(journey,/仅在完成或确认后记入分数/);
+ assert.doesNotMatch(sheets,/根据这份岗位要求，重新组织你已有的经历。由你决定是否生成和保留。/);
+ assert.doesNotMatch(sheets,/Présentez votre parcours pour cette offre\. Vous décidez de créer et de conserver le CV\./);
+ assert.doesNotMatch(sheets,/Present your existing experience for this role\. You choose whether to generate and keep it\./);
+ assert.match(css,/\.onward-cv-stage-grid\{/);assert.match(css,/\.onward-quick-boost\{/);
 });
 test('visible role score waits for Deep Match and pending analysis/translation use animated estimated-time skeletons',()=>{
  const sheets=fs.readFileSync(new URL('../src/components/jobpilot/sheets.tsx',import.meta.url),'utf8');

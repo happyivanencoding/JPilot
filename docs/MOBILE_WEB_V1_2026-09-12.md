@@ -1,5 +1,17 @@
 # Onward V1 — Mobile Web Only handoff (2026-09-12)
 
+## 2026-09-13 Optimize CV 三层匹配路径 / Quick Boosts
+
+岗位详情的 `优化 CV / Optimiser le CV / Optimize CV` 已从原来的“生成按钮 + 两分对比”收敛成三个固定语义层级：**① 当前匹配 → ② 优化表达后 → ③ 快速补强后的总潜力**。第一层只使用 Deep Match 的当前真实 Candidate evidence；第二层只允许重新选材、排序、措辞和关键词呈现，绝不增加新事实，生成前显示 Deep Match 的 `cvPotentialScore` 估计，真实岗位版 CV review 完成后改用该实际 review 分；第三层使用 `capabilityPotentialScore`，但现在语义被严格限定为下方 3–4 个短期可执行 Quick Boost 全部真实确认/完成后的总潜力，不再代表长期学习或多年经验。
+
+Deep Match contract 新增 `quick_boosts[]`，每项只能是 `confirm_existing`（候选人可能已经做过、但当前 CV 不足以计分，必须条件式表达，不能替用户确认事实）或 `quick_build`（可较快真正补齐的小项目、聚焦知识模块、岗位确实需要的工具实践/证书）。系统要求按 **对具体 JD 的潜在帮助 × 用户投入成本** 排序，正常返回 3–4 项；不能用泛泛的“提升沟通”、多年经验、完整学位或长期转型来凑数。历史 Deep Match 尚无 `quick_boosts` 时，界面暂用旧 capability gaps 生成保守 fallback，并把旧长期 capability ceiling 限制在这些具体 gap 的 potential 之和；用户打开该岗位时会用新 operation identity `role-fit-5-quick-boosts-v1` 静默刷新为正式 Quick Boost contract。
+
+手机视觉按已确认的 Onward mockup 重做：三张小评分卡横向展示 1/2/3、进度条与箭头，下面是 `提升 +N 分（表达优化） · 总潜力 +N 分`，实际岗位版 CV review 完成后可显示 `这次提升来自` 的 1–3 条真实修改，Quick Boost 列表用安静的图标卡和 `可能已具备 / 可快速补齐` pill 区分两类。**本轮 Quick Boost 行没有任何右侧动作按钮**，不提供“我做过这个 / 补充经历 / 查看示例 / 查看路径”；也不显示“仅在完成或确认后记入分数”一类小字。原有 `查看为这个岗位定制的专属简历 / 保留这个版本 / 不要这个版本` 生成与 review 流程继续保留。
+
+用户额外点名要求删除的辅助句已经从 Optimize CV 页面完整移除：`根据这份岗位要求，重新组织你已有的经历。由你决定是否生成和保留。`，法语/英语对应文案也一并删除。新 UI 不再用这句话占据岗位版 CV 生成入口上方空间。
+
+Pre-deploy validation：三层/Quick Boost/localization/polish 定向套件 **52/52 PASS**，role-CV consistency + role-tab **13/13 PASS**，Web `npm run typecheck` **PASS**，production `npm run build` **PASS**。部署回执在完成 V1-only rollout 后补充到本节。
+
 ## 2026-09-13 Intent-first search / Deep-only visible score / active loading states
 
 V1 discovery now follows the product rule **“the user chooses the direction; Onward explains the distance.”** Explicit searches are intent-first: Search Relevance remains dominant, while the candidate's current Fast Fit and a new bounded `bridgeability` signal only refine order inside a relevant pool. Fast Fit no longer contains Search Relevance and now uses the same four conceptual dimensions as Deep Match (`role 30 / duties 30 / tools_languages 20 / level 20`). Seniority/language gaps remain visible fit evidence instead of silently pushing an explicitly requested career direction out of search. `V1_SEARCH_REVISION=v16-intent-first-deep-score` invalidates the older cached Fast-dominant ordering.

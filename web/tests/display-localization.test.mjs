@@ -165,7 +165,7 @@ test('French V1 orientation stays French even when an older persisted result dec
 test('V1 career and deep-match explanations follow UI language without translating search/tool tokens',async()=>{
   const snapshot={
     analysis:{markdown:'Analyse de profil.',careerDirections:[{title:'Analyste CRM',why:'Le parcours marketing est cohérent.',evidence:['Expérience de campagne documentée.'],searchQuery:'CRM Analyst'}],searchKeywords:['CRM Analyst','Power BI']},
-    discovery:{offers:[{url:'https://example.test/v1-role',why:'Offre pertinente.',fastMatch:{strengths:[{title:'excel',evidence:'CV 中已出现 excel'}],gaps:[{title:'power bi',reason:'岗位描述提到 power bi，当前档案未发现明确证据'}]},deepMatch:{roleSummary:'Analyser les campagnes CRM et les segments clients.',responsibilities:['Construire des analyses de segmentation.'],requirements:[{title:'Analyse CRM',why:'Compétence centrale.'}],tools:['Salesforce','Power BI'],strengths:[{title:'Expérience marketing',evidence:'Une campagne est documentée.'}],presentationGaps:[{title:'Résultats peu visibles',why:'Les preuves sont trop tardives.'}],capabilityGaps:[{title:'Power BI',why:'Non démontré dans le dossier.',nextAction:'Construire un projet réel.'}],cvPotentialReason:'Les preuves existantes peuvent être mieux présentées.'}}]},
+    discovery:{offers:[{url:'https://example.test/v1-role',why:'Offre pertinente.',fastMatch:{strengths:[{title:'excel',evidence:'CV 中已出现 excel'}],gaps:[{title:'power bi',reason:'岗位描述提到 power bi，当前档案未发现明确证据'}]},deepMatch:{roleSummary:'Analyser les campagnes CRM et les segments clients.',responsibilities:['Construire des analyses de segmentation.'],requirements:[{title:'Analyse CRM',why:'Compétence centrale.'}],tools:['Salesforce','Power BI'],strengths:[{title:'Expérience marketing',evidence:'Une campagne est documentée.'}],presentationGaps:[{title:'Résultats peu visibles',why:'Les preuves sont trop tardives.'}],capabilityGaps:[{title:'Power BI',why:'Non démontré dans le dossier.',nextAction:'Construire un projet réel.'}],quickBoosts:[{kind:'confirm_existing',title:'Support utilisateurs',why:'Cette expérience est peut-être déjà présente.',nextAction:'Confirmer un exemple concret.'},{kind:'quick_build',title:'Mini-projet Power BI',why:'Un projet court rendrait cette compétence visible.',nextAction:'Construire un tableau de bord simple.'}],cvPotentialReason:'Les preuves existantes peuvent être mieux présentées.'}}]},
     jobs:[],dashboard:{}
   };
   const original=structuredClone(snapshot);
@@ -174,6 +174,7 @@ test('V1 career and deep-match explanations follow UI language without translati
   assert.match(view.analysis.careerDirections[0].why,/^中文说明 /);
   assert.match(view.discovery.offers[0].deepMatch.roleSummary,/^中文说明 /);
   assert.match(view.discovery.offers[0].deepMatch.capabilityGaps[0].nextAction,/^中文说明 /);
+  assert.match(view.discovery.offers[0].deepMatch.quickBoosts[0].title,/^中文说明 /);assert.equal(view.discovery.offers[0].deepMatch.quickBoosts[0].kind,'confirm_existing');
   assert.equal(view.discovery.offers[0].fastMatch.gaps[0].reason,'岗位描述提到 power bi，当前档案未发现明确证据');
   assert.equal(view.analysis.careerDirections[0].searchQuery,'CRM Analyst');
   assert.deepEqual(view.analysis.searchKeywords,['CRM Analyst','Power BI']);

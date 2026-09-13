@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import * as yaml from 'js-yaml';
-import {roleCvOutcome} from '../src/lib/onward-cv.mjs';
+import {roleCvJourney,roleCvOutcome} from '../src/lib/onward-cv.mjs';
 import {offerInSearchArea,normalizeSearchArea} from '../src/lib/search-area.mjs';
 import {applyJobUpdate} from '../src/lib/mobile-domain.mjs';
 import {operationKey} from '../src/lib/mobile-state.mjs';
@@ -22,6 +22,20 @@ test('public CV uplift exists only for a real assessed draft or accepted documen
  assert.equal(roleCvOutcome({deepMatch:{...matchBasis,cvPotentialScore:65}}).ready,false);
  assert.equal(roleCvOutcome({v1Match:matchBasis,cvDraft:{status:'pending',assessment:{baselineScore:70,draftScore:78,delta:8}}}).score,58);
  assert.equal(roleCvOutcome({v1Match:matchBasis,cvDraft:{status:'pending',assessment:null}}).ready,false);
+});
+test('Optimize CV journey has one current score, one presentation score and one quick-boost potential',()=>{
+ const deep={currentScore:50,cvPotentialScore:54,capabilityPotentialScore:65,quickBoosts:[
+  {kind:'confirm_existing',title:'Demand analysis experience',why:'The CV hints at similar work.',nextAction:'Confirm one real example',potential:4},
+  {kind:'confirm_existing',title:'User support experience',why:'Service work may overlap.',nextAction:'Add a concrete example',potential:3},
+  {kind:'quick_build',title:'Business Analysis mini-project',why:'A short case can show the workflow.',nextAction:'Build one case',potential:5},
+  {kind:'quick_build',title:'Role-relevant tool practice',why:'The posting names this tool.',nextAction:'Complete a focused exercise',potential:3},
+ ]};
+ const basis={...deep,deepMatch:deep};
+ const before=roleCvJourney({v1Match:basis});
+ assert.deepEqual([before.current,before.optimised,before.optimisedEstimated,before.capability,before.quickBoosts.length],[50,54,true,65,4]);
+ const after=roleCvJourney({v1Match:basis,cvDraft:{status:'pending',matchBasis:basis,assessment:{scoringVersion:'role-fit-2-cv',baselineScore:50,draftScore:54,delta:4}}});
+ assert.deepEqual([after.current,after.optimised,after.optimisedEstimated,after.capability,after.expressionGain,after.totalGain],[50,54,false,65,4,15]);
+ assert.deepEqual(after.quickBoosts.map(item=>item.kind),['confirm_existing','confirm_existing','quick_build','quick_build']);
 });
 test('deep-match identity ignores application CV language; CV generation owns that dimension',()=>{
  const input={experience:'v1',url:task.input.url};
