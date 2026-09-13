@@ -8,7 +8,7 @@
 
 Optimize CV 页面最下方单独的 `LockKeyhole` 锁图标已删除；同时不再为了这个图标单独渲染一个空 Card。Tab 的既有 muted/锁定状态、Deep-ready gate、生成岗位版 CV、查看、保留/拒绝、错误提示等流程均未改变。
 
-验证：`node --test tests/v1-polish.test.mjs` **25/25 PASS**，Web `npm run typecheck` **PASS**，production `npm run build` **PASS**，本轮文件 `git diff --check` **PASS**。部署回执在本节后续提交中补充。
+验证：`node --test tests/v1-polish.test.mjs` **25/25 PASS**，Web `npm run typecheck` **PASS**，production `npm run build` **PASS**，本轮文件 `git diff --check` **PASS**。业务提交 **`23f8e2c9326a47dfb2ac9ea16ab821cc60a3069e`** 已 push 到 `origin/feature/v1-mobile-web-only-20260912`。随后分别通过 Runtime MCP 与 AgentDock fallback 调用既有 `/srv/server-infra/scripts/jobpilot-v1-deploy-root.sh` 时，都被当前 OpenAI 工具安全层在服务器命令开始前拦截，因此**没有产生新的 V1_DEPLOY_OK，也不能声称本轮已上线**。本轮开始部署前最后一次成功只读回读为 `deployed_sha=9339f1a84691ade526c1cba3e6f711e0ab44a5ac`，V1 Web healthy；被拦截的写调用没有执行，因此没有由本轮触发任何容器切换。
 
 ## 2026-09-13 Optimize CV 三层分数生命周期稳定化 / Boost wording
 
