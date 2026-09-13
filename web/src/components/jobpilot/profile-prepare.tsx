@@ -3,7 +3,7 @@ import {ensureCvConsent} from "./cv-consent";
 import {SearchAreaSettings} from "./search-area";
 import {ProfileApplications} from "./profile-applications";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Bookmark, BriefcaseBusiness, ChevronDown, FileText } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { rows, texts, usePilot, type Json } from "./pilot-context";
 import { ACTIVE } from "./model.mjs";
 import { AiProgressButton, Button, Card, Check, Chip, Hint, Input, Localization, Select, Sheet, TextArea, Title } from "./ui";
@@ -29,9 +29,10 @@ function ProfileSection({title,summary,children,testId}:{title:string;summary?:s
 }
 
 export function ProfilePage() {
-  const p = usePilot(); const { data, tr, product, act, busy, locale, theme, setLocale, setTheme, navigate, upload, openJob } = p;
+  const p = usePilot(); const { data, tr, product, act, busy, locale, theme, setLocale, setTheme, navigate, upload } = p;
   const picker = useRef<HTMLInputElement>(null);
   const [metricSheet,setMetricSheet]=useState<0|1|2>(0);
+  const [cvExpanded,setCvExpanded]=useState(false);
   const config = data.config || {}, contracts = texts(config.target_roles?.contract_types);
   const material:"fr"|"en" = (data.languageSettings?.applicationLanguage || config.cv?.language)==="en" ? "en" : "fr";
   const authenticated = typeof window !== "undefined" && (window.location.hostname === "jobs.thegreatnovel.com" || window.location.port === "3002");
@@ -41,13 +42,19 @@ export function ProfilePage() {
   const searchAreaLabel=searchArea.scope==="france"?tr("全法国","Toute la France","All of France"):String(searchArea.city||"");
   const preferenceSummary=[texts(config.target_roles?.primary).join(", "),searchAreaLabel,config.compensation?.location_flexibility].filter(Boolean).join(" · ")||tr("目标岗位、地点与合同类型","Rôles, lieux et types de contrat","Roles, location and contract types");
   const chooseCv=async()=>{await ensureCvConsent(p.request,locale);picker.current?.click();};
-  const openMetricJob=(job:Json,tab=0)=>{setMetricSheet(0);openJob(job.id,tab);};
-  const collectionRows=(source:Json[],tab:number,empty:string)=><>{!source.length&&<Hint>{empty}</Hint>}{source.map(job=><button type="button" className="jp-list-item onward-profile-drawer-row" key={job.id} onClick={()=>openMetricJob(job,tab)}><div className="jp-row"><div className="jp-grow"><strong className="jp-accent">{job.company}</strong><p>{job.role}</p></div>{Number.isFinite(Number(job.v1Match?.displayScore))&&<strong>{Math.round(Number(job.v1Match.displayScore))}/100</strong>}</div><Hint>{[job.location,job.status&&product(job.status)].filter(Boolean).join(" · ")}</Hint></button>)}</>;
   return <div className="jp-page roomy" data-testid="profile-page">
-    {metricSheet>0&&<Sheet title={metricSheet===1?tr("投递跟踪","Mes candidatures","Applications"):tr("已保存岗位","Offres suivies","Saved roles")} onClose={()=>setMetricSheet(0)} testId="profile-metric-sheet"><div className="jp-sheet-content onward-profile-collection">{metricSheet===1?<ProfileApplications jobs={appliedJobs} heading={false}/>:collectionRows(jobs,0,tr("还没有保存岗位。","Aucune offre enregistrée.","No saved roles yet."))}</div></Sheet>}
+    {metricSheet>0&&<Sheet title={metricSheet===1?tr("申请中","Mes candidatures","Applications"):tr("已保存岗位","Offres enregistrées","Saved roles")} onClose={()=>setMetricSheet(0)} testId="profile-metric-sheet"><div className="jp-sheet-content onward-profile-collection"><ProfileApplications jobs={metricSheet===1?appliedJobs:jobs} heading={false} openTab={0}/></div></Sheet>}
     <header className="onward-profile-head"><h1>{tr("我的职业档案","Mon profil","My profile")}</h1><p>{tr("你的资料、偏好和求职工具都集中在这里。","Vos informations, vos préférences et vos outils réunis pour aller plus loin.","Your information, preferences and career tools in one place.")}</p>{data.profile?.name&&<strong>{data.profile.name}</strong>}</header>
-    <div className="onward-profile-stats" aria-label={tr("职业档案统计","Résumé du profil","Profile summary")}><button type="button" data-testid="profile-metric-applications" onClick={()=>setMetricSheet(1)}><BriefcaseBusiness size={17}/><b>{appliedJobs.length}</b><small>{tr("投递 / 跟踪","Candidatures","Applications")}</small></button><button type="button" data-testid="profile-metric-saved" onClick={()=>setMetricSheet(2)}><Bookmark size={17}/><b>{jobs.length}</b><small>{tr("已保存岗位","Offres suivies","Saved roles")}</small></button></div>
-    <Card className="onward-profile-master-cv"><div className="jp-row spread"><div className="jp-row"><FileText size={24} className="jp-accent"/><div><strong>{tr("我的原始简历","Mon CV d’origine","My original CV")}</strong><Hint>{data.cvState?.cvVersion!=null?`CV ${data.cvState.cvVersion} · ${String(data.cvState.changedAt || "").slice(0,10)}`:tr("还没有上传简历","Aucun CV importé","No CV uploaded yet")}</Hint></div></div></div><input ref={picker} type="file" accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" hidden data-testid="cv-upload-input" onChange={e => { const input=e.currentTarget; const file=input.files?.[0]; if(file) void upload(file,material,data.languageSettings?.analysisLanguage || locale).finally(()=>{input.value="";}); }} /><div className="jp-row wrap onward-master-cv-actions"><Button kind="outline" data-testid="view-master-pdf" disabled={!data.cv?.trim()} onClick={() => navigate({ tab: "profile", view: "pdf" })}>{tr("查看原简历", "Voir le CV original", "View original CV")}</Button><Button data-testid="upload-cv" onClick={() => void chooseCv()}>{data.cv?.trim()?tr("更新简历","Mettre à jour le CV","Update CV"):tr("上传简历","Importer mon CV","Upload CV")}</Button><Button kind="text" onClick={() => navigate({ tab: "profile", view: "edit-cv" })}>{tr("编辑提取内容", "Modifier le contenu extrait", "Edit extracted content")}</Button></div></Card>
+    <div className="onward-profile-summary" aria-label={tr("职业档案摘要","Résumé du profil","Profile summary")}>
+      <div className="onward-profile-metrics-inline">
+        <button type="button" data-testid="profile-metric-saved" onClick={()=>setMetricSheet(2)}>{tr(`${jobs.length} 个岗位`,`${jobs.length} offres`,`${jobs.length} roles`)}</button>
+        <span aria-hidden="true">·</span>
+        <button type="button" data-testid="profile-metric-applications" onClick={()=>setMetricSheet(1)}>{tr(`${appliedJobs.length} 个申请中`,`${appliedJobs.length} candidatures`,`${appliedJobs.length} applications`)}</button>
+      </div>
+      <button type="button" className="onward-profile-cv-toggle" data-testid="profile-cv-toggle" aria-expanded={cvExpanded} aria-controls="profile-original-cv-actions" onClick={()=>setCvExpanded(value=>!value)}>{tr("我的原始简历","CV d’origine","Original CV")}<ChevronDown size={15}/></button>
+      <input ref={picker} type="file" accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" hidden data-testid="cv-upload-input" onChange={e => { const input=e.currentTarget; const file=input.files?.[0]; if(file) void upload(file,material,data.languageSettings?.analysisLanguage || locale).finally(()=>{input.value="";}); }} />
+      {cvExpanded&&<div id="profile-original-cv-actions" className="onward-profile-cv-expanded"><div className="jp-row wrap onward-master-cv-actions"><Button kind="outline" data-testid="view-master-pdf" disabled={!data.cv?.trim()} onClick={() => navigate({ tab: "profile", view: "pdf" })}>{tr("查看原简历", "Voir le CV original", "View original CV")}</Button><Button data-testid="upload-cv" onClick={() => void chooseCv()}>{data.cv?.trim()?tr("更新简历","Mettre à jour le CV","Update CV"):tr("上传简历","Importer mon CV","Upload CV")}</Button><Button kind="text" onClick={() => navigate({ tab: "profile", view: "edit-cv" })}>{tr("编辑提取内容", "Modifier le contenu extrait", "Edit extracted content")}</Button></div></div>}
+    </div>
     <div className="onward-profile-menu">
     {!p.preview&&<ProfileSection testId="profile-section-analysis" title={tr("职业分析","Analyse du profil","Career analysis")} summary={data.analysis?.markdown?tr("已更新","À jour","Updated"):tr("待生成","À préparer","Pending")}><AnalysisEntry/></ProfileSection>}
 

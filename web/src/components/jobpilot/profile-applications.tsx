@@ -5,7 +5,7 @@ import {applicationRows} from './model.mjs';
 import {Hint,Input,Pill,Select} from './ui';
 
 /** Read-only candidature history; callers may pass a pre-filtered collection. */
-export function ProfileApplications({jobs:providedJobs,heading=true}:{jobs?:Json[];heading?:boolean}={}) {
+export function ProfileApplications({jobs:providedJobs,heading=true,openTab=2}:{jobs?:Json[];heading?:boolean;openTab?:number}={}) {
  const {data,tr,product,openJob}=usePilot();
  const [status,setStatus]=useState(''),[query,setQuery]=useState('');
  const jobs=providedJobs||rows(data.jobs),visible=applicationRows(jobs,status,query) as Json[];
@@ -19,7 +19,7 @@ export function ProfileApplications({jobs:providedJobs,heading=true}:{jobs?:Json
   {visible.map(job=>{
    const followup=job.followup||{},changed=rows(job.statusHistory).at(-1)?.at,reply=rows(job.replies).at(-1);
    const documents=[job.cv?.file?tr('岗位 CV 已保留','CV ciblé conservé','Tailored CV saved'):'',job.cvDraft?.status==='pending'?tr('新草稿待确认','Nouveau brouillon à confirmer','New draft awaiting review'):''].filter(Boolean);
-   return <button type="button" key={job.id} className="jp-card jp-application-card" data-testid={`application-${job.id}`} onClick={()=>openJob(job.id,2)}>
+   return <button type="button" key={job.id} className="jp-card jp-application-card" data-testid={`application-${job.id}`} onClick={()=>openJob(job.id,openTab)}>
     <strong className="jp-accent">{job.company}</strong><h3>{job.role}</h3><div><Pill>{product(job.status||'À candidater')}</Pill></div>
     <Hint>{[job.location,job.contract&&product(job.contract)].filter(x=>x&&x!=='unknown').join(' · ')}</Hint>
     {changed&&<Hint>{tr('状态更新：','Statut modifié : ','Status updated: ')}{String(changed).slice(0,10)}</Hint>}

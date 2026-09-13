@@ -239,6 +239,24 @@ test('mobile V1 keeps feedback globally accessible while retiring task center an
  assert.match(survey,/rows=\{11\}/);
 });
 
+test('profile compacts saved roles, applications and original CV into one consistent summary surface',()=>{
+ const profile=fs.readFileSync(new URL('../src/components/jobpilot/profile-prepare.tsx',import.meta.url),'utf8');
+ const applications=fs.readFileSync(new URL('../src/components/jobpilot/profile-applications.tsx',import.meta.url),'utf8');
+ const css=fs.readFileSync(new URL('../src/components/jobpilot/onward.css',import.meta.url),'utf8');
+ assert.match(profile,/className="onward-profile-summary"/);
+ assert.match(profile,/data-testid="profile-cv-toggle"/);
+ assert.match(profile,/aria-expanded=\{cvExpanded\}/);
+ assert.match(profile,/ProfileApplications jobs=\{metricSheet===1\?appliedJobs:jobs\} heading=\{false\} openTab=\{0\}/);
+ assert.doesNotMatch(profile,/className="onward-profile-stats"/);
+ assert.doesNotMatch(profile,/className="onward-profile-master-cv"/);
+ assert.match(profile,/onward-master-cv-actions/);
+ assert.match(applications,/openTab=2/);
+ assert.match(applications,/openJob\(job\.id,openTab\)/);
+ assert.match(css,/\.onward-profile-summary\{display:grid;grid-template-columns:minmax\(0,1fr\) auto/);
+ assert.match(css,/\.onward-profile-cv-toggle\[aria-expanded="true"\] svg\{transform:rotate\(180deg\)\}/);
+ assert.doesNotMatch(css,/\.onward-profile-stats/);
+});
+
 test('role CV renderer rechecks saved drafts and blocks untranslated source script in French or English PDFs',()=>{
  const tailored=fs.readFileSync(new URL('../src/lib/tailored-cv.ts',import.meta.url),'utf8');
  const renderer=fs.readFileSync(new URL('../src/lib/backend/cv-document.mjs',import.meta.url),'utf8');

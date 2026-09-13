@@ -1,5 +1,13 @@
 # Onward V1 — Mobile Web Only handoff (2026-09-12)
 
+## 2026-09-13 Profile compact jobs / original-CV row
+
+The phone Profile no longer presents saved roles and applications as two large dashboard KPI tiles, and the original CV no longer occupies a separate full-width card. Directly below the Candidate identity, one quiet summary row now exposes the two job lifecycle counts as compact actions (`N 个岗位 · N 个申请中`, with French/English equivalents) and places `我的原始简历 / CV d’origine / Original CV` at the far right with a small disclosure arrow. Expanding that disclosure is the only point where `查看原简历 / 更新简历 / 编辑提取内容` appears; collapsing it restores the single-row dossier rhythm. The exact-original-upload data/provenance contract is unchanged.
+
+The two job-count destinations now share the same `ProfileApplications` renderer instead of maintaining a bespoke saved-role row next to a different application-card design. Saved roles and in-progress applications therefore use the same typography, spacing, status pill, search/status filtering and flat list treatment. The caller can choose which normal job-detail tab to open; these Profile summary sheets open the main job detail rather than reviving the retired Tracking page. No candidature state, saved-job identity, score, CV or Candidate fact is rewritten by this presentation consolidation.
+
+Focused validation for this change: `node --test tests/v1-polish.test.mjs` **23/23 PASS**, Web `npm run typecheck` **PASS**, production `npm run build` **PASS**, and `git diff --check` **PASS**. Public deployment receipt is recorded only after the V1-only rollout succeeds; this paragraph alone is not deployment evidence.
+
 ## 2026-09-13 Application-CV language authority — deployed fa98efe
 
 `求职简历 / CV de candidature / Application CV` is now the sole target-language setting for newly generated role-specific CVs. The choice is intentionally limited to **Français / English**. It is independent from the visible app/analysis language and is not added to job-search criteria. Both first-run upload and Profile explain the same rule: selecting a language only controls future generated CVs; it never narrows the jobs retrieved.
